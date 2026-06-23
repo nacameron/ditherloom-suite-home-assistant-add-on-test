@@ -35,6 +35,7 @@ from .const import (
     CONF_TOPIC_BASE,
     CONF_WEATHER_LOCATION,
     CONF_WAKE_WINDOW_MINUTES,
+    CONF_WAKE_WINDOW_SECONDS,
     DEFAULT_FRAME_PORT,
     DEFAULT_DISPLAY_MODE,
     DEFAULT_MAX_JOBS_PER_WAKE,
@@ -174,9 +175,15 @@ class DitherloomRuntime:
         metadata[ATTR_PAYLOAD_URL] = self.payload_url
         metadata[ATTR_PREVIEW_URL] = self.preview_url
         metadata["rendered_at"] = datetime.now(timezone.utc).isoformat()
-        metadata["wake_window_minutes"] = opts.get(CONF_WAKE_WINDOW_MINUTES, DEFAULT_WAKE_WINDOW_MINUTES)
+        metadata["update_interval_minutes"] = self._effective_update_interval_minutes()
+        metadata["wake_window_seconds"] = self._effective_wake_window_seconds()
+        metadata["wake_window_minutes"] = self._effective_wake_window_minutes()
         metadata["max_jobs_per_wake"] = opts.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE)
         metadata["display_mode"] = display_mode
+        for preserved_key in ("frame_timer", "frame_ha_config", "frame_sleep_info"):
+            preserved = self.last_metadata.get(preserved_key)
+            if isinstance(preserved, dict):
+                metadata[preserved_key] = preserved
 
         self.last_status = "rendered"
         self.last_metadata = metadata
@@ -195,12 +202,13 @@ class DitherloomRuntime:
         opts = self.options
         host = opts.get(CONF_FRAME_HOST)
         port = int(opts.get(CONF_FRAME_PORT, DEFAULT_FRAME_PORT))
-        wake_minutes = int(opts.get(CONF_WAKE_WINDOW_MINUTES, DEFAULT_WAKE_WINDOW_MINUTES))
+        wake_seconds = self._effective_wake_window_seconds()
         now = datetime.now(timezone.utc)
         metadata = {
             "sync_window_started_at": now.isoformat(),
-            "sync_window_expires_at": (now + timedelta(minutes=wake_minutes)).isoformat(),
-            "wake_window_minutes": wake_minutes,
+            "sync_window_expires_at": (now + timedelta(seconds=wake_seconds)).isoformat(),
+            "wake_window_seconds": wake_seconds,
+            "wake_window_minutes": self._effective_wake_window_minutes(),
             "frame_host": host or "",
             "frame_port": port,
         }
@@ -209,15 +217,72 @@ class DitherloomRuntime:
 
         if host:
             try:
-                probe = await self.hass.async_add_executor_job(_probe_existing_gateway, host, port)
-                self.last_status = "sync_window_reachable"
-                self.last_metadata["sync_probe"] = probe
+                imported = await self.hass.async_add_executor_job(_read_existing_gateway_timer_config, host, port)
+                self._apply_imported_frame_timer(imported)
+                self.last_status = "frame_timer_synced"
+                self.last_metadata.update(imported)
+                frame_timer = imported.get("frame_timer")
+                if isinstance(frame_timer, dict):
+                    synced_seconds = _positive_int(frame_timer.get("wake_window_seconds"))
+                    if synced_seconds:
+                        self.last_metadata["wake_window_seconds"] = synced_seconds
+                        self.last_metadata["wake_window_minutes"] = max(1, (synced_seconds + 59) // 60)
+                        self.last_metadata["sync_window_expires_at"] = (now + timedelta(seconds=synced_seconds)).isoformat()
             except Exception as exc:
                 self.last_status = "sync_window_waiting"
                 self.last_metadata[ATTR_LAST_ERROR] = f"Frame Gateway not reachable during sync window: {type(exc).__name__}: {exc}"
 
         await self.async_save()
         return dict(self.last_metadata)
+
+    def _effective_update_interval_minutes(self) -> int:
+        timer = self.last_metadata.get("frame_timer")
+        if isinstance(timer, dict):
+            value = _positive_int(timer.get("interval_minutes"))
+            if value:
+                return value
+        return _positive_int(self.options.get(CONF_UPDATE_INTERVAL_MINUTES)) or DEFAULT_UPDATE_INTERVAL_MINUTES
+
+    def _effective_wake_window_seconds(self) -> int:
+        timer = self.last_metadata.get("frame_timer")
+        if isinstance(timer, dict):
+            value = _positive_int(timer.get("wake_window_seconds"))
+            if value:
+                return value
+        opts = self.options
+        return (
+            _positive_int(opts.get(CONF_WAKE_WINDOW_SECONDS))
+            or ((_positive_int(opts.get(CONF_WAKE_WINDOW_MINUTES)) or DEFAULT_WAKE_WINDOW_MINUTES) * 60)
+        )
+
+    def _effective_wake_window_minutes(self) -> int:
+        seconds = self._effective_wake_window_seconds()
+        return max(1, (seconds + 59) // 60)
+
+    def _apply_imported_frame_timer(self, imported: dict[str, Any]) -> None:
+        frame_config = imported.get("frame_ha_config")
+        frame_timer = imported.get("frame_timer")
+        if not isinstance(frame_config, dict) or not isinstance(frame_timer, dict):
+            return
+        new_options = dict(self.entry.options)
+        interval_minutes = _positive_int(frame_timer.get("interval_minutes"))
+        wake_window_seconds = _positive_int(frame_timer.get("wake_window_seconds"))
+        if interval_minutes:
+            new_options[CONF_UPDATE_INTERVAL_MINUTES] = interval_minutes
+        if wake_window_seconds:
+            new_options[CONF_WAKE_WINDOW_SECONDS] = wake_window_seconds
+            new_options[CONF_WAKE_WINDOW_MINUTES] = max(1, (wake_window_seconds + 59) // 60)
+        reserved_slot = _positive_int(frame_config.get("reservedSlot"))
+        if reserved_slot:
+            new_options[CONF_TARGET_SLOT] = reserved_slot
+        max_jobs = _positive_int(frame_config.get("maxJobsPerWake"))
+        if max_jobs:
+            new_options[CONF_MAX_JOBS_PER_WAKE] = max_jobs
+        topic_base = frame_config.get("topicBase")
+        if isinstance(topic_base, str) and topic_base.strip():
+            new_options[CONF_TOPIC_BASE] = topic_base.strip()
+        if new_options != self.entry.options:
+            self.hass.config_entries.async_update_entry(self.entry, options=new_options)
 
     @property
     def payload_url(self) -> str:
@@ -236,6 +301,7 @@ class DitherloomRuntime:
     async def async_publish_job(self, metadata: dict[str, Any]) -> None:
         topic_base = self.options.get(CONF_TOPIC_BASE) or f"ditherloom/{self.entry.data.get('library_id')}"
         now = datetime.now(timezone.utc)
+        wake_window_seconds = self._effective_wake_window_seconds()
         job = {
             "command_id": f"ha-weather-{now.strftime('%Y%m%d-%H%M%S')}-{metadata[ATTR_CRC32].lower()}",
             "job_type": "content_card",
@@ -247,10 +313,11 @@ class DitherloomRuntime:
             "payload_url": metadata[ATTR_PAYLOAD_URL],
             "length": metadata["packed_length"],
             "crc32": metadata[ATTR_CRC32],
-            "expires_at": (now + timedelta(minutes=int(self.options.get(CONF_WAKE_WINDOW_MINUTES, 5)))).isoformat(),
+            "expires_at": (now + timedelta(seconds=wake_window_seconds)).isoformat(),
             "fallback_slot": "random",
             "sleep_policy": "sleep_after_completion",
-            "wake_window_minutes": self.options.get(CONF_WAKE_WINDOW_MINUTES, DEFAULT_WAKE_WINDOW_MINUTES),
+            "wake_window_seconds": wake_window_seconds,
+            "wake_window_minutes": self._effective_wake_window_minutes(),
             "max_jobs_per_wake": self.options.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE),
         }
         if self.hass.services.has_service("mqtt", "publish"):
@@ -380,3 +447,121 @@ def _probe_existing_gateway(host: str, port: int) -> dict[str, str]:
         if not info.startswith("OK"):
             raise RuntimeError(f"INFO failed: {info}")
         return {"ping": pong, "info": info}
+
+
+def _read_existing_gateway_timer_config(host: str, port: int) -> dict[str, Any]:
+    with socket.create_connection((host, port), timeout=10) as sock:
+        sock.settimeout(12)
+        sock_file = sock.makefile("rwb")
+        pong = _send_command(sock_file, "PING")
+        if not pong.startswith("OK"):
+            raise RuntimeError(f"PING failed: {pong}")
+        info = _send_command(sock_file, "INFO")
+        if not info.startswith("OK"):
+            raise RuntimeError(f"INFO failed: {info}")
+        haconfig_response = _send_command(sock_file, "HACONFIG")
+        if not haconfig_response.startswith("OK HACONFIG"):
+            raise RuntimeError(f"HACONFIG failed: {haconfig_response}")
+        sleepinfo_response = _send_command(sock_file, "SLEEPINFO")
+        if not sleepinfo_response.startswith("OK SLEEPINFO"):
+            raise RuntimeError(f"SLEEPINFO failed: {sleepinfo_response}")
+        try:
+            _send_command(sock_file, "IDLE")
+        except Exception:
+            pass
+
+    frame_config = _decode_haconfig_response(haconfig_response)
+    sleep_info = _parse_gateway_fields(sleepinfo_response)
+    timer = _frame_timer_from_gateway(frame_config, sleep_info)
+    return {
+        "sync_probe": {"ping": pong, "info": info},
+        "frame_ha_config": _public_frame_config(frame_config),
+        "frame_sleep_info": sleep_info,
+        "frame_timer": timer,
+    }
+
+
+def _parse_gateway_fields(response: str) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    for token in response.split():
+        if "=" not in token:
+            continue
+        key, value = token.split("=", 1)
+        fields[key.strip()] = value.strip().strip(",")
+    return fields
+
+
+def _decode_haconfig_response(response: str) -> dict[str, Any]:
+    fields = _parse_gateway_fields(response)
+    hex_json = fields.get("hex")
+    if not hex_json:
+        raise RuntimeError("HACONFIG response did not include hex config")
+    try:
+        decoded = bytes.fromhex(hex_json).decode("ascii")
+        payload = json.loads(decoded)
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"HACONFIG response could not be decoded: {exc}") from exc
+    length = _positive_int(fields.get("length"))
+    if length and length != len(decoded.encode("ascii")):
+        raise RuntimeError(f"HACONFIG length mismatch: response={length} decoded={len(decoded.encode('ascii'))}")
+    if not isinstance(payload, dict):
+        raise RuntimeError("HACONFIG decoded payload was not an object")
+    return payload
+
+
+def _public_frame_config(frame_config: dict[str, Any]) -> dict[str, Any]:
+    allowed_keys = (
+        "schema",
+        "libraryId",
+        "integrationDomain",
+        "integrationInstalled",
+        "reservedSlot",
+        "topicBase",
+        "scheduleEnabled",
+        "intervalMinutes",
+        "wakeWindowSeconds",
+        "maxJobsPerWake",
+        "sleepAfterJob",
+        "sleepAfterEmpty",
+    )
+    return {key: frame_config[key] for key in allowed_keys if key in frame_config}
+
+
+def _frame_timer_from_gateway(frame_config: dict[str, Any], sleep_info: dict[str, str]) -> dict[str, Any]:
+    interval_minutes = (
+        _positive_int(sleep_info.get("ha_interval_minutes"))
+        or _positive_int(frame_config.get("intervalMinutes"))
+        or DEFAULT_UPDATE_INTERVAL_MINUTES
+    )
+    wake_window_seconds = (
+        _positive_int(sleep_info.get("ha_wake_window_seconds"))
+        or _positive_int(frame_config.get("wakeWindowSeconds"))
+        or DEFAULT_WAKE_WINDOW_MINUTES * 60
+    )
+    return {
+        "configured": _boolish(sleep_info.get("ha_configured"), frame_config.get("integrationInstalled")),
+        "schedule_enabled": _boolish(sleep_info.get("ha_schedule"), frame_config.get("scheduleEnabled")),
+        "interval_minutes": interval_minutes,
+        "wake_window_seconds": wake_window_seconds,
+        "ha_timer_us": _positive_int(sleep_info.get("ha_timer_us")) or 0,
+        "source": "firmware_sleepinfo",
+    }
+
+
+def _positive_int(value: Any) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _boolish(primary: Any, fallback: Any = None) -> bool:
+    value = primary if primary is not None else fallback
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)

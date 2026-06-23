@@ -53,9 +53,11 @@ Location privacy notes are in [PRIVACY.md](PRIVACY.md).
 ## Wi-Fi Wake Sync
 
 The integration adds a `Synchronise Wi-Fi wake window` button entity. Use it
-after the frame has been woken onto Wi-Fi. It records the current Home Assistant
-wake window using the already configured minutes and probes the frame Gateway
-with `PING`/`INFO` if reachable. It does not set or change the frame timer.
+while the frame is awake on Wi-Fi to import the firmware-owned Home Assistant
+timer settings from `HACONFIG` and `SLEEPINFO`.
+The imported interval and wake-window seconds are then used for Home Assistant
+job expiry timing. The button reads the frame timer; it does not write a new
+timer to the frame.
 
 ## If It Does Not Appear In Add Integration
 

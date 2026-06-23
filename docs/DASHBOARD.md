@@ -10,6 +10,11 @@ small Ditherloom control dashboard:
 - `Last job status` diagnostic sensor
 - Ditherloom update entity
 
+The sync button connects to the frame over the configured Wi-Fi Gateway and
+imports the firmware-owned Home Assistant timer values from `HACONFIG` and
+`SLEEPINFO`. The imported interval and wake-window seconds are exposed on the
+`Last job status` sensor attributes.
+
 Entity IDs are assigned by Home Assistant and can vary by install. Open the
 Ditherloom device page after restart, copy the entity IDs, then paste them into
 the manual dashboard card below.

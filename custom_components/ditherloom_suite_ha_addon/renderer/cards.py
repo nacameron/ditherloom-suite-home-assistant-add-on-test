@@ -177,6 +177,18 @@ def _rgb(name: str) -> tuple[int, int, int]:
     return TEMPLATE_COLOURS[name].rgb
 
 
+def _colour_names(colours: dict[str, object], key: str) -> tuple[str, ...]:
+    value = colours.get(key, ())
+    if isinstance(value, str):
+        return (value,)
+    return tuple(str(name) for name in value)
+
+
+def _colour_name(colours: dict[str, object], key: str, fallback: str) -> str:
+    value = colours.get(key, fallback)
+    return value if isinstance(value, str) else fallback
+
+
 def _is_mono(colour_mode: str) -> bool:
     return str(colour_mode).lower() in {COLOUR_MODE_MONO, "black_white", "black-and-white", "bw", "b&w"}
 
@@ -194,7 +206,7 @@ def _condition_kind(condition: str, alert: str) -> str:
     return "sun"
 
 
-def _colours(kind: str, colour_mode: str) -> dict[str, str]:
+def _colours(kind: str, colour_mode: str) -> dict[str, object]:
     if _is_mono(colour_mode):
         return {
             "background": "white",
@@ -213,15 +225,20 @@ def _colours(kind: str, colour_mode: str) -> dict[str, str]:
             "text": "black",
             "inverse_text": "white",
             "outline": "black",
+            "top_steps": ("black",),
+            "bottom_steps": ("black",),
+            "body_steps": ("white",),
+            "metric_accents": ("black",),
+            "symbol_shades": ("white",),
         }
 
     if kind == "storm":
         return {
             "background": "paper",
-            "texture": "linen",
+            "texture": "blush",
             "top": "red",
             "top_text": "white",
-            "bottom": "red",
+            "bottom": "dark_red",
             "bottom_text": "white",
             "panel": "white",
             "symbol_panel": "warm_red",
@@ -233,6 +250,11 @@ def _colours(kind: str, colour_mode: str) -> dict[str, str]:
             "text": "black",
             "inverse_text": "white",
             "outline": "black",
+            "top_steps": ("dark_red", "red", "warm_red", "orange", "bright_yellow", "red"),
+            "bottom_steps": ("burgundy", "dark_red", "maroon", "red", "warm_red"),
+            "body_steps": ("blush", "warm_white", "rose", "pale_cream", "peach"),
+            "metric_accents": ("red", "orange", "dark_red", "maroon", "gold", "warm_red"),
+            "symbol_shades": ("warm_red", "rose", "blush", "white"),
         }
     if kind == "cloud":
         return {
@@ -252,6 +274,11 @@ def _colours(kind: str, colour_mode: str) -> dict[str, str]:
             "text": "black",
             "inverse_text": "bright_yellow",
             "outline": "black",
+            "top_steps": ("warm_grey", "charcoal", "gold", "bright_yellow", "pale_yellow"),
+            "bottom_steps": ("dark_gold", "gold", "yellow", "cream", "pale_yellow"),
+            "body_steps": ("paper", "linen", "pale_cream", "cream", "warm_white"),
+            "metric_accents": ("warm_grey", "dark_gold", "gold", "yellow", "tan", "pale_yellow"),
+            "symbol_shades": ("paper", "linen", "warm_white", "cream"),
         }
     if kind == "rain":
         return {
@@ -271,6 +298,11 @@ def _colours(kind: str, colour_mode: str) -> dict[str, str]:
             "text": "black",
             "inverse_text": "bright_yellow",
             "outline": "black",
+            "top_steps": ("bright_yellow", "pale_yellow", "cream", "tan", "gold"),
+            "bottom_steps": ("gold", "tan", "cream", "pale_yellow", "bright_yellow"),
+            "body_steps": ("pale_cream", "paper", "warm_white", "cream", "parchment"),
+            "metric_accents": ("gold", "tan", "yellow", "dark_gold", "warm_grey", "bright_yellow"),
+            "symbol_shades": ("pale_cream", "paper", "white", "parchment"),
         }
     if kind == "night":
         return {
@@ -290,6 +322,11 @@ def _colours(kind: str, colour_mode: str) -> dict[str, str]:
             "text": "black",
             "inverse_text": "bright_yellow",
             "outline": "black",
+            "top_steps": ("deep_burgundy", "burgundy", "dark_red", "dark_gold", "bright_yellow"),
+            "bottom_steps": ("bright_yellow", "gold", "dark_gold", "burgundy", "deep_burgundy"),
+            "body_steps": ("charcoal", "warm_grey", "deep_burgundy", "burgundy", "black"),
+            "metric_accents": ("bright_yellow", "gold", "dark_gold", "burgundy", "warm_red", "yellow"),
+            "symbol_shades": ("warm_white", "pale_yellow", "bright_yellow", "gold"),
         }
     return {
         "background": "warm_white",
@@ -308,12 +345,47 @@ def _colours(kind: str, colour_mode: str) -> dict[str, str]:
         "text": "black",
         "inverse_text": "bright_yellow",
         "outline": "black",
+        "top_steps": ("bright_yellow", "yellow", "gold", "orange", "burnt_orange", "bright_yellow"),
+        "bottom_steps": ("dark_gold", "gold", "yellow", "pale_yellow", "cream", "bright_yellow"),
+        "body_steps": ("warm_white", "pale_yellow", "cream", "parchment", "tan", "pale_cream"),
+        "metric_accents": ("red", "orange", "burnt_orange", "gold", "yellow", "dark_gold"),
+        "symbol_shades": ("bright_yellow", "yellow", "gold", "orange", "pale_yellow"),
     }
 
 
-def _draw_bars(draw: ImageDraw.ImageDraw, data: WeatherCardData, colours: dict[str, str]) -> None:
-    draw.rectangle((0, 0, WIDTH, TOP_BAR_HEIGHT), fill=_rgb(colours["top"]))
-    draw.rectangle((0, HEIGHT - BOTTOM_BAR_HEIGHT, WIDTH, HEIGHT), fill=_rgb(colours["bottom"]))
+def _draw_stepped_fill(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    names: tuple[str, ...],
+    vertical: bool = False,
+) -> None:
+    if not names:
+        return
+    x1, y1, x2, y2 = box
+    length = max(1, (y2 - y1 + 1) if vertical else (x2 - x1 + 1))
+    step = max(1, math.ceil(length / len(names)))
+    for index, name in enumerate(names):
+        if vertical:
+            sy1 = y1 + index * step
+            sy2 = y2 if index == len(names) - 1 else min(y2, sy1 + step - 1)
+            draw.rectangle((x1, sy1, x2, sy2), fill=_rgb(name))
+        else:
+            sx1 = x1 + index * step
+            sx2 = x2 if index == len(names) - 1 else min(x2, sx1 + step - 1)
+            draw.rectangle((sx1, y1, sx2, y2), fill=_rgb(name))
+
+
+def _draw_bars(draw: ImageDraw.ImageDraw, data: WeatherCardData, colours: dict[str, object]) -> None:
+    top_steps = _colour_names(colours, "top_steps")
+    bottom_steps = _colour_names(colours, "bottom_steps")
+    if len(top_steps) > 1:
+        _draw_stepped_fill(draw, (0, 0, WIDTH, TOP_BAR_HEIGHT), top_steps)
+    else:
+        draw.rectangle((0, 0, WIDTH, TOP_BAR_HEIGHT), fill=_rgb(_colour_name(colours, "top", "black")))
+    if len(bottom_steps) > 1:
+        _draw_stepped_fill(draw, (0, HEIGHT - BOTTOM_BAR_HEIGHT, WIDTH, HEIGHT), bottom_steps)
+    else:
+        draw.rectangle((0, HEIGHT - BOTTOM_BAR_HEIGHT, WIDTH, HEIGHT), fill=_rgb(_colour_name(colours, "bottom", "black")))
     draw.line((0, TOP_BAR_HEIGHT, WIDTH, TOP_BAR_HEIGHT), fill=_rgb("black"), width=4)
     draw.line((0, HEIGHT - BOTTOM_BAR_HEIGHT, WIDTH, HEIGHT - BOTTOM_BAR_HEIGHT), fill=_rgb("black"), width=4)
     title = data.alert.strip() or data.condition.strip() or "Weather"
@@ -330,10 +402,21 @@ def _draw_bars(draw: ImageDraw.ImageDraw, data: WeatherCardData, colours: dict[s
     )
 
 
-def _draw_texture(draw: ImageDraw.ImageDraw, colours: dict[str, str], kind: str) -> None:
-    if _is_mono(colours["texture"]):
+def _draw_texture(draw: ImageDraw.ImageDraw, colours: dict[str, object], kind: str) -> None:
+    body_steps = _colour_names(colours, "body_steps")
+    if len(body_steps) > 1:
+        _draw_stepped_fill(draw, (0, TOP_BAR_HEIGHT + 4, WIDTH, HEIGHT - BOTTOM_BAR_HEIGHT - 5), body_steps, vertical=True)
+        for index, name in enumerate(reversed(body_steps[:4])):
+            inset = 10 + index * 10
+            draw.rectangle(
+                (inset, TOP_BAR_HEIGHT + 12 + index * 8, WIDTH - inset, HEIGHT - BOTTOM_BAR_HEIGHT - 14 - index * 6),
+                outline=_rgb(name),
+                width=2,
+            )
+    texture_name = _colour_name(colours, "texture", "white")
+    if texture_name == "white":
         return
-    texture = _rgb(colours["texture"])
+    texture = _rgb(texture_name)
     if kind == "rain":
         for x in range(-48, WIDTH, 32):
             draw.line((x, TOP_BAR_HEIGHT + 4, x + 78, HEIGHT - BOTTOM_BAR_HEIGHT - 4), fill=texture, width=8)
@@ -344,7 +427,7 @@ def _draw_texture(draw: ImageDraw.ImageDraw, colours: dict[str, str], kind: str)
                 draw.point((x + 4, y + 5), fill=texture)
 
 
-def _draw_sun(draw: ImageDraw.ImageDraw, cx: int, cy: int, radius: int, colours: dict[str, str]) -> None:
+def _draw_sun(draw: ImageDraw.ImageDraw, cx: int, cy: int, radius: int, colours: dict[str, object]) -> None:
     outline = _rgb(colours["outline"])
     for angle in range(0, 360, 30):
         x1 = cx + int(math.cos(math.radians(angle)) * (radius + 8))
@@ -352,22 +435,30 @@ def _draw_sun(draw: ImageDraw.ImageDraw, cx: int, cy: int, radius: int, colours:
         x2 = cx + int(math.cos(math.radians(angle)) * (radius + 32))
         y2 = cy + int(math.sin(math.radians(angle)) * (radius + 32))
         draw.line((x1, y1, x2, y2), fill=outline, width=5)
-    draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=_rgb(colours["symbol_fill"]), outline=outline, width=5)
-    if not _is_mono(colours["symbol_accent"]):
-        draw.ellipse((cx - radius + 15, cy - radius + 15, cx + radius - 15, cy + radius - 15), outline=_rgb(colours["symbol_accent"]), width=5)
+    shades = _colour_names(colours, "symbol_shades") or (_colour_name(colours, "symbol_fill", "bright_yellow"),)
+    for index, name in enumerate(shades[:4]):
+        inset = index * max(5, radius // 5)
+        if inset >= radius:
+            break
+        draw.ellipse((cx - radius + inset, cy - radius + inset, cx + radius - inset, cy + radius - inset), fill=_rgb(name))
+    draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), outline=outline, width=5)
+    accent_name = _colour_name(colours, "symbol_accent", "black")
+    if accent_name not in {"black", "white"}:
+        draw.ellipse((cx - radius + 15, cy - radius + 15, cx + radius - 15, cy + radius - 15), outline=_rgb(accent_name), width=5)
 
 
 def _draw_cloud(
     draw: ImageDraw.ImageDraw,
     cx: int,
     cy: int,
-    colours: dict[str, str],
+    colours: dict[str, object],
     scale: float = 1.0,
     storm: bool = False,
     rain: bool = False,
 ) -> None:
     outline = _rgb(colours["outline"])
-    fill = _rgb(colours["symbol_fill"])
+    shades = _colour_names(colours, "symbol_shades")
+    fill = _rgb(shades[0] if shades else _colour_name(colours, "symbol_fill", "white"))
     width = max(3, int(5 * scale))
 
     def ellipse(dx1: int, dy1: int, dx2: int, dy2: int) -> None:
@@ -381,7 +472,14 @@ def _draw_cloud(
     ellipse(-92, -4, -30, 58)
     ellipse(-50, -38, 38, 60)
     ellipse(14, -8, 92, 58)
-    draw.rectangle((cx - int(72 * scale), cy + int(24 * scale), cx + int(72 * scale), cy + int(62 * scale)), fill=fill)
+    if len(shades) > 1:
+        _draw_stepped_fill(
+            draw,
+            (cx - int(72 * scale), cy + int(24 * scale), cx + int(72 * scale), cy + int(62 * scale)),
+            shades[:4],
+        )
+    else:
+        draw.rectangle((cx - int(72 * scale), cy + int(24 * scale), cx + int(72 * scale), cy + int(62 * scale)), fill=fill)
     draw.line((cx - int(78 * scale), cy + int(62 * scale), cx + int(80 * scale), cy + int(62 * scale)), fill=outline, width=width)
     if rain:
         for dx in (-48, -16, 16, 48):
@@ -400,19 +498,25 @@ def _draw_cloud(
         draw.line(int_points + [int_points[0]], fill=outline, width=4)
 
 
-def _draw_moon(draw: ImageDraw.ImageDraw, cx: int, cy: int, colours: dict[str, str]) -> None:
+def _draw_moon(draw: ImageDraw.ImageDraw, cx: int, cy: int, colours: dict[str, object]) -> None:
     outline = _rgb(colours["outline"])
-    draw.ellipse((cx - 36, cy - 40, cx + 36, cy + 32), fill=_rgb(colours["symbol_fill"]), outline=outline, width=4)
-    draw.ellipse((cx - 10, cy - 48, cx + 58, cy + 26), fill=_rgb(colours["symbol_panel"]))
+    shades = _colour_names(colours, "symbol_shades")
+    fill_name = shades[0] if shades else _colour_name(colours, "symbol_fill", "bright_yellow")
+    draw.ellipse((cx - 36, cy - 40, cx + 36, cy + 32), fill=_rgb(fill_name), outline=outline, width=4)
+    draw.ellipse((cx - 10, cy - 48, cx + 58, cy + 26), fill=_rgb(_colour_name(colours, "symbol_panel", "warm_white")))
     draw.arc((cx - 36, cy - 40, cx + 36, cy + 32), 70, 285, fill=outline, width=5)
-    if not _is_mono(colours["symbol_accent"]):
+    if _colour_name(colours, "symbol_accent", "black") not in {"black", "white"}:
         for sx, sy in ((cx - 44, cy - 46), (cx + 48, cy - 36), (cx + 38, cy + 60)):
-            draw.line((sx - 10, sy, sx + 10, sy), fill=_rgb(colours["symbol_accent"]), width=4)
-            draw.line((sx, sy - 10, sx, sy + 10), fill=_rgb(colours["symbol_accent"]), width=4)
+            draw.line((sx - 10, sy, sx + 10, sy), fill=_rgb(_colour_name(colours, "symbol_accent", "bright_yellow")), width=4)
+            draw.line((sx, sy - 10, sx, sy + 10), fill=_rgb(_colour_name(colours, "symbol_accent", "bright_yellow")), width=4)
 
 
-def _draw_symbol(draw: ImageDraw.ImageDraw, kind: str, data: WeatherCardData, colours: dict[str, str]) -> None:
-    draw.rectangle((136, 50, 264, 210), fill=_rgb(colours["symbol_panel"]))
+def _draw_symbol(draw: ImageDraw.ImageDraw, kind: str, data: WeatherCardData, colours: dict[str, object]) -> None:
+    shades = _colour_names(colours, "symbol_shades")
+    if len(shades) > 1:
+        _draw_stepped_fill(draw, (136, 50, 264, 210), shades, vertical=True)
+    else:
+        draw.rectangle((136, 50, 264, 210), fill=_rgb(_colour_name(colours, "symbol_panel", "white")))
     if kind == "storm":
         _draw_cloud(draw, 200, 96, colours, scale=0.72, storm=True, rain=True)
     elif kind == "rain":
@@ -437,10 +541,12 @@ def _draw_metric(
     y: int,
     label: str,
     value: str,
-    colours: dict[str, str],
+    colours: dict[str, object],
     accent: str | None = None,
 ) -> None:
-    accent_name = accent or colours["metric_accent"]
+    accent_names = _colour_names(colours, "metric_accents")
+    accent_index = sum(ord(char) for char in label.upper()) % len(accent_names) if accent_names else 0
+    accent_name = accent or (accent_names[accent_index] if accent_names else _colour_name(colours, "metric_accent", "bright_yellow"))
     label_width = 22 if label.upper().startswith("PR") else 30
     draw.rectangle((x, y, x + 112, y + 34), fill=_rgb(colours["metric"]), outline=_rgb("black"), width=1)
     draw.rectangle((x, y, x + label_width, y + 34), fill=_rgb(accent_name))

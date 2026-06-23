@@ -200,8 +200,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.20"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.20")
+    if '"version": "0.1.21"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.21")
 
 
 def check_weather_renderer_options() -> None:
@@ -227,10 +227,16 @@ def check_weather_renderer_options() -> None:
             "render_weather_card(card_data, colour_mode=display_mode)",
             'metadata["display_mode"] = display_mode',
             'PLATFORMS = ["sensor", "update", "button", "image"]',
+            'CONF_WAKE_WINDOW_SECONDS',
             "SERVICE_SYNC_WAKE_WINDOW",
             "hass.services.async_register(DOMAIN, SERVICE_SYNC_WAKE_WINDOW, handle_sync_wake_window)",
             "async_sync_wake_window",
             "_probe_existing_gateway",
+            "_read_existing_gateway_timer_config",
+            '"HACONFIG"',
+            '"SLEEPINFO"',
+            '"frame_timer"',
+            '"wake_window_seconds"',
         ),
         cards_path: (
             "COLOUR_MODE_COLOUR = \"colour\"",
@@ -238,6 +244,11 @@ def check_weather_renderer_options() -> None:
             "GLYPHS: dict[str, tuple[str, ...]]",
             "_draw_bitmap_text",
             "_fit_bitmap_scale",
+            "_draw_stepped_fill",
+            '"top_steps":',
+            '"body_steps":',
+            '"metric_accents":',
+            '"symbol_shades":',
             'label_width = 22 if label.upper().startswith("PR") else 30',
             'min_value_size = 14 if label.upper().startswith("PR") else 10',
             "render_weather_card(data: WeatherCardData, colour_mode: str = COLOUR_MODE_COLOUR)",
