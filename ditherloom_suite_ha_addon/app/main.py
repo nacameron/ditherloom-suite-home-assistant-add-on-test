@@ -34,6 +34,8 @@ def _load_settings() -> Dict[str, Any]:
         "topic_base": "ditherloom/replace-with-library-id",
         "public_base_url": "http://homeassistant.local:8099",
         "expires_minutes": 15,
+        "wake_window_minutes": 5,
+        "max_jobs_per_wake": 1,
     }
 
 
@@ -284,6 +286,10 @@ def _form_body(settings: Dict[str, Any], result: Dict[str, Any] | None = None) -
         <label>Library ID</label><input name="library_id" value="{settings.get('library_id', '')}">
         <label>Topic base</label><input name="topic_base" value="{settings.get('topic_base', '')}">
         <label>Public base URL reachable by frame</label><input name="public_base_url" value="{settings.get('public_base_url', '')}">
+        <div class="row">
+          <div><label>Wake window minutes</label><input name="wake_window_minutes" value="{settings.get('wake_window_minutes', 5)}"></div>
+          <div><label>Max jobs per wake</label><input name="max_jobs_per_wake" value="{settings.get('max_jobs_per_wake', 1)}"></div>
+        </div>
         <button type="submit">Render and publish job</button>
       </form>
     </section>
@@ -348,6 +354,8 @@ def publish_weather(
     topic_base: str = Form(...),
     public_base_url: str = Form(...),
     expires_minutes: int = Form(15),
+    wake_window_minutes: int = Form(5),
+    max_jobs_per_wake: int = Form(1),
 ) -> RedirectResponse:
     settings = {
         "mqtt_host": mqtt_host,
@@ -358,6 +366,8 @@ def publish_weather(
         "topic_base": topic_base.rstrip("/"),
         "public_base_url": public_base_url.rstrip("/"),
         "expires_minutes": expires_minutes,
+        "wake_window_minutes": wake_window_minutes,
+        "max_jobs_per_wake": max_jobs_per_wake,
     }
     _save_settings(settings)
     payload = _latest_or_default_payload()
@@ -377,6 +387,9 @@ def publish_weather(
         "crc32": payload["crc32"],
         "expires_at": (now + timedelta(minutes=expires_minutes)).isoformat(),
         "fallback_slot": "random",
+        "sleep_policy": "sleep_after_completion",
+        "wake_window_minutes": wake_window_minutes,
+        "max_jobs_per_wake": max_jobs_per_wake,
     }
     auth = None
     if mqtt_username:
