@@ -40,9 +40,6 @@ from .const import (
     SERVICE_RENDER_WEATHER,
     SERVICE_SEND_WEATHER,
 )
-from .open_meteo import fetch_open_meteo_card
-from .renderer import render_to_artifact, render_weather_card
-from .renderer.pack import write_artifact
 
 PLATFORMS = ["sensor"]
 STORAGE_VERSION = 1
@@ -115,6 +112,10 @@ class DitherloomRuntime:
         )
 
     async def async_render_weather(self, data: dict[str, Any], publish: bool, send_to_frame: bool) -> dict[str, Any]:
+        from .open_meteo import fetch_open_meteo_card
+        from .renderer import render_to_artifact, render_weather_card
+        from .renderer.pack import write_artifact
+
         opts = self.options
         latitude = str(data.get(CONF_LATITUDE) or opts.get(CONF_LATITUDE) or "0")
         longitude = str(data.get(CONF_LONGITUDE) or opts.get(CONF_LONGITUDE) or "0")

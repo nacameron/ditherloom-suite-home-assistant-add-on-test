@@ -6,6 +6,5 @@
   "documentation": "https://github.com/nacameron/ditherloom-suite-home-assistant-add-on",
   "integration_type": "hub",
   "iot_class": "local_push",
-  "requirements": ["Pillow==11.0.0"],
-  "version": "0.1.0"
+  "version": "0.1.3"
 }
