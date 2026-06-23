@@ -10,10 +10,12 @@ four-colour device-screen imagery, documentation, and project-specific assets
 created for this add-on are copyright Neil Cameron unless a file states
 otherwise.
 
+Custom weather-card images, custom templates, custom card graphic compositions,
+and custom device-screen graphics are copyright Neil Cameron.
+
 Third-party components are not covered by Neil Cameron's copyright claim. They
 remain copyright their respective authors and are used under their own licenses.
 See `THIRD_PARTY_NOTICES.md`.
 
 Do not remove copyright notices, license notices, or attribution notices for
 third-party components.
-

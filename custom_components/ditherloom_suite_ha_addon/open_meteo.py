@@ -20,22 +20,29 @@ WEATHER_CODES = {
     2: "Partly cloudy",
     3: "Cloudy",
     45: "Fog",
-    48: "Fog",
+    48: "Rime fog",
     51: "Light drizzle",
     53: "Drizzle",
     55: "Heavy drizzle",
+    56: "Freezing drizzle",
+    57: "Heavy freezing drizzle",
     61: "Light rain",
     63: "Rain",
     65: "Heavy rain",
+    66: "Freezing rain",
+    67: "Heavy freezing rain",
     71: "Light snow",
     73: "Snow",
     75: "Heavy snow",
+    77: "Snow grains",
     80: "Rain showers",
     81: "Rain showers",
     82: "Heavy showers",
+    85: "Snow showers",
+    86: "Heavy snow showers",
     95: "Thunderstorm",
-    96: "Storm warning",
-    99: "Storm warning",
+    96: "Thunderstorm with hail",
+    99: "Heavy thunderstorm with hail",
 }
 
 NIGHT_AWARE_CODES = {0, 1, 2}
@@ -77,6 +84,11 @@ def fetch_open_meteo_card(
                 "temperature_2m_min",
                 "uv_index_max",
                 "precipitation_probability_max",
+                "precipitation_sum",
+                "rain_sum",
+                "showers_sum",
+                "snowfall_sum",
+                "wind_gusts_10m_max",
             ]
         ),
         "timezone": "auto",
@@ -106,6 +118,24 @@ def fetch_open_meteo_card(
     wind = f"{_round_text(current.get('wind_speed_10m'))}{wind_suffix}"
     feels = f"{_round_text(current.get('apparent_temperature'))}{temperature_suffix}"
     pressure = f"{_round_text(current.get('pressure_msl'))}hPa"
+    alert = _derived_alert(
+        code=code,
+        temperature=current.get("temperature_2m"),
+        apparent_temperature=current.get("apparent_temperature"),
+        humidity=current.get("relative_humidity_2m"),
+        precipitation=current.get("precipitation"),
+        daily_precipitation=_first(daily.get("precipitation_sum")),
+        rain_sum=_first(daily.get("rain_sum")),
+        showers_sum=_first(daily.get("showers_sum")),
+        snowfall_sum=_first(daily.get("snowfall_sum")),
+        wind_speed=current.get("wind_speed_10m"),
+        wind_gust=current.get("wind_gusts_10m"),
+        daily_wind_gust=_first(daily.get("wind_gusts_10m_max")),
+        uv_index=_first(daily.get("uv_index_max")),
+        rain_probability=_first(daily.get("precipitation_probability_max")),
+        temperature_unit=temperature_unit,
+        wind_speed_unit=wind_speed_unit,
+    )
 
     details = (
         ("High", f"{high}{temperature_suffix}"),
@@ -115,7 +145,6 @@ def fetch_open_meteo_card(
         ("Rain", rain_probability),
         ("Wind", wind),
     )
-    alert = "Storm watch" if code in (95, 96, 99) else ""
     return WeatherCardData(
         location=resolved_location,
         condition=condition,
@@ -240,6 +269,106 @@ def _percent(value: Any) -> str:
     if rounded == "--":
         return "--"
     return f"{rounded}%"
+
+
+def _float_or_none(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _temperature_celsius(value: Any, temperature_unit: str) -> float | None:
+    number = _float_or_none(value)
+    if number is None:
+        return None
+    if temperature_unit == "fahrenheit":
+        return (number - 32.0) * 5.0 / 9.0
+    return number
+
+
+def _wind_kmh(value: Any, wind_speed_unit: str) -> float | None:
+    number = _float_or_none(value)
+    if number is None:
+        return None
+    if wind_speed_unit == "mph":
+        return number * 1.609344
+    return number
+
+
+def _max_present(*values: float | None) -> float | None:
+    present = [value for value in values if value is not None]
+    return max(present) if present else None
+
+
+def _derived_alert(
+    *,
+    code: int,
+    temperature: Any,
+    apparent_temperature: Any,
+    humidity: Any,
+    precipitation: Any,
+    daily_precipitation: Any,
+    rain_sum: Any,
+    showers_sum: Any,
+    snowfall_sum: Any,
+    wind_speed: Any,
+    wind_gust: Any,
+    daily_wind_gust: Any,
+    uv_index: Any,
+    rain_probability: Any,
+    temperature_unit: str,
+    wind_speed_unit: str,
+) -> str:
+    temp_c = _temperature_celsius(temperature, temperature_unit)
+    apparent_c = _temperature_celsius(apparent_temperature, temperature_unit)
+    effective_temp_c = _max_present(temp_c, apparent_c)
+    humidity_percent = _float_or_none(humidity)
+    current_precip_mm = _float_or_none(precipitation)
+    daily_precip_mm = _max_present(
+        _float_or_none(daily_precipitation),
+        _float_or_none(rain_sum),
+        _float_or_none(showers_sum),
+    )
+    snowfall_cm = _float_or_none(snowfall_sum)
+    wind_kmh = _wind_kmh(wind_speed, wind_speed_unit)
+    gust_kmh = _max_present(
+        _wind_kmh(wind_gust, wind_speed_unit),
+        _wind_kmh(daily_wind_gust, wind_speed_unit),
+        wind_kmh,
+    )
+    uv = _float_or_none(uv_index)
+    rain_chance = _float_or_none(rain_probability)
+
+    if code in (96, 99):
+        return "Hail storm"
+    if code in (95,):
+        return "Thunderstorm"
+    if code in (85, 86, 71, 73, 75, 77) or (snowfall_cm is not None and snowfall_cm >= 5.0):
+        return "Snow"
+    if code in (65, 67, 82) or (current_precip_mm is not None and current_precip_mm >= 10.0) or (
+        daily_precip_mm is not None and daily_precip_mm >= 50.0
+    ):
+        return "Heavy rain"
+    if (
+        effective_temp_c is not None
+        and effective_temp_c >= 35.0
+        and humidity_percent is not None
+        and humidity_percent <= 25.0
+        and gust_kmh is not None
+        and gust_kmh >= 40.0
+        and (rain_chance is None or rain_chance <= 25.0)
+    ):
+        return "Bushfire risk"
+    if (apparent_c is not None and apparent_c >= 38.0) or (temp_c is not None and temp_c >= 40.0) or (
+        uv is not None and uv >= 11.0 and effective_temp_c is not None and effective_temp_c >= 32.0
+    ):
+        return "Extreme heat"
+    if (apparent_c is not None and apparent_c <= -10.0) or (temp_c is not None and temp_c <= -5.0):
+        return "Extreme cold"
+    if gust_kmh is not None and gust_kmh >= 63.0:
+        return "High wind"
+    return ""
 
 
 def _condition_text(code: int, is_day: Any) -> str:

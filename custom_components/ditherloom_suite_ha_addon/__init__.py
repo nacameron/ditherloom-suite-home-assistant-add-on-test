@@ -201,7 +201,7 @@ class DitherloomRuntime:
 
     async def async_render_weather(self, data: dict[str, Any], publish: bool, send_to_frame: bool) -> dict[str, Any]:
         from .open_meteo import fetch_open_meteo_card
-        from .renderer import render_to_artifact, render_weather_card
+        from .renderer import render_modern_weather_card, render_to_artifact
         from .renderer.pack import write_artifact
 
         opts = self.options
@@ -226,7 +226,7 @@ class DitherloomRuntime:
             wind_speed_unit,
         )
         display_mode = str(data.get(CONF_DISPLAY_MODE) or opts.get(CONF_DISPLAY_MODE, DEFAULT_DISPLAY_MODE))
-        image = render_weather_card(card_data, colour_mode=display_mode)
+        image = render_modern_weather_card(card_data, colour_mode=display_mode)
         artifact = render_to_artifact(image, "weather_current", [card_data.source_entity_id])
         await self.hass.async_add_executor_job(write_artifact, artifact, self.payload_dir, self.latest_payload_name)
 

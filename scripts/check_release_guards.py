@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import ast
+import struct
 import subprocess
 import sys
 
@@ -67,6 +68,10 @@ def check_licenses() -> None:
     for required in ("Polycom 1", "Neil Cameron", "third-party"):
         if required not in license_text:
             fail(f"LICENSE.md missing required text: {required}")
+    license_text_lower = license_text.lower()
+    for required in ("custom weather-card images", "custom templates", "custom device-screen graphics"):
+        if required not in license_text_lower:
+            fail(f"LICENSE.md missing custom graphics copyright text: {required}")
     for required in ("FastAPI", "Uvicorn", "Pillow", "Eclipse Paho MQTT", "python-multipart", "Open-Meteo"):
         if required not in notices_text:
             fail(f"THIRD_PARTY_NOTICES.md missing required component: {required}")
@@ -202,8 +207,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.29"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.29")
+    if '"version": "0.1.30"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.30")
 
 
 def check_weather_renderer_options() -> None:
@@ -241,7 +246,7 @@ def check_weather_renderer_options() -> None:
             "wind_speed_unit = str(data.get(CONF_WIND_SPEED_UNIT) or opts.get(CONF_WIND_SPEED_UNIT, DEFAULT_WIND_SPEED_UNIT))",
             'metadata["temperature_unit"] = temperature_unit',
             'metadata["wind_speed_unit"] = wind_speed_unit',
-            "render_weather_card(card_data, colour_mode=display_mode)",
+            "render_modern_weather_card(card_data, colour_mode=display_mode)",
             'metadata["display_mode"] = display_mode',
             'PLATFORMS = ["sensor", "update", "button", "image"]',
             'CONF_UPDATE_INTERVAL_MINUTES',
@@ -291,21 +296,25 @@ def check_weather_renderer_options() -> None:
         cards_path: (
             "COLOUR_MODE_COLOUR = \"colour\"",
             "COLOUR_MODE_MONO = \"mono\"",
-            "GLYPHS: dict[str, tuple[str, ...]]",
-            "_draw_bitmap_text",
-            "_fit_bitmap_scale",
-            "_draw_stepped_fill",
-            '"top_text": "black"',
-            '"bottom_text": "black"',
-            '"top_steps":',
-            '"body_steps":',
-            '"metric_accents":',
-            '"symbol_shades":',
-            'label_width = 22 if label.upper().startswith("PR") else 30',
-            'min_value_size = 14 if label.upper().startswith("PR") else 10',
+            "TOP_BAR_HEIGHT = 38",
+            "BOTTOM_BAR_HEIGHT = 38",
+            "WEATHER_TEMPLATE_DIR",
+            "safe_400x300",
+            "_load_weather_template",
+            "_template_slug_for_data",
+            "_render_template_weather_card",
+            "bushfire_risk_day",
+            "extreme_heat_day",
+            "extreme_cold_day",
+            "hail_storm_day",
+            "high_wind_day",
+            "storm_night",
+            "rain_night",
+            "partly_cloudy_night",
+            "clear_night",
+            "sunny_day",
             "render_weather_card(data: WeatherCardData, colour_mode: str = COLOUR_MODE_COLOUR)",
-            "_draw_bars(draw, data, colours)",
-            "_draw_symbol(draw, kind, data, colours)",
+            "render_modern_weather_card(data: WeatherCardData, colour_mode: str = COLOUR_MODE_COLOUR)",
         ),
         open_meteo_path: (
             "NOMINATIM_REVERSE_URL",
@@ -318,6 +327,11 @@ def check_weather_renderer_options() -> None:
             "_condition_text",
             "@lru_cache(maxsize=64)",
             "REVERSE_GEOCODE_USER_AGENT",
+            "Thunderstorm with hail",
+            "Bushfire risk",
+            "Extreme heat",
+            "Extreme cold",
+            "High wind",
         ),
     }
     for path, required_values in checks.items():
@@ -325,6 +339,51 @@ def check_weather_renderer_options() -> None:
         for required in required_values:
             if required not in text:
                 fail(f"weather renderer option route missing required text in {path.name}: {required}")
+
+
+def _png_dimensions(path: Path) -> tuple[int, int]:
+    with path.open("rb") as handle:
+        header = handle.read(24)
+    if len(header) < 24 or header[:8] != b"\x89PNG\r\n\x1a\n":
+        fail(f"template asset is not a PNG: {path}")
+    return struct.unpack(">II", header[16:24])
+
+
+def check_weather_template_assets() -> None:
+    template_root = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "assets" / "weather_templates"
+    safe_root = template_root / "safe_400x300"
+    manifest_path = template_root / "manifest.json"
+    required_templates = (
+        "sunny_day",
+        "partly_cloudy_day",
+        "cloudy_day",
+        "fog_day",
+        "rain_day",
+        "storm_day",
+        "clear_night",
+        "partly_cloudy_night",
+        "cloudy_night",
+        "rain_night",
+        "storm_night",
+        "extreme_heat_day",
+        "extreme_cold_day",
+        "snow_day",
+        "hail_storm_day",
+        "high_wind_day",
+        "bushfire_risk_day",
+    )
+    if not manifest_path.exists():
+        fail("weather template manifest is missing")
+    manifest_text = manifest_path.read_text(encoding="utf-8")
+    for required in ("400", "300", "Ditherloom 30 safe colours", "copyright Neil Cameron"):
+        if required not in manifest_text:
+            fail(f"weather template manifest missing required text: {required}")
+    for slug in required_templates:
+        path = safe_root / f"{slug}_template_30safe_400x300.png"
+        if not path.exists():
+            fail(f"weather template asset missing: {slug}")
+        if _png_dimensions(path) != (400, 300):
+            fail(f"weather template asset has wrong size: {slug}")
 
 
 def check_sync_button() -> None:
@@ -440,6 +499,7 @@ def main() -> None:
     check_device_spec_alignment()
     check_update_platform()
     check_weather_renderer_options()
+    check_weather_template_assets()
     check_sync_button()
     check_dashboard_surface()
     check_locked_render_delivery_pathway()
