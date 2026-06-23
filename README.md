@@ -30,6 +30,15 @@ If the Home Assistant MQTT integration is configured, Ditherloom will also
 publish optional job metadata to the configured topic base. If MQTT is not
 configured, that publish step is skipped.
 
+## Update Alerts
+
+The integration creates a diagnostic Home Assistant update entity. Home
+Assistant checks the latest GitHub release periodically and can show when the
+installed custom integration is behind.
+
+HACS remains the install and redownload route. This update entity does not
+install files by itself.
+
 ## If It Does Not Appear In Add Integration
 
 There is no expected long delay after restart. If it does not appear:
@@ -81,6 +90,7 @@ redownload the integration from there.
 - Publishes optional MQTT job metadata if MQTT is configured.
 - Can attempt the existing Wi-Fi Gateway command path while the frame is awake:
   `PING`, `BEGIN`, `B64WRITE`, `END`, `DISPLAY`, `IDLE`.
+- Adds a Home Assistant update entity that checks the latest GitHub release.
 
 ## License
 

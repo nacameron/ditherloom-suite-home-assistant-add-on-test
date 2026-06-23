@@ -47,7 +47,7 @@ from .const import (
     SERVICE_SEND_WEATHER,
 )
 
-PLATFORMS = ["sensor"]
+PLATFORMS = ["sensor", "update"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
 

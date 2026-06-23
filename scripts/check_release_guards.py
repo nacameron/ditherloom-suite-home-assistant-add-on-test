@@ -161,11 +161,45 @@ def check_device_spec_alignment() -> None:
             fail(f"Gateway sender missing device-spec guard/text: {required}")
 
 
+def check_update_platform() -> None:
+    init_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py"
+    update_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "update.py"
+    manifest_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "manifest.json"
+
+    if not update_path.exists():
+        fail("Home Assistant update platform is missing")
+
+    init_text = init_path.read_text(encoding="utf-8")
+    update_text = update_path.read_text(encoding="utf-8")
+    manifest_text = manifest_path.read_text(encoding="utf-8")
+
+    for required in (
+        '"update"',
+        "async_forward_entry_setups(entry, PLATFORMS)",
+    ):
+        if required not in init_text:
+            fail(f"Home Assistant setup missing update platform route/text: {required}")
+
+    for required in (
+        "UpdateEntity",
+        "SCAN_INTERVAL = timedelta(hours=6)",
+        "releases/latest",
+        "async_get_clientsession",
+        "UpdateEntityFeature.RELEASE_NOTES",
+    ):
+        if required not in update_text:
+            fail(f"update platform missing release-check route/text: {required}")
+
+    if '"version": "0.1.10"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.10")
+
+
 def main() -> None:
     check_branding()
     check_licenses()
     check_no_generated_cache_files()
     check_device_spec_alignment()
+    check_update_platform()
     print("release guards passed")
 
 
