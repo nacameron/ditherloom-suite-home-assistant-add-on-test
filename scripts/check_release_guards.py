@@ -207,8 +207,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.31"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.31")
+    if '"version": "0.1.32"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.32")
 
 
 def check_weather_renderer_options() -> None:
@@ -471,6 +471,10 @@ def check_locked_render_delivery_pathway() -> None:
         "AUTO_SEND_PRERENDER_LEAD_SECONDS = 30",
         "AUTO_SEND_PROBE_INTERVAL_SECONDS = 10",
         "AUTO_SEND_COUNTER_DRIFT_SECONDS = 300",
+        "_send_gateway_stage",
+        "_best_effort_gateway_idle",
+        "_best_effort_open_connection_idle",
+        "timed out during Gateway",
         "await self.async_render_weather({}, publish=True, send_to_frame=False)",
         'self.last_status = "auto_send_prerendered"',
         "async_track_point_in_time(self.hass, self._handle_auto_send, expected_wake)",

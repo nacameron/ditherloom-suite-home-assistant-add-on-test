@@ -621,36 +621,68 @@ def _send_existing_gateway_job(host: str, port: int, packed: bytes, crc32: str, 
     if slot < 1 or slot > DEVICE_SLOT_COUNT:
         raise ValueError(f"Target slot must be between 1 and {DEVICE_SLOT_COUNT}, got {slot}")
 
+    _best_effort_gateway_idle(host, port)
     with socket.create_connection((host, port), timeout=20) as sock:
         sock.settimeout(30)
         sock_file = sock.makefile("rwb")
-        pong = _send_command(sock_file, "PING")
-        if not pong.startswith("OK"):
-            raise RuntimeError(f"PING failed: {pong}")
-        begin = _send_command(sock_file, f"BEGIN {slot} {len(packed)} 0x{crc32}")
-        if not begin.startswith("OK"):
-            raise RuntimeError(f"BEGIN failed: {begin}")
-        offset = 0
-        while offset < len(packed):
-            chunk = packed[offset : offset + DEVICE_WIFI_B64WRITE_CHUNK_BYTES]
-            encoded = base64.b64encode(chunk).decode("ascii")
-            command = f"B64WRITE {slot} {offset} {encoded}"
-            if len(command) > DEVICE_WIFI_COMMAND_MAX_CHARS:
-                raise ValueError(f"B64WRITE command exceeds {DEVICE_WIFI_COMMAND_MAX_CHARS} characters")
-            response = _send_command(sock_file, command)
-            if not response.startswith("OK"):
-                raise RuntimeError(
-                    f"B64WRITE failed at {offset}: {response} "
-                    f"slot={slot} chunk_bytes={len(chunk)} command_chars={len(command)}"
-                )
-            offset += len(chunk)
-        end = _send_command(sock_file, f"END {slot}")
-        if not end.startswith("OK"):
-            raise RuntimeError(f"END failed: {end}")
-        display = _send_command(sock_file, f"DISPLAY {slot}")
-        if not display.startswith("OK"):
-            raise RuntimeError(f"DISPLAY failed: {display}")
+        try:
+            pong = _send_gateway_stage(sock_file, "PING", "PING")
+            if not pong.startswith("OK"):
+                raise RuntimeError(f"PING failed: {pong}")
+            begin = _send_gateway_stage(sock_file, f"BEGIN {slot} {len(packed)} 0x{crc32}", "BEGIN")
+            if not begin.startswith("OK"):
+                raise RuntimeError(f"BEGIN failed: {begin}")
+            offset = 0
+            while offset < len(packed):
+                chunk = packed[offset : offset + DEVICE_WIFI_B64WRITE_CHUNK_BYTES]
+                encoded = base64.b64encode(chunk).decode("ascii")
+                command = f"B64WRITE {slot} {offset} {encoded}"
+                if len(command) > DEVICE_WIFI_COMMAND_MAX_CHARS:
+                    raise ValueError(f"B64WRITE command exceeds {DEVICE_WIFI_COMMAND_MAX_CHARS} characters")
+                response = _send_gateway_stage(sock_file, command, f"B64WRITE offset={offset}")
+                if not response.startswith("OK"):
+                    raise RuntimeError(
+                        f"B64WRITE failed at {offset}: {response} "
+                        f"slot={slot} chunk_bytes={len(chunk)} command_chars={len(command)}"
+                    )
+                offset += len(chunk)
+            end = _send_gateway_stage(sock_file, f"END {slot}", "END")
+            if not end.startswith("OK"):
+                raise RuntimeError(f"END failed: {end}")
+            display = _send_gateway_stage(sock_file, f"DISPLAY {slot}", "DISPLAY")
+            if not display.startswith("OK"):
+                raise RuntimeError(f"DISPLAY failed: {display}")
+        except Exception:
+            _best_effort_open_connection_idle(sock_file)
+            raise
+        else:
+            _best_effort_open_connection_idle(sock_file)
+
+
+def _send_gateway_stage(sock_file, command: str, stage: str) -> str:
+    try:
+        return _send_command(sock_file, command)
+    except TimeoutError as exc:
+        raise TimeoutError(f"timed out during Gateway {stage}") from exc
+    except OSError as exc:
+        raise RuntimeError(f"Gateway {stage} failed: {type(exc).__name__}: {exc}") from exc
+
+
+def _best_effort_open_connection_idle(sock_file) -> None:
+    try:
         _send_command(sock_file, "IDLE")
+    except Exception:
+        pass
+
+
+def _best_effort_gateway_idle(host: str, port: int) -> None:
+    try:
+        with socket.create_connection((host, port), timeout=3) as sock:
+            sock.settimeout(3)
+            sock_file = sock.makefile("rwb")
+            _best_effort_open_connection_idle(sock_file)
+    except Exception:
+        pass
 
 
 def _probe_existing_gateway(host: str, port: int) -> dict[str, str]:
