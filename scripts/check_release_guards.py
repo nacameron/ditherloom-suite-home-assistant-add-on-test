@@ -200,8 +200,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.21"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.21")
+    if '"version": "0.1.22"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.22")
 
 
 def check_weather_renderer_options() -> None:
@@ -227,6 +227,7 @@ def check_weather_renderer_options() -> None:
             "render_weather_card(card_data, colour_mode=display_mode)",
             'metadata["display_mode"] = display_mode',
             'PLATFORMS = ["sensor", "update", "button", "image"]',
+            'CONF_UPDATE_INTERVAL_MINUTES',
             'CONF_WAKE_WINDOW_SECONDS',
             "SERVICE_SYNC_WAKE_WINDOW",
             "hass.services.async_register(DOMAIN, SERVICE_SYNC_WAKE_WINDOW, handle_sync_wake_window)",
