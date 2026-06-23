@@ -23,7 +23,7 @@ WIDTH = DEVICE_FRAME_WIDTH
 HEIGHT = DEVICE_FRAME_HEIGHT
 PIXEL_COUNT = DEVICE_PIXEL_COUNT
 PACKED_LENGTH = DEVICE_PACKED_PAYLOAD_BYTES
-DEVICE_ORIENTATION_TRANSFORM = "none_after_physical_mirror_test"
+DEVICE_ORIENTATION_TRANSFORM = "flip_horizontal_and_vertical_after_v0_1_13_photo"
 
 
 @dataclass(frozen=True)
@@ -129,11 +129,11 @@ def render_to_artifact(image: Image.Image, template_name: str, source_entity_ids
 def orient_image_for_device(image: Image.Image) -> Image.Image:
     if image.size != (WIDTH, HEIGHT):
         raise ValueError(f"Expected {WIDTH}x{HEIGHT}, got {image.size[0]}x{image.size[1]}")
-    return image
+    return image.transpose(Image.Transpose.FLIP_LEFT_RIGHT).transpose(Image.Transpose.FLIP_TOP_BOTTOM)
 
 
 def orient_preview_for_viewer(image: Image.Image) -> Image.Image:
-    return image
+    return image.transpose(Image.Transpose.FLIP_LEFT_RIGHT).transpose(Image.Transpose.FLIP_TOP_BOTTOM)
 
 
 def write_artifact(artifact: RenderArtifact, output_dir: Path, stem: str) -> Dict[str, Path]:

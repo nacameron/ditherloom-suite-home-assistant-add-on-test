@@ -149,7 +149,9 @@ def check_device_spec_alignment() -> None:
     pack_text = pack_path.read_text(encoding="utf-8")
     for required in (
         "PACKED_LENGTH = DEVICE_PACKED_PAYLOAD_BYTES",
-        'DEVICE_ORIENTATION_TRANSFORM = "none_after_physical_mirror_test"',
+        'DEVICE_ORIENTATION_TRANSFORM = "flip_horizontal_and_vertical_after_v0_1_13_photo"',
+        "Image.Transpose.FLIP_LEFT_RIGHT",
+        "Image.Transpose.FLIP_TOP_BOTTOM",
         '"slot_stride_bytes": DEVICE_SLOT_STRIDE_BYTES',
         '"source_metadata_payload_bytes": DEVICE_SOURCE_METADATA_PAYLOAD_BYTES',
         '"device_orientation_transform": DEVICE_ORIENTATION_TRANSFORM',
@@ -199,8 +201,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.13"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.13")
+    if '"version": "0.1.14"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.14")
 
 
 def check_weather_renderer_options() -> None:
