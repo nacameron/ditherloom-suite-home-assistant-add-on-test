@@ -59,6 +59,7 @@ STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
 AUTO_SEND_PRERENDER_LEAD_SECONDS = 30
 AUTO_SEND_PROBE_INTERVAL_SECONDS = 10
+AUTO_SEND_COUNTER_DRIFT_SECONDS = 300
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -338,8 +339,12 @@ class DitherloomRuntime:
         self.last_metadata["auto_send_prerender_at"] = prerender_at.isoformat()
         self.last_metadata["auto_send_expected_wake_at"] = expected_wake.isoformat()
         self.last_metadata["auto_send_window_expires_at"] = (expected_wake + timedelta(seconds=wake_window_seconds)).isoformat()
+        self.last_metadata["auto_send_search_expires_at"] = (
+            expected_wake + timedelta(seconds=wake_window_seconds + AUTO_SEND_COUNTER_DRIFT_SECONDS)
+        ).isoformat()
         self.last_metadata["auto_send_interval_minutes"] = interval_minutes
         self.last_metadata["auto_send_wake_window_seconds"] = wake_window_seconds
+        self.last_metadata["auto_send_counter_drift_seconds"] = AUTO_SEND_COUNTER_DRIFT_SECONDS
         self.last_metadata["auto_send_probe_interval_seconds"] = AUTO_SEND_PROBE_INTERVAL_SECONDS
         self._auto_send_unsub = async_track_point_in_time(self.hass, self._handle_auto_send, prerender_at)
         return True
@@ -352,13 +357,18 @@ class DitherloomRuntime:
         window_expires = _parse_datetime(self.last_metadata.get("auto_send_window_expires_at"))
         if window_expires is None:
             window_expires = expected_wake + timedelta(seconds=self._effective_wake_window_seconds())
+        search_expires = _parse_datetime(self.last_metadata.get("auto_send_search_expires_at"))
+        if search_expires is None:
+            search_expires = window_expires + timedelta(seconds=AUTO_SEND_COUNTER_DRIFT_SECONDS)
         window_metadata = {
             "auto_send_expected_wake_at": expected_wake.isoformat(),
             "auto_send_window_expires_at": (
                 expected_wake + timedelta(seconds=self._effective_wake_window_seconds())
             ).isoformat(),
+            "auto_send_search_expires_at": search_expires.isoformat(),
             "auto_send_interval_minutes": self._effective_update_interval_minutes(),
             "auto_send_wake_window_seconds": self._effective_wake_window_seconds(),
+            "auto_send_counter_drift_seconds": AUTO_SEND_COUNTER_DRIFT_SECONDS,
             "auto_send_probe_interval_seconds": AUTO_SEND_PROBE_INTERVAL_SECONDS,
         }
         try:
@@ -367,6 +377,9 @@ class DitherloomRuntime:
                 await self.async_render_weather({}, publish=True, send_to_frame=False)
                 self.last_metadata.update(window_metadata)
                 self.last_metadata["auto_send_attempt_anchor_at"] = attempt_anchor
+                last_job = self.last_metadata.get("last_job")
+                if isinstance(last_job, dict):
+                    last_job["expires_at"] = search_expires.isoformat()
             now = datetime.now(timezone.utc)
             if now < expected_wake:
                 self.last_status = "auto_send_prerendered"
@@ -394,7 +407,7 @@ class DitherloomRuntime:
             self.last_metadata[ATTR_LAST_ERROR] = f"Automatic weather send failed: {type(exc).__name__}: {exc}"
             self.last_metadata["auto_send_last_failed_at"] = now.isoformat()
             self.last_metadata.update(window_metadata)
-            if now + timedelta(seconds=AUTO_SEND_PROBE_INTERVAL_SECONDS) < window_expires:
+            if now + timedelta(seconds=AUTO_SEND_PROBE_INTERVAL_SECONDS) < search_expires:
                 retry_at = now + timedelta(seconds=AUTO_SEND_PROBE_INTERVAL_SECONDS)
                 self.last_metadata["auto_send_retry_at"] = retry_at.isoformat()
                 self.last_metadata["auto_send_next_at"] = retry_at.isoformat()

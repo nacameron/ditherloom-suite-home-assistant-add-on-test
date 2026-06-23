@@ -202,8 +202,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.26"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.26")
+    if '"version": "0.1.27"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.27")
 
 
 def check_weather_renderer_options() -> None:
@@ -237,8 +237,10 @@ def check_weather_renderer_options() -> None:
             "_handle_auto_send",
             "AUTO_SEND_PRERENDER_LEAD_SECONDS",
             "AUTO_SEND_PROBE_INTERVAL_SECONDS",
+            "AUTO_SEND_COUNTER_DRIFT_SECONDS",
             "auto_send_prerender_at",
             "auto_send_expected_wake_at",
+            "auto_send_search_expires_at",
             "_probe_existing_gateway",
             "_create_notification",
             '"persistent_notification"',
