@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -66,12 +67,29 @@ def check_licenses() -> None:
             fail(f"THIRD_PARTY_NOTICES.md missing required component: {required}")
 
 
+def check_no_generated_cache_files() -> None:
+    tracked = subprocess.run(
+        ["git", "ls-files"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    generated = [
+        path
+        for path in tracked
+        if "__pycache__" in Path(path).parts or Path(path).suffix in {".pyc", ".pyo"}
+    ]
+    if generated:
+        fail("generated Python cache files must not be committed:\n" + "\n".join(generated[:50]))
+
+
 def main() -> None:
     check_branding()
     check_licenses()
+    check_no_generated_cache_files()
     print("release guards passed")
 
 
 if __name__ == "__main__":
     main()
-
