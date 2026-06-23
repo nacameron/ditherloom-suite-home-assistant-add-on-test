@@ -20,6 +20,16 @@ Use HACS custom repositories:
 7. Go to Settings > Devices & services > Add integration.
 8. Search for `Ditherloom` or `Ditherloom Suite Home Assistant Add On`.
 
+## MQTT Is Optional
+
+MQTT is not required for the current prototype setup. The integration can send
+to the frame directly over the frame's Wi-Fi Gateway host/IP and port while the
+frame is awake.
+
+If the Home Assistant MQTT integration is configured, Ditherloom will also
+publish optional job metadata to the configured topic base. If MQTT is not
+configured, that publish step is skipped.
+
 ## If It Does Not Appear In Add Integration
 
 There is no expected long delay after restart. If it does not appear:
@@ -66,7 +76,7 @@ redownload the integration from there.
 - Uses Open-Meteo for free/non-commercial test weather.
 - Serves a `.ppbin` payload through a Home Assistant HTTP endpoint.
 - Serves a preview PNG endpoint.
-- Publishes MQTT job metadata if MQTT is configured.
+- Publishes optional MQTT job metadata if MQTT is configured.
 - Can attempt the existing Wi-Fi Gateway command path while the frame is awake:
   `PING`, `BEGIN`, `B64WRITE`, `END`, `DISPLAY`, `IDLE`.
 

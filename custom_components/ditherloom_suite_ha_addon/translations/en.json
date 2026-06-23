@@ -9,7 +9,7 @@
           "library_id": "Library ID",
           "frame_host": "Frame Wi-Fi host or IP",
           "frame_port": "Frame Gateway port",
-          "topic_base": "MQTT topic base",
+          "topic_base": "Optional MQTT topic base",
           "location_name": "Weather location name",
           "latitude": "Latitude",
           "longitude": "Longitude",
@@ -28,7 +28,7 @@
         "data": {
           "frame_host": "Frame Wi-Fi host or IP",
           "frame_port": "Frame Gateway port",
-          "topic_base": "MQTT topic base",
+          "topic_base": "Optional MQTT topic base",
           "location_name": "Weather location name",
           "latitude": "Latitude",
           "longitude": "Longitude",
