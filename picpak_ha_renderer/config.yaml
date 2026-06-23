@@ -1,0 +1,29 @@
+name: "PicPak Home Assistant Renderer"
+version: "0.1.0"
+slug: "picpak_ha_renderer"
+description: "Prototype PicPak/Ditherloom renderer and MQTT job publisher for Home Assistant"
+url: "https://example.local/picpak-ha-renderer"
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386
+startup: services
+boot: auto
+init: false
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:image-sync
+ports:
+  8099/tcp: 8099
+ports_description:
+  8099/tcp: "Local payload and prototype UI server"
+map:
+  - type: data
+    read_only: false
+  - type: share
+    read_only: false
+options: {}
+schema: {}
+
