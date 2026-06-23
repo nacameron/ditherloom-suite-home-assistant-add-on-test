@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 from .palette import TEMPLATE_COLOURS
 
@@ -13,6 +12,8 @@ HEIGHT = 300
 TOP_BAR_HEIGHT = 38
 BOTTOM_BAR_HEIGHT = 38
 FONT_SCALE = 1.4
+GLYPH_ROWS = 7
+GLYPH_COLS = 5
 
 COLOUR_MODE_COLOUR = "colour"
 COLOUR_MODE_MONO = "mono"
@@ -38,39 +39,96 @@ class WeatherCardData:
     details: tuple[tuple[str, str], ...] = ()
 
 
-def _font(size: int, bold: bool = False) -> ImageFont.ImageFont:
-    candidates = [
-        "C:/Windows/Fonts/arialbd.ttf" if bold else "C:/Windows/Fonts/arial.ttf",
-        "C:/Windows/Fonts/segoeuib.ttf" if bold else "C:/Windows/Fonts/segoeui.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    ]
-    for candidate in candidates:
-        if Path(candidate).exists():
-            return ImageFont.truetype(candidate, size=size)
-    return ImageFont.load_default()
+GLYPHS: dict[str, tuple[str, ...]] = {
+    " ": ("00000", "00000", "00000", "00000", "00000", "00000", "00000"),
+    "-": ("00000", "00000", "00000", "11111", "00000", "00000", "00000"),
+    ".": ("00000", "00000", "00000", "00000", "00000", "01100", "01100"),
+    "/": ("00001", "00010", "00010", "00100", "01000", "01000", "10000"),
+    "%": ("11001", "11010", "00010", "00100", "01000", "01011", "10011"),
+    ":": ("00000", "01100", "01100", "00000", "01100", "01100", "00000"),
+    "0": ("01110", "10001", "10011", "10101", "11001", "10001", "01110"),
+    "1": ("00100", "01100", "00100", "00100", "00100", "00100", "01110"),
+    "2": ("01110", "10001", "00001", "00010", "00100", "01000", "11111"),
+    "3": ("11110", "00001", "00001", "01110", "00001", "00001", "11110"),
+    "4": ("00010", "00110", "01010", "10010", "11111", "00010", "00010"),
+    "5": ("11111", "10000", "10000", "11110", "00001", "00001", "11110"),
+    "6": ("01110", "10000", "10000", "11110", "10001", "10001", "01110"),
+    "7": ("11111", "00001", "00010", "00100", "01000", "01000", "01000"),
+    "8": ("01110", "10001", "10001", "01110", "10001", "10001", "01110"),
+    "9": ("01110", "10001", "10001", "01111", "00001", "00001", "01110"),
+    "A": ("01110", "10001", "10001", "11111", "10001", "10001", "10001"),
+    "B": ("11110", "10001", "10001", "11110", "10001", "10001", "11110"),
+    "C": ("01111", "10000", "10000", "10000", "10000", "10000", "01111"),
+    "D": ("11110", "10001", "10001", "10001", "10001", "10001", "11110"),
+    "E": ("11111", "10000", "10000", "11110", "10000", "10000", "11111"),
+    "F": ("11111", "10000", "10000", "11110", "10000", "10000", "10000"),
+    "G": ("01111", "10000", "10000", "10011", "10001", "10001", "01111"),
+    "H": ("10001", "10001", "10001", "11111", "10001", "10001", "10001"),
+    "I": ("11111", "00100", "00100", "00100", "00100", "00100", "11111"),
+    "J": ("00111", "00010", "00010", "00010", "00010", "10010", "01100"),
+    "K": ("10001", "10010", "10100", "11000", "10100", "10010", "10001"),
+    "L": ("10000", "10000", "10000", "10000", "10000", "10000", "11111"),
+    "M": ("10001", "11011", "10101", "10101", "10001", "10001", "10001"),
+    "N": ("10001", "11001", "10101", "10011", "10001", "10001", "10001"),
+    "O": ("01110", "10001", "10001", "10001", "10001", "10001", "01110"),
+    "P": ("11110", "10001", "10001", "11110", "10000", "10000", "10000"),
+    "Q": ("01110", "10001", "10001", "10001", "10101", "10010", "01101"),
+    "R": ("11110", "10001", "10001", "11110", "10100", "10010", "10001"),
+    "S": ("01111", "10000", "10000", "01110", "00001", "00001", "11110"),
+    "T": ("11111", "00100", "00100", "00100", "00100", "00100", "00100"),
+    "U": ("10001", "10001", "10001", "10001", "10001", "10001", "01110"),
+    "V": ("10001", "10001", "10001", "10001", "10001", "01010", "00100"),
+    "W": ("10001", "10001", "10001", "10101", "10101", "10101", "01010"),
+    "X": ("10001", "10001", "01010", "00100", "01010", "10001", "10001"),
+    "Y": ("10001", "10001", "01010", "00100", "00100", "00100", "00100"),
+    "Z": ("11111", "00001", "00010", "00100", "01000", "10000", "11111"),
+}
 
 
 def _scaled(size: int) -> int:
     return max(1, int(round(size * FONT_SCALE)))
 
 
-def _fit_text(
-    draw: ImageDraw.ImageDraw,
-    text: str,
-    max_width: int,
-    size: int,
-    min_size: int,
-    bold: bool = False,
-    max_height: int | None = None,
-) -> ImageFont.ImageFont:
-    current = size
-    while current >= min_size:
-        font = _font(current, bold=bold)
-        left, top, right, bottom = draw.textbbox((0, 0), str(text), font=font)
-        if right - left <= max_width and (max_height is None or bottom - top <= max_height):
-            return font
+def _normalize_text(text: object) -> str:
+    return str(text).upper().replace("°", "").replace("_", "-")
+
+
+def _glyph(char: str) -> tuple[str, ...]:
+    return GLYPHS.get(char, GLYPHS[" "])
+
+
+def _bitmap_size(text: str, scale: int, spacing: int | None = None) -> tuple[int, int]:
+    spacing = scale if spacing is None else spacing
+    if not text:
+        return 0, GLYPH_ROWS * scale
+    width = len(text) * GLYPH_COLS * scale + max(0, len(text) - 1) * spacing
+    return width, GLYPH_ROWS * scale
+
+
+def _fit_bitmap_scale(text: str, max_width: int, max_height: int, size: int, min_size: int) -> int:
+    current = max(1, int(round(size / GLYPH_ROWS)))
+    min_scale = max(1, int(round(min_size / GLYPH_ROWS)))
+    while current >= min_scale:
+        width, height = _bitmap_size(text, current)
+        if width <= max_width and height <= max_height:
+            return current
         current -= 1
-    return _font(min_size, bold=bold)
+    return min_scale
+
+
+def _draw_bitmap_text(draw: ImageDraw.ImageDraw, xy: tuple[int, int], text: object, scale: int, fill: tuple[int, int, int]) -> None:
+    normalized = _normalize_text(text)
+    x, y = xy
+    spacing = scale
+    for char in normalized:
+        glyph = _glyph(char)
+        for row, bits in enumerate(glyph):
+            for col, bit in enumerate(bits):
+                if bit == "1":
+                    x1 = x + col * scale
+                    y1 = y + row * scale
+                    draw.rectangle((x1, y1, x1 + scale - 1, y1 + scale - 1), fill=fill)
+        x += GLYPH_COLS * scale + spacing
 
 
 def _draw_centred_text(
@@ -84,13 +142,15 @@ def _draw_centred_text(
     min_size: int = 10,
 ) -> None:
     x1, y1, x2, y2 = box
-    font = _fit_text(draw, text, x2 - x1 - 8, _scaled(size), min_size, bold=bold, max_height=y2 - y1 - 4)
-    left, top, right, bottom = draw.textbbox((0, 0), str(text), font=font)
-    draw.text(
-        (x1 + (x2 - x1 - (right - left)) / 2, y1 + (y2 - y1 - (bottom - top)) / 2 - 1),
-        str(text),
-        font=font,
-        fill=_rgb(colours[fill_name]),
+    normalized = _normalize_text(text)
+    scale = _fit_bitmap_scale(normalized, x2 - x1 - 8, y2 - y1 - 4, _scaled(size), min_size)
+    width, height = _bitmap_size(normalized, scale)
+    _draw_bitmap_text(
+        draw,
+        (int(x1 + (x2 - x1 - width) / 2), int(y1 + (y2 - y1 - height) / 2)),
+        normalized,
+        scale,
+        _rgb(colours[fill_name]),
     )
 
 
@@ -105,8 +165,12 @@ def _draw_text(
     max_width: int | None = None,
     min_size: int = 10,
 ) -> None:
-    font = _fit_text(draw, text, max_width, _scaled(size), min_size, bold=bold) if max_width else _font(_scaled(size), bold=bold)
-    draw.text(xy, str(text), font=font, fill=_rgb(colours[fill_name]))
+    normalized = _normalize_text(text)
+    if max_width:
+        scale = _fit_bitmap_scale(normalized, max_width, GLYPH_ROWS * _scaled(size), _scaled(size), min_size)
+    else:
+        scale = max(1, int(round(_scaled(size) / GLYPH_ROWS)))
+    _draw_bitmap_text(draw, xy, normalized, scale, _rgb(colours[fill_name]))
 
 
 def _rgb(name: str) -> tuple[int, int, int]:

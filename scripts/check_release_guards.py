@@ -149,8 +149,7 @@ def check_device_spec_alignment() -> None:
     pack_text = pack_path.read_text(encoding="utf-8")
     for required in (
         "PACKED_LENGTH = DEVICE_PACKED_PAYLOAD_BYTES",
-        'DEVICE_ORIENTATION_TRANSFORM = "flip_horizontal_with_corrected_vertical_scan_order"',
-        "Image.Transpose.FLIP_LEFT_RIGHT",
+        'DEVICE_ORIENTATION_TRANSFORM = "none_after_physical_mirror_test"',
         '"slot_stride_bytes": DEVICE_SLOT_STRIDE_BYTES',
         '"source_metadata_payload_bytes": DEVICE_SOURCE_METADATA_PAYLOAD_BYTES',
         '"device_orientation_transform": DEVICE_ORIENTATION_TRANSFORM',
@@ -200,8 +199,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.12"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.12")
+    if '"version": "0.1.13"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.13")
 
 
 def check_weather_renderer_options() -> None:
@@ -235,6 +234,9 @@ def check_weather_renderer_options() -> None:
         cards_path: (
             "COLOUR_MODE_COLOUR = \"colour\"",
             "COLOUR_MODE_MONO = \"mono\"",
+            "GLYPHS: dict[str, tuple[str, ...]]",
+            "_draw_bitmap_text",
+            "_fit_bitmap_scale",
             "render_weather_card(data: WeatherCardData, colour_mode: str = COLOUR_MODE_COLOUR)",
             "_draw_bars(draw, data, colours)",
             "_draw_symbol(draw, kind, data, colours)",
