@@ -8,12 +8,13 @@ small Ditherloom control dashboard:
 - `Send weather to frame` button
 - `Synchronise Wi-Fi wake window` button
 - `Last job status` diagnostic sensor
+- `Frame schedule status` diagnostic sensor
 - Ditherloom update entity
 
 The sync button connects to the frame over the configured Wi-Fi Gateway and
 imports the firmware-owned Home Assistant timer values from `HACONFIG` and
 `SLEEPINFO`. The imported interval and wake-window seconds are exposed on the
-`Last job status` sensor attributes.
+`Last job status` and `Frame schedule status` sensor attributes.
 
 Entity IDs are assigned by Home Assistant and can vary by install. Open the
 Ditherloom device page after restart, copy the entity IDs, then paste them into
@@ -56,6 +57,8 @@ cards:
     entities:
       - entity: sensor.ditherloom_suite_home_assistant_add_on_last_job_status
         name: Last job
+      - entity: sensor.ditherloom_suite_home_assistant_add_on_frame_schedule_status
+        name: Frame schedule
       - entity: update.ditherloom_suite_home_assistant_add_on_update
         name: Integration update
 ```

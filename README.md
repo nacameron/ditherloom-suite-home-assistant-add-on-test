@@ -63,7 +63,8 @@ timer to the frame.
 
 After a successful sync, the integration automatically schedules weather sends
 for the frame's imported wake windows and creates a persistent notification with
-the next send time.
+the next send time. The device page also shows a `Frame schedule status` sensor
+so sync state is visible in Home Assistant.
 
 ## If It Does Not Appear In Add Integration
 

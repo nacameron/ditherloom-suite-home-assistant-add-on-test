@@ -101,6 +101,10 @@ retry window if the frame is not reachable on the first attempt.
 Home Assistant also creates a persistent notification confirming the sync and
 showing the next automatic weather-send time.
 
+The Ditherloom device page also exposes **Frame schedule status**. After sync,
+that sensor should show `synced` and include the next automatic send time in its
+attributes.
+
 ## Test Weather Rendering
 
 After setup:

@@ -7,7 +7,7 @@ import socket
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
@@ -135,6 +135,7 @@ class DitherloomRuntime:
     latest_payload_name: str = "weather-current"
     _auto_send_unsub: CALLBACK_TYPE | None = field(default=None, init=False, repr=False)
     _auto_send_running: bool = field(default=False, init=False, repr=False)
+    _listeners: list[Callable[[], None]] = field(default_factory=list, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.payload_dir = Path(self.hass.config.path("ditherloom_payloads", self.entry.entry_id))
@@ -161,6 +162,20 @@ class DitherloomRuntime:
                 "last_metadata": self.last_metadata,
             }
         )
+        self._notify_listeners()
+
+    def async_add_listener(self, listener: Callable[[], None]) -> CALLBACK_TYPE:
+        self._listeners.append(listener)
+
+        def remove_listener() -> None:
+            if listener in self._listeners:
+                self._listeners.remove(listener)
+
+        return remove_listener
+
+    def _notify_listeners(self) -> None:
+        for listener in list(self._listeners):
+            listener()
 
     async def async_render_weather(self, data: dict[str, Any], publish: bool, send_to_frame: bool) -> dict[str, Any]:
         from .open_meteo import fetch_open_meteo_card

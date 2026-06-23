@@ -200,8 +200,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.23"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.23")
+    if '"version": "0.1.24"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.24")
 
 
 def check_weather_renderer_options() -> None:
@@ -255,6 +255,8 @@ def check_weather_renderer_options() -> None:
             "_draw_bitmap_text",
             "_fit_bitmap_scale",
             "_draw_stepped_fill",
+            '"top_text": "black"',
+            '"bottom_text": "black"',
             '"top_steps":',
             '"body_steps":',
             '"metric_accents":',
@@ -316,6 +318,10 @@ def check_dashboard_surface() -> None:
             "EntityCategory.DIAGNOSTIC",
             "DeviceInfo",
             "Last job status",
+            "DitherloomFrameScheduleSensor",
+            "Frame schedule status",
+            "async_add_listener",
+            "next_auto_send",
         ),
         image_path: (
             "ImageEntity",
