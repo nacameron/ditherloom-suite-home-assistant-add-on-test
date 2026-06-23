@@ -312,7 +312,71 @@ def _draw_template_value(
     start_size: int = 22,
     min_size: int = 11,
 ) -> None:
-    _draw_font_text(draw, box, value, _rgb("black"), start_size, min_size, True)
+    colours = {"text": "black"}
+    _draw_centred_text(draw, box, value, start_size, colours, "text", True, min_size)
+
+
+def _fit_tight_bitmap_scale(text: str, max_width: int, max_height: int, size: int, min_size: int) -> int:
+    current = max(1, int(round(size / GLYPH_ROWS)))
+    min_scale = max(1, int(round(min_size / GLYPH_ROWS)))
+    while current >= min_scale:
+        width, height = _bitmap_size(text, current, spacing=0)
+        if width <= max_width and height <= max_height:
+            return current
+        current -= 1
+    return min_scale
+
+
+def _draw_tight_centred_text(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    text: object,
+    size: int,
+    fill: tuple[int, int, int],
+    min_size: int = 10,
+) -> None:
+    x1, y1, x2, y2 = box
+    normalized = _normalize_text(text)
+    scale = _fit_tight_bitmap_scale(normalized, x2 - x1 - 2, y2 - y1 - 2, _scaled(size), min_size)
+    width, height = _bitmap_size(normalized, scale, spacing=0)
+    x = int(x1 + (x2 - x1 - width) / 2)
+    y = int(y1 + (y2 - y1 - height) / 2)
+    cursor = x
+    for char in normalized:
+        glyph = _glyph(char)
+        for row, bits in enumerate(glyph):
+            for col, bit in enumerate(bits):
+                if bit == "1":
+                    px = cursor + col * scale
+                    py = y + row * scale
+                    cx1 = max(px, x1)
+                    cy1 = max(py, y1)
+                    cx2 = min(px + scale - 1, x2 - 1)
+                    cy2 = min(py + scale - 1, y2 - 1)
+                    if cx1 <= cx2 and cy1 <= cy2:
+                        draw.rectangle((cx1, cy1, cx2, cy2), fill=fill)
+        cursor += GLYPH_COLS * scale
+
+
+def _draw_template_metric(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    label: str,
+    value: str,
+    accent: str,
+) -> None:
+    x1, y1, x2, y2 = box
+    label_width = 27
+    draw.rectangle(box, fill=_rgb("white"), outline=_rgb("black"), width=1)
+    draw.rectangle((x1, y1, x1 + label_width, y2), fill=_rgb(accent), outline=_rgb("black"), width=1)
+    draw.line((x1 + label_width, y1, x1 + label_width, y2), fill=_rgb("black"), width=1)
+    _draw_tight_centred_text(draw, (x1 + 2, y1 + 2, x1 + label_width - 1, y2 - 2), label[:2].upper(), 21, _rgb("black"), 12)
+    compact_value = value
+    if label.upper() == "WI":
+        compact_value = value.replace("km/h", "KM/H").replace("mph", "MPH")
+    start_size = 21 if label.upper() in {"PR", "WI"} else 23
+    min_size = 12 if label.upper() in {"PR", "WI"} else 13
+    _draw_tight_centred_text(draw, (x1 + label_width + 2, y1 + 2, x2 - 3, y2 - 2), compact_value, start_size, _rgb("black"), min_size)
 
 
 def _render_template_weather_card(data: WeatherCardData) -> Image.Image | None:
@@ -325,46 +389,54 @@ def _render_template_weather_card(data: WeatherCardData) -> Image.Image | None:
 
     image = template.copy()
     draw = ImageDraw.Draw(image)
+    text_colours = {
+        "text": "black",
+        "top_text": "black",
+        "bottom_text": "black",
+        "inverse_text": "bright_yellow",
+    }
 
     title = (data.alert.strip() or data.condition.strip() or "Weather").upper()
-    _draw_font_text(draw, (8, 0, WIDTH - 8, TOP_BAR_HEIGHT - 1), title, _rgb("black"), 31, 16, True)
-    _draw_font_text(
+    _draw_centred_text(draw, (8, 0, WIDTH - 8, TOP_BAR_HEIGHT), title, 28, text_colours, "top_text", True, 14)
+    _draw_centred_text(
         draw,
-        (8, HEIGHT - BOTTOM_BAR_HEIGHT + 1, WIDTH - 8, HEIGHT - 1),
+        (8, HEIGHT - BOTTOM_BAR_HEIGHT, WIDTH - 8, HEIGHT),
         (data.location or "Weather location").upper(),
-        _rgb("black"),
-        28,
-        13,
+        25,
+        text_colours,
+        "bottom_text",
         True,
+        12,
     )
 
     left_metrics = (
-        ("UV", _detail_value(data, ("UV", "uv_index"), data.uv_index), (35, 49, 88, 83)),
-        ("RA", _detail_value(data, ("Rain",), data.rain), (35, 99, 88, 133)),
-        ("PR", data.pressure or "--", (35, 149, 88, 183)),
+        ("UV", _detail_value(data, ("UV", "uv_index"), data.uv_index), (4, 50, 110, 84), "pale_yellow"),
+        ("RA", _detail_value(data, ("Rain",), data.rain), (4, 99, 110, 133), "rose"),
+        ("PR", data.pressure or "--", (4, 148, 110, 182), "peach"),
     )
     right_metrics = (
-        ("HI", f"{data.high}{data.unit}", (343, 49, 390, 83)),
-        ("LO", f"{data.low}{data.unit}", (343, 99, 390, 133)),
-        ("HU", _detail_value(data, ("Hum", "Humidity"), data.humidity), (343, 149, 390, 183)),
-        ("WI", _detail_value(data, ("Wind",), data.wind), (343, 199, 390, 233)),
+        ("HI", f"{data.high}{data.unit}", (290, 50, 396, 84), "pale_yellow"),
+        ("LO", f"{data.low}{data.unit}", (290, 99, 396, 133), "pale_yellow"),
+        ("HU", _detail_value(data, ("Hum", "Humidity"), data.humidity), (290, 148, 396, 182), "pale_yellow"),
+        ("WI", _detail_value(data, ("Wind",), data.wind), (290, 197, 396, 231), "tan"),
     )
-    for label, value, box in left_metrics + right_metrics:
-        start = 20 if label in {"PR", "WI"} else 23
-        minimum = 12 if label in {"PR", "WI"} else 13
-        _draw_template_value(draw, box, value, start, minimum)
+    for label, value, box, accent in left_metrics + right_metrics:
+        _draw_template_metric(draw, box, label, value, accent)
 
-    _draw_font_text(
+    draw.rectangle((129, 170, 271, 236), fill=_rgb("black"), outline=_rgb("black"), width=1)
+    _draw_centred_text(
         draw,
-        (132, 181, 270, 245),
+        (131, 170, 269, 236),
         f"{data.temperature}{data.unit}",
-        _rgb("bright_yellow"),
-        62,
-        30,
+        52,
+        text_colours,
+        "inverse_text",
         True,
+        30,
     )
     feels_like = f"Feels Like {data.feels_like}" if data.feels_like else "Feels Like --"
-    _draw_font_text(draw, (92, 246, 308, 269), feels_like, _rgb("black"), 21, 12, True)
+    draw.rectangle((96, 238, 304, 260), fill=_rgb("white"), outline=_rgb("black"), width=1)
+    _draw_centred_text(draw, (98, 239, 302, 259), feels_like, 18, text_colours, "text", True, 10)
     return image
 
 

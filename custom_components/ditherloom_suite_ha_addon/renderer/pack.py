@@ -24,6 +24,7 @@ HEIGHT = DEVICE_FRAME_HEIGHT
 PIXEL_COUNT = DEVICE_PIXEL_COUNT
 PACKED_LENGTH = DEVICE_PACKED_PAYLOAD_BYTES
 DEVICE_ORIENTATION_TRANSFORM = "flip_vertical_per_device_packet_spec"
+SAFE_RECIPE_DISTANCE_LIMIT = 45 * 45
 
 
 @dataclass(frozen=True)
@@ -62,8 +63,29 @@ def image_to_codes(image: Image.Image) -> List[int]:
                     continue
                 codes.append(0)
                 continue
+            recipe_name = nearest_recipe_template_name(rgb)
+            if recipe_name:
+                codes.append(ordered_code(TEMPLATE_COLOURS[recipe_name].recipe, x, y))
+                continue
             codes.append(nearest_panel_code(rgb))
     return codes
+
+
+def nearest_recipe_template_name(rgb: tuple[int, int, int]) -> str | None:
+    r, g, b = rgb
+    best_name: str | None = None
+    best_distance: int | None = None
+    for name, colour in TEMPLATE_COLOURS.items():
+        if colour.recipe is None:
+            continue
+        cr, cg, cb = colour.rgb
+        distance = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2
+        if best_distance is None or distance < best_distance:
+            best_name = name
+            best_distance = distance
+    if best_distance is not None and best_distance <= SAFE_RECIPE_DISTANCE_LIMIT:
+        return best_name
+    return None
 
 
 def pack_pixel_codes(codes: List[int]) -> bytes:

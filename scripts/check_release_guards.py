@@ -207,8 +207,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.30"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.30")
+    if '"version": "0.1.31"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.31")
 
 
 def check_weather_renderer_options() -> None:
@@ -386,6 +386,18 @@ def check_weather_template_assets() -> None:
             fail(f"weather template asset has wrong size: {slug}")
 
 
+def check_weather_packer_recipe_matching() -> None:
+    pack_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "renderer" / "pack.py"
+    pack_text = pack_path.read_text(encoding="utf-8")
+    for required in (
+        "SAFE_RECIPE_DISTANCE_LIMIT",
+        "nearest_recipe_template_name",
+        "ordered_code(TEMPLATE_COLOURS[recipe_name].recipe, x, y)",
+    ):
+        if required not in pack_text:
+            fail(f"weather packer missing near-safe recipe matching: {required}")
+
+
 def check_sync_button() -> None:
     button_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "button.py"
     if not button_path.exists():
@@ -500,6 +512,7 @@ def main() -> None:
     check_update_platform()
     check_weather_renderer_options()
     check_weather_template_assets()
+    check_weather_packer_recipe_matching()
     check_sync_button()
     check_dashboard_surface()
     check_locked_render_delivery_pathway()
