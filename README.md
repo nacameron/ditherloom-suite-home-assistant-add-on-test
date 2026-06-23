@@ -4,7 +4,9 @@ Public test repository for the Ditherloom Suite Home Assistant integration.
 
 ## Preferred install path
 
-Use HACS custom repositories:
+Full public install instructions are in [docs/INSTALL.md](docs/INSTALL.md).
+
+Short version:
 
 1. Open HACS.
 2. Open custom repositories.
