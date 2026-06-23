@@ -2,7 +2,7 @@ name: "PicPak Home Assistant Renderer"
 version: "0.1.0"
 slug: "picpak_ha_renderer"
 description: "Prototype PicPak/Ditherloom renderer and MQTT job publisher for Home Assistant"
-url: "https://example.local/picpak-ha-renderer"
+url: "https://github.com/nacameron/picpak-home-assistant-addon-test"
 arch:
   - aarch64
   - amd64
@@ -26,4 +26,3 @@ map:
     read_only: false
 options: {}
 schema: {}
-
