@@ -37,8 +37,7 @@ WEATHER_CODES = {
 
 
 def fetch_open_meteo_card(latitude: str, longitude: str, location: str) -> WeatherCardData:
-    latitude = _normalise_coordinate(latitude, "latitude")
-    longitude = _normalise_coordinate(longitude, "longitude")
+    latitude, longitude = _normalise_coordinates(latitude, longitude)
     params = {
         "latitude": latitude,
         "longitude": longitude,
@@ -123,6 +122,21 @@ def fetch_open_meteo_card(latitude: str, longitude: str, location: str) -> Weath
 _COORDINATE_RE = re.compile(r"([+-]?\d+(?:\.\d+)?)")
 
 
+def _normalise_coordinates(latitude: Any, longitude: Any) -> tuple[str, str]:
+    if _coordinate_direction(latitude) in ("E", "W") and _coordinate_direction(longitude) in ("N", "S"):
+        latitude, longitude = longitude, latitude
+
+    return _normalise_coordinate(latitude, "latitude"), _normalise_coordinate(longitude, "longitude")
+
+
+def _coordinate_direction(value: Any) -> str | None:
+    upper = str(value or "").strip().upper()
+    for candidate in ("N", "S", "E", "W"):
+        if re.search(rf"(^|[^A-Z]){candidate}([^A-Z]|$)", upper):
+            return candidate
+    return None
+
+
 def _normalise_coordinate(value: Any, axis: str) -> str:
     raw = str(value or "").strip()
     match = _COORDINATE_RE.search(raw)
@@ -131,11 +145,7 @@ def _normalise_coordinate(value: Any, axis: str) -> str:
 
     number = float(match.group(1))
     upper = raw.upper()
-    direction = None
-    for candidate in ("N", "S", "E", "W"):
-        if re.search(rf"(^|[^A-Z]){candidate}([^A-Z]|$)", upper):
-            direction = candidate
-            break
+    direction = _coordinate_direction(upper)
 
     if direction in ("S", "W"):
         number = -abs(number)

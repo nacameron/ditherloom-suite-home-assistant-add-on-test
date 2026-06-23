@@ -74,6 +74,8 @@ redownload the integration from there.
 
 - Renders a Ditherloom weather card inside Home Assistant.
 - Uses Open-Meteo for free/non-commercial test weather.
+- Uses a Home Assistant map picker for weather action location, with manual
+  latitude/longitude fields kept as fallback.
 - Serves a `.ppbin` payload through a Home Assistant HTTP endpoint.
 - Serves a preview PNG endpoint.
 - Publishes optional MQTT job metadata if MQTT is configured.

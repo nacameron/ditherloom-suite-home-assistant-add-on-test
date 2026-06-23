@@ -32,6 +32,7 @@ from .const import (
     CONF_MAX_JOBS_PER_WAKE,
     CONF_TARGET_SLOT,
     CONF_TOPIC_BASE,
+    CONF_WEATHER_LOCATION,
     CONF_WAKE_WINDOW_MINUTES,
     DEFAULT_FRAME_PORT,
     DEFAULT_MAX_JOBS_PER_WAKE,
@@ -135,9 +136,14 @@ class DitherloomRuntime:
         from .renderer.pack import write_artifact
 
         opts = self.options
-        latitude = str(data.get(CONF_LATITUDE) or opts.get(CONF_LATITUDE) or "0")
-        longitude = str(data.get(CONF_LONGITUDE) or opts.get(CONF_LONGITUDE) or "0")
-        location = str(data.get(CONF_LOCATION_NAME) or opts.get(CONF_LOCATION_NAME) or "Home")
+        picked_location = data.get(CONF_WEATHER_LOCATION)
+        if isinstance(picked_location, dict):
+            latitude = str(picked_location.get(CONF_LATITUDE) or opts.get(CONF_LATITUDE) or "0")
+            longitude = str(picked_location.get(CONF_LONGITUDE) or opts.get(CONF_LONGITUDE) or "0")
+        else:
+            latitude = str(data.get(CONF_LATITUDE) or opts.get(CONF_LATITUDE) or "0")
+            longitude = str(data.get(CONF_LONGITUDE) or opts.get(CONF_LONGITUDE) or "0")
+        location = str(data.get(CONF_LOCATION_NAME) or data.get("location") or opts.get(CONF_LOCATION_NAME) or "Home")
 
         card_data = await self.hass.async_add_executor_job(fetch_open_meteo_card, latitude, longitude, location)
         image = render_weather_card(card_data)

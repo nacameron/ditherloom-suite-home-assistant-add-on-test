@@ -1,8 +1,12 @@
 render_weather_card:
   fields:
-    location:
+    location_name:
       selector:
         text:
+      required: false
+    weather_location:
+      selector:
+        location:
       required: false
     latitude:
       selector:
@@ -14,9 +18,13 @@ render_weather_card:
       required: false
 send_weather_card:
   fields:
-    location:
+    location_name:
       selector:
         text:
+      required: false
+    weather_location:
+      selector:
+        location:
       required: false
     latitude:
       selector:
@@ -30,4 +38,3 @@ send_weather_card:
       selector:
         boolean:
       required: false
-
