@@ -68,13 +68,13 @@ class DitherloomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class DitherloomOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, config_entry):
-        self.config_entry = config_entry
+        self._entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        data = {**self.config_entry.data, **self.config_entry.options}
+        data = {**self._entry.data, **self._entry.options}
         schema = vol.Schema(
             {
                 vol.Required(CONF_FRAME_HOST, default=data.get(CONF_FRAME_HOST, "")): str,
