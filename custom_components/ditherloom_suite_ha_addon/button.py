@@ -41,7 +41,12 @@ class DitherloomRenderWeatherButton(DitherloomButtonBase):
         self._attr_unique_id = f"{entry.entry_id}_render_weather_preview"
 
     async def async_press(self) -> None:
-        await self._coordinator.async_render_weather({}, publish=False, send_to_frame=False)
+        await self._coordinator.async_run_weather_action(
+            {},
+            publish=False,
+            send_to_frame=False,
+            action="render weather",
+        )
 
 
 class DitherloomSendWeatherButton(DitherloomButtonBase):
@@ -52,7 +57,12 @@ class DitherloomSendWeatherButton(DitherloomButtonBase):
         self._attr_unique_id = f"{entry.entry_id}_send_weather_to_frame"
 
     async def async_press(self) -> None:
-        await self._coordinator.async_render_weather({}, publish=True, send_to_frame=True)
+        await self._coordinator.async_run_weather_action(
+            {},
+            publish=True,
+            send_to_frame=True,
+            action="send weather",
+        )
 
 
 class DitherloomSyncWakeWindowButton(DitherloomButtonBase):

@@ -202,14 +202,15 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.27"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.27")
+    if '"version": "0.1.28"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.28")
 
 
 def check_weather_renderer_options() -> None:
     const_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "const.py"
     flow_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "config_flow.py"
     init_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py"
+    button_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "button.py"
     cards_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "renderer" / "cards.py"
     open_meteo_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "open_meteo.py"
 
@@ -250,12 +251,18 @@ def check_weather_renderer_options() -> None:
             "SERVICE_SYNC_WAKE_WINDOW",
             "hass.services.async_register(DOMAIN, SERVICE_SYNC_WAKE_WINDOW, handle_sync_wake_window)",
             "async_sync_wake_window",
+            "async_run_weather_action",
             "_probe_existing_gateway",
             "_read_existing_gateway_timer_config",
             '"HACONFIG"',
             '"SLEEPINFO"',
             '"frame_timer"',
             '"wake_window_seconds"',
+        ),
+        button_path: (
+            "async_run_weather_action",
+            'action="render weather"',
+            'action="send weather"',
         ),
         cards_path: (
             "COLOUR_MODE_COLOUR = \"colour\"",

@@ -117,14 +117,12 @@ async def _handle_weather_service(
     send_to_frame: bool,
     action: str,
 ) -> None:
-    try:
-        await coordinator.async_render_weather(dict(call.data), publish=publish, send_to_frame=send_to_frame)
-    except Exception as exc:
-        message = f"Ditherloom {action} failed: {type(exc).__name__}: {exc}"
-        coordinator.last_status = "error"
-        coordinator.last_metadata[ATTR_LAST_ERROR] = message
-        await coordinator.async_save()
-        raise HomeAssistantError(message) from exc
+    await coordinator.async_run_weather_action(
+        dict(call.data),
+        publish=publish,
+        send_to_frame=send_to_frame,
+        action=action,
+    )
 
 
 @dataclass
@@ -179,6 +177,23 @@ class DitherloomRuntime:
     def _notify_listeners(self) -> None:
         for listener in list(self._listeners):
             listener()
+
+    async def async_run_weather_action(
+        self,
+        data: dict[str, Any],
+        publish: bool,
+        send_to_frame: bool,
+        action: str,
+    ) -> dict[str, Any]:
+        try:
+            return await self.async_render_weather(data, publish=publish, send_to_frame=send_to_frame)
+        except Exception as exc:
+            message = f"Ditherloom {action} failed: {type(exc).__name__}: {exc}"
+            self.last_status = "error"
+            self.last_metadata[ATTR_LAST_ERROR] = message
+            await self.async_save()
+            self._create_notification(f"Ditherloom {action} failed", message)
+            raise HomeAssistantError(message) from exc
 
     async def async_render_weather(self, data: dict[str, Any], publish: bool, send_to_frame: bool) -> dict[str, Any]:
         from .open_meteo import fetch_open_meteo_card
