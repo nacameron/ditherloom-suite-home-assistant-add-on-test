@@ -412,7 +412,7 @@ def _draw_moon(draw: ImageDraw.ImageDraw, cx: int, cy: int, colours: dict[str, s
 
 
 def _draw_symbol(draw: ImageDraw.ImageDraw, kind: str, data: WeatherCardData, colours: dict[str, str]) -> None:
-    draw.rectangle((136, 50, 264, 210), fill=_rgb(colours["symbol_panel"]), outline=_rgb("black"), width=5)
+    draw.rectangle((136, 50, 264, 210), fill=_rgb(colours["symbol_panel"]))
     if kind == "storm":
         _draw_cloud(draw, 200, 96, colours, scale=0.72, storm=True, rain=True)
     elif kind == "rain":
@@ -441,9 +441,9 @@ def _draw_metric(
     accent: str | None = None,
 ) -> None:
     accent_name = accent or colours["metric_accent"]
-    draw.rectangle((x, y, x + 112, y + 34), fill=_rgb(colours["metric"]), outline=_rgb("black"), width=3)
+    draw.rectangle((x, y, x + 112, y + 34), fill=_rgb(colours["metric"]), outline=_rgb("black"), width=1)
     draw.rectangle((x, y, x + 30, y + 34), fill=_rgb(accent_name))
-    draw.line((x + 30, y, x + 30, y + 34), fill=_rgb("black"), width=3)
+    draw.line((x + 30, y, x + 30, y + 34), fill=_rgb("black"), width=1)
     label_fill = "inverse_text" if accent_name in {"black", "charcoal", "warm_grey"} else "metric_text"
     _draw_centred_text(draw, (x + 2, y, x + 30, y + 34), label[:2].upper(), 14, colours, label_fill, True, 9)
     _draw_centred_text(draw, (x + 34, y, x + 108, y + 34), value, 18, colours, "metric_text", True, 10)
