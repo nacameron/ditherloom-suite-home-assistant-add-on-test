@@ -93,6 +93,14 @@ It imports the firmware-owned Home Assistant timer values, including
 The sync button reads the frame timer. It does not write a new timer to the
 frame and does not keep Wi-Fi permanently alive.
 
+After a successful sync, Home Assistant schedules one automatic weather send for
+the next expected firmware wake window. It repeats from the imported
+`intervalMinutes` value and uses the imported `wakeWindowSeconds` value as the
+retry window if the frame is not reachable on the first attempt.
+
+Home Assistant also creates a persistent notification confirming the sync and
+showing the next automatic weather-send time.
+
 ## Test Weather Rendering
 
 After setup:

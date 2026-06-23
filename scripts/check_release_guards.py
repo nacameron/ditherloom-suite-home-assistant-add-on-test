@@ -200,8 +200,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.22"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.22")
+    if '"version": "0.1.23"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.23")
 
 
 def check_weather_renderer_options() -> None:
@@ -228,7 +228,16 @@ def check_weather_renderer_options() -> None:
             'metadata["display_mode"] = display_mode',
             'PLATFORMS = ["sensor", "update", "button", "image"]',
             'CONF_UPDATE_INTERVAL_MINUTES',
+            'DEFAULT_UPDATE_INTERVAL_MINUTES',
             'CONF_WAKE_WINDOW_SECONDS',
+            "async_track_point_in_time",
+            "_schedule_next_auto_send",
+            "_handle_auto_send",
+            "_create_notification",
+            '"persistent_notification"',
+            '"ha_timer_us"',
+            '"auto_send_next_at"',
+            '"auto_send_window_expires_at"',
             "SERVICE_SYNC_WAKE_WINDOW",
             "hass.services.async_register(DOMAIN, SERVICE_SYNC_WAKE_WINDOW, handle_sync_wake_window)",
             "async_sync_wake_window",

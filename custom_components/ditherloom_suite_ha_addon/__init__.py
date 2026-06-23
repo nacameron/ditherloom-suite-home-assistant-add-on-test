@@ -12,9 +12,10 @@ from typing import Any
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import aiohttp_client
+from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
@@ -41,6 +42,7 @@ from .const import (
     DEFAULT_DISPLAY_MODE,
     DEFAULT_MAX_JOBS_PER_WAKE,
     DEFAULT_TARGET_SLOT,
+    DEFAULT_UPDATE_INTERVAL_MINUTES,
     DEFAULT_WAKE_WINDOW_MINUTES,
     DEVICE_PACKED_PAYLOAD_BYTES,
     DEVICE_SLOT_COUNT,
@@ -66,6 +68,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = DitherloomRuntime(hass, entry, store)
     await coordinator.async_load()
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    await coordinator.async_start()
 
     hass.http.register_view(DitherloomPayloadView(coordinator))
     hass.http.register_view(DitherloomPreviewView(coordinator))
@@ -95,6 +98,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if coordinator:
+        coordinator.async_cancel_auto_send()
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
@@ -127,6 +133,8 @@ class DitherloomRuntime:
     last_status: str = "idle"
     last_metadata: dict[str, Any] = field(default_factory=dict)
     latest_payload_name: str = "weather-current"
+    _auto_send_unsub: CALLBACK_TYPE | None = field(default=None, init=False, repr=False)
+    _auto_send_running: bool = field(default=False, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.payload_dir = Path(self.hass.config.path("ditherloom_payloads", self.entry.entry_id))
@@ -141,6 +149,10 @@ class DitherloomRuntime:
         if stored:
             self.last_status = stored.get("last_status", "idle")
             self.last_metadata = stored.get("last_metadata", {})
+
+    async def async_start(self) -> None:
+        if self._schedule_next_auto_send():
+            await self.async_save()
 
     async def async_save(self) -> None:
         await self.store.async_save(
@@ -229,9 +241,22 @@ class DitherloomRuntime:
                         self.last_metadata["wake_window_seconds"] = synced_seconds
                         self.last_metadata["wake_window_minutes"] = max(1, (synced_seconds + 59) // 60)
                         self.last_metadata["sync_window_expires_at"] = (now + timedelta(seconds=synced_seconds)).isoformat()
+                if self._schedule_next_auto_send(from_time=now, use_frame_timer_us=True):
+                    self.last_metadata["auto_send_enabled"] = True
+                    self._create_notification(
+                        "Ditherloom frame timer synced",
+                        (
+                            "Imported the frame Home Assistant timer. "
+                            f"Next automatic weather send: {self.last_metadata.get('auto_send_next_at', 'unknown')}."
+                        ),
+                    )
             except Exception as exc:
                 self.last_status = "sync_window_waiting"
                 self.last_metadata[ATTR_LAST_ERROR] = f"Frame Gateway not reachable during sync window: {type(exc).__name__}: {exc}"
+                self._create_notification(
+                    "Ditherloom frame timer sync failed",
+                    str(self.last_metadata[ATTR_LAST_ERROR]),
+                )
 
         await self.async_save()
         return dict(self.last_metadata)
@@ -259,6 +284,83 @@ class DitherloomRuntime:
     def _effective_wake_window_minutes(self) -> int:
         seconds = self._effective_wake_window_seconds()
         return max(1, (seconds + 59) // 60)
+
+    def async_cancel_auto_send(self) -> None:
+        if self._auto_send_unsub:
+            self._auto_send_unsub()
+            self._auto_send_unsub = None
+
+    def _schedule_next_auto_send(self, from_time: datetime | None = None, use_frame_timer_us: bool = False) -> bool:
+        timer = self.last_metadata.get("frame_timer")
+        if not isinstance(timer, dict) or not timer.get("schedule_enabled"):
+            self.async_cancel_auto_send()
+            return False
+
+        interval_minutes = _positive_int(timer.get("interval_minutes"))
+        wake_window_seconds = _positive_int(timer.get("wake_window_seconds"))
+        if not interval_minutes or not wake_window_seconds:
+            self.async_cancel_auto_send()
+            return False
+
+        now = from_time or datetime.now(timezone.utc)
+        timer_us = _positive_int(timer.get("ha_timer_us")) if use_frame_timer_us else None
+        if timer_us:
+            next_send = now + timedelta(microseconds=timer_us)
+        else:
+            sync_started = _parse_datetime(self.last_metadata.get("sync_window_started_at")) or now
+            next_send = sync_started + timedelta(minutes=interval_minutes)
+        while next_send <= now + timedelta(seconds=2):
+            next_send += timedelta(minutes=interval_minutes)
+
+        self.async_cancel_auto_send()
+        self.last_metadata["auto_send_next_at"] = next_send.isoformat()
+        self.last_metadata["auto_send_window_expires_at"] = (next_send + timedelta(seconds=wake_window_seconds)).isoformat()
+        self.last_metadata["auto_send_interval_minutes"] = interval_minutes
+        self.last_metadata["auto_send_wake_window_seconds"] = wake_window_seconds
+        self._auto_send_unsub = async_track_point_in_time(self.hass, self._handle_auto_send, next_send)
+        return True
+
+    async def _handle_auto_send(self, fired_at: datetime) -> None:
+        if self._auto_send_running:
+            return
+        self._auto_send_running = True
+        try:
+            await self.async_render_weather({}, publish=True, send_to_frame=True)
+            self.last_status = "auto_sent"
+            self.last_metadata["auto_send_last_success_at"] = datetime.now(timezone.utc).isoformat()
+            self._schedule_next_auto_send(from_time=fired_at)
+        except Exception as exc:
+            now = datetime.now(timezone.utc)
+            self.last_status = "auto_send_waiting"
+            self.last_metadata[ATTR_LAST_ERROR] = f"Automatic weather send failed: {type(exc).__name__}: {exc}"
+            self.last_metadata["auto_send_last_failed_at"] = now.isoformat()
+            window_expires = _parse_datetime(self.last_metadata.get("auto_send_window_expires_at"))
+            if window_expires and now + timedelta(seconds=15) < window_expires:
+                retry_at = now + timedelta(seconds=15)
+                self.last_metadata["auto_send_retry_at"] = retry_at.isoformat()
+                self.async_cancel_auto_send()
+                self._auto_send_unsub = async_track_point_in_time(self.hass, self._handle_auto_send, retry_at)
+            else:
+                self._schedule_next_auto_send(from_time=now)
+        finally:
+            self._auto_send_running = False
+            await self.async_save()
+
+    def _create_notification(self, title: str, message: str) -> None:
+        if not self.hass.services.has_service("persistent_notification", "create"):
+            return
+        self.hass.async_create_task(
+            self.hass.services.async_call(
+                "persistent_notification",
+                "create",
+                {
+                    "title": title,
+                    "message": message,
+                    "notification_id": f"{DOMAIN}_{self.entry.entry_id}_sync",
+                },
+                blocking=False,
+            )
+        )
 
     def _apply_imported_frame_timer(self, imported: dict[str, Any]) -> None:
         frame_config = imported.get("frame_ha_config")
@@ -566,3 +668,15 @@ def _boolish(primary: Any, fallback: Any = None) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on"}
     return bool(value)
+
+
+def _parse_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)

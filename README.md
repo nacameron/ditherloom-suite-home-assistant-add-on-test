@@ -61,6 +61,10 @@ The imported interval and wake-window seconds are then used for Home Assistant
 job expiry timing. The button reads the frame timer; it does not write a new
 timer to the frame.
 
+After a successful sync, the integration automatically schedules weather sends
+for the frame's imported wake windows and creates a persistent notification with
+the next send time.
+
 ## If It Does Not Appear In Add Integration
 
 There is no expected long delay after restart. If it does not appear:

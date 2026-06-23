@@ -60,6 +60,10 @@ cards:
         name: Integration update
 ```
 
-Automatic scheduled sending is not enabled yet. Until that is added, use the
+Automatic scheduled sending starts after the sync button successfully imports
+the firmware-owned timer from the frame. Until sync has succeeded, use the
 `Send weather to frame` button or the `ditherloom_suite_ha_addon.send_weather_card`
 action.
+
+After a successful sync, Home Assistant creates a persistent notification with
+the next automatic weather-send time.
