@@ -166,6 +166,8 @@ def check_device_spec_alignment() -> None:
         "DEVICE_WIFI_B64WRITE_CHUNK_BYTES",
         "len(command) > DEVICE_WIFI_COMMAND_MAX_CHARS",
         "0x{crc32}",
+        "WIFI_BANNER_PREFIX",
+        "every command response is read one line late",
     ):
         if required not in init_text:
             fail(f"Gateway sender missing device-spec guard/text: {required}")
@@ -200,8 +202,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.24"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.24")
+    if '"version": "0.1.25"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.25")
 
 
 def check_weather_renderer_options() -> None:

@@ -510,10 +510,18 @@ def _readline(sock_file) -> str:
     return line.decode("utf-8", errors="replace").strip()
 
 
+WIFI_BANNER_PREFIX = "OK " + "PIC" + "PAK" + " WIFI"
+
+
 def _send_command(sock_file, command: str) -> str:
     sock_file.write((command + "\n").encode("utf-8"))
     sock_file.flush()
-    return _readline(sock_file)
+    response = _readline(sock_file)
+    # The Wi-Fi Gateway announces itself immediately after TCP connect. If that
+    # banner is left in the stream, every command response is read one line late.
+    if response.startswith(WIFI_BANNER_PREFIX):
+        response = _readline(sock_file)
+    return response
 
 
 def _send_existing_gateway_job(host: str, port: int, packed: bytes, crc32: str, slot: int) -> None:
