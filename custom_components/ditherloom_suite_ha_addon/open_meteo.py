@@ -4,12 +4,15 @@ import json
 import re
 import urllib.parse
 import urllib.request
+from functools import lru_cache
 from datetime import datetime
 from typing import Any, Dict
 
 from .renderer.cards import WeatherCardData
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"
+REVERSE_GEOCODE_USER_AGENT = "Ditherloom-Suite-Home-Assistant-Add-On/0.1"
 
 WEATHER_CODES = {
     0: "Sunny",
@@ -38,6 +41,7 @@ WEATHER_CODES = {
 
 def fetch_open_meteo_card(latitude: str, longitude: str, location: str) -> WeatherCardData:
     latitude, longitude = _normalise_coordinates(latitude, longitude)
+    resolved_location = location.strip() or _reverse_location_name(latitude, longitude) or "Open-Meteo"
     params = {
         "latitude": latitude,
         "longitude": longitude,
@@ -100,7 +104,7 @@ def fetch_open_meteo_card(latitude: str, longitude: str, location: str) -> Weath
     )
     alert = "Storm watch" if code in (95, 96, 99) else ""
     return WeatherCardData(
-        location=location or "Open-Meteo",
+        location=resolved_location,
         condition=condition,
         temperature=temp,
         unit="C",
@@ -157,6 +161,41 @@ def _normalise_coordinate(value: Any, axis: str) -> str:
         raise ValueError(f"{axis} must be between {-limit} and {limit}")
 
     return f"{number:.6f}".rstrip("0").rstrip(".")
+
+
+@lru_cache(maxsize=64)
+def _reverse_location_name(latitude: str, longitude: str) -> str:
+    params = {
+        "format": "jsonv2",
+        "lat": latitude,
+        "lon": longitude,
+        "zoom": "10",
+        "addressdetails": "1",
+    }
+    url = f"{NOMINATIM_REVERSE_URL}?{urllib.parse.urlencode(params)}"
+    request = urllib.request.Request(url, headers={"User-Agent": REVERSE_GEOCODE_USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=8) as response:
+            payload: Dict[str, Any] = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        return ""
+
+    address = payload.get("address")
+    if not isinstance(address, dict):
+        return _display_name_fallback(payload)
+    for key in ("suburb", "city_district", "town", "city", "village", "municipality", "county", "state"):
+        value = address.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return _display_name_fallback(payload)
+
+
+def _display_name_fallback(payload: Dict[str, Any]) -> str:
+    display_name = payload.get("display_name")
+    if not isinstance(display_name, str):
+        return ""
+    first = display_name.split(",", 1)[0].strip()
+    return first[:32]
 
 
 def _first(value: Any) -> Any:

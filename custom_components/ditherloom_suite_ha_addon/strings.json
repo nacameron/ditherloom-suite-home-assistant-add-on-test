@@ -16,7 +16,8 @@
           "update_interval_minutes": "Repeating update interval minutes",
           "wake_window_minutes": "Wake window minutes",
           "max_jobs_per_wake": "Maximum jobs per wake",
-          "target_slot": "Reserved Home Assistant content slot"
+          "target_slot": "Reserved Home Assistant content slot",
+          "display_mode": "Weather display mode"
         }
       }
     }
@@ -35,7 +36,8 @@
           "update_interval_minutes": "Repeating update interval minutes",
           "wake_window_minutes": "Wake window minutes",
           "max_jobs_per_wake": "Maximum jobs per wake",
-          "target_slot": "Reserved Home Assistant content slot"
+          "target_slot": "Reserved Home Assistant content slot",
+          "display_mode": "Weather display mode"
         }
       }
     }

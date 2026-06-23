@@ -16,6 +16,13 @@ render_weather_card:
       selector:
         text:
       required: false
+    display_mode:
+      selector:
+        select:
+          options:
+            - colour
+            - mono
+      required: false
 send_weather_card:
   fields:
     location_name:
@@ -33,6 +40,13 @@ send_weather_card:
     longitude:
       selector:
         text:
+      required: false
+    display_mode:
+      selector:
+        select:
+          options:
+            - colour
+            - mono
       required: false
     display:
       selector:

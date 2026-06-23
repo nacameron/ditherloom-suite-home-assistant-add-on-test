@@ -24,6 +24,7 @@ from .const import (
     ATTR_LAST_ERROR,
     ATTR_PAYLOAD_URL,
     ATTR_PREVIEW_URL,
+    CONF_DISPLAY_MODE,
     CONF_FRAME_HOST,
     CONF_FRAME_PORT,
     CONF_LATITUDE,
@@ -35,6 +36,7 @@ from .const import (
     CONF_WEATHER_LOCATION,
     CONF_WAKE_WINDOW_MINUTES,
     DEFAULT_FRAME_PORT,
+    DEFAULT_DISPLAY_MODE,
     DEFAULT_MAX_JOBS_PER_WAKE,
     DEFAULT_TARGET_SLOT,
     DEFAULT_WAKE_WINDOW_MINUTES,
@@ -47,7 +49,7 @@ from .const import (
     SERVICE_SEND_WEATHER,
 )
 
-PLATFORMS = ["sensor", "update"]
+PLATFORMS = ["sensor", "update", "button"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
 
@@ -144,13 +146,15 @@ class DitherloomRuntime:
         if isinstance(picked_location, dict):
             latitude = str(picked_location.get(CONF_LATITUDE) or opts.get(CONF_LATITUDE) or "0")
             longitude = str(picked_location.get(CONF_LONGITUDE) or opts.get(CONF_LONGITUDE) or "0")
+            location = str(data.get(CONF_LOCATION_NAME) or data.get("location") or "")
         else:
             latitude = str(data.get(CONF_LATITUDE) or opts.get(CONF_LATITUDE) or "0")
             longitude = str(data.get(CONF_LONGITUDE) or opts.get(CONF_LONGITUDE) or "0")
-        location = str(data.get(CONF_LOCATION_NAME) or data.get("location") or opts.get(CONF_LOCATION_NAME) or "Home")
+            location = str(data.get(CONF_LOCATION_NAME) or data.get("location") or opts.get(CONF_LOCATION_NAME) or "Home")
 
         card_data = await self.hass.async_add_executor_job(fetch_open_meteo_card, latitude, longitude, location)
-        image = render_weather_card(card_data)
+        display_mode = str(data.get(CONF_DISPLAY_MODE) or opts.get(CONF_DISPLAY_MODE, DEFAULT_DISPLAY_MODE))
+        image = render_weather_card(card_data, colour_mode=display_mode)
         artifact = render_to_artifact(image, "weather_current", [card_data.source_entity_id])
         await self.hass.async_add_executor_job(write_artifact, artifact, self.payload_dir, self.latest_payload_name)
 
@@ -160,6 +164,7 @@ class DitherloomRuntime:
         metadata["rendered_at"] = datetime.now(timezone.utc).isoformat()
         metadata["wake_window_minutes"] = opts.get(CONF_WAKE_WINDOW_MINUTES, DEFAULT_WAKE_WINDOW_MINUTES)
         metadata["max_jobs_per_wake"] = opts.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE)
+        metadata["display_mode"] = display_mode
 
         self.last_status = "rendered"
         self.last_metadata = metadata
@@ -173,6 +178,34 @@ class DitherloomRuntime:
 
         await self.async_save()
         return metadata
+
+    async def async_sync_wake_window(self) -> dict[str, Any]:
+        opts = self.options
+        host = opts.get(CONF_FRAME_HOST)
+        port = int(opts.get(CONF_FRAME_PORT, DEFAULT_FRAME_PORT))
+        wake_minutes = int(opts.get(CONF_WAKE_WINDOW_MINUTES, DEFAULT_WAKE_WINDOW_MINUTES))
+        now = datetime.now(timezone.utc)
+        metadata = {
+            "sync_window_started_at": now.isoformat(),
+            "sync_window_expires_at": (now + timedelta(minutes=wake_minutes)).isoformat(),
+            "wake_window_minutes": wake_minutes,
+            "frame_host": host or "",
+            "frame_port": port,
+        }
+        self.last_status = "sync_window_started"
+        self.last_metadata.update(metadata)
+
+        if host:
+            try:
+                probe = await self.hass.async_add_executor_job(_probe_existing_gateway, host, port)
+                self.last_status = "sync_window_reachable"
+                self.last_metadata["sync_probe"] = probe
+            except Exception as exc:
+                self.last_status = "sync_window_waiting"
+                self.last_metadata[ATTR_LAST_ERROR] = f"Frame Gateway not reachable during sync window: {type(exc).__name__}: {exc}"
+
+        await self.async_save()
+        return dict(self.last_metadata)
 
     @property
     def payload_url(self) -> str:
@@ -243,7 +276,13 @@ class DitherloomPayloadView(HomeAssistantView):
         path = self.runtime.payload_path()
         if filename != path.name or not path.exists():
             return self.json({"error": "not_found"}, status_code=404)
-        return web.FileResponse(path, headers={"Content-Type": "application/octet-stream"})
+        return web.FileResponse(
+            path,
+            headers={
+                "Content-Type": "application/octet-stream",
+                "Cache-Control": "no-store",
+            },
+        )
 
 
 class DitherloomPreviewView(HomeAssistantView):
@@ -258,7 +297,13 @@ class DitherloomPreviewView(HomeAssistantView):
         path = self.runtime.preview_path()
         if filename != path.name or not path.exists():
             return self.json({"error": "not_found"}, status_code=404)
-        return web.FileResponse(path, headers={"Content-Type": "image/png"})
+        return web.FileResponse(
+            path,
+            headers={
+                "Content-Type": "image/png",
+                "Cache-Control": "no-store",
+            },
+        )
 
 
 def _readline(sock_file) -> str:
@@ -310,3 +355,16 @@ def _send_existing_gateway_job(host: str, port: int, packed: bytes, crc32: str, 
         if not display.startswith("OK"):
             raise RuntimeError(f"DISPLAY failed: {display}")
         _send_command(sock_file, "IDLE")
+
+
+def _probe_existing_gateway(host: str, port: int) -> dict[str, str]:
+    with socket.create_connection((host, port), timeout=10) as sock:
+        sock.settimeout(12)
+        sock_file = sock.makefile("rwb")
+        pong = _send_command(sock_file, "PING")
+        if not pong.startswith("OK"):
+            raise RuntimeError(f"PING failed: {pong}")
+        info = _send_command(sock_file, "INFO")
+        if not info.startswith("OK"):
+            raise RuntimeError(f"INFO failed: {info}")
+        return {"ping": pong, "info": info}

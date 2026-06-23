@@ -39,6 +39,24 @@ installed custom integration is behind.
 HACS remains the install and redownload route. This update entity does not
 install files by itself.
 
+## Weather Display Options
+
+Weather cards can render in `colour` or `mono` mode. `colour` is the default and
+uses the Ditherloom palette-safe colour recipes. `mono` keeps the same larger,
+high-contrast layout but restricts the card to black and white.
+
+Weather payloads are packed with the device-required horizontal and vertical
+flip so the physical frame displays the card in the intended orientation.
+
+Location privacy notes are in [PRIVACY.md](PRIVACY.md).
+
+## Wi-Fi Wake Sync
+
+The integration adds a `Synchronise Wi-Fi wake window` button entity. Use it
+after the frame has been woken onto Wi-Fi. It records the current Home Assistant
+wake window using the already configured minutes and probes the frame Gateway
+with `PING`/`INFO` if reachable. It does not set or change the frame timer.
+
 ## If It Does Not Appear In Add Integration
 
 There is no expected long delay after restart. If it does not appear:
@@ -83,6 +101,7 @@ redownload the integration from there.
 
 - Renders a Ditherloom weather card inside Home Assistant.
 - Uses Open-Meteo for free/non-commercial test weather.
+- Resolves a map-picked weather location name when one is not entered manually.
 - Uses a Home Assistant map picker for weather action location, with manual
   latitude/longitude fields kept as fallback.
 - Serves a `.ppbin` payload through a Home Assistant HTTP endpoint.
@@ -91,6 +110,8 @@ redownload the integration from there.
 - Can attempt the existing Wi-Fi Gateway command path while the frame is awake:
   `PING`, `BEGIN`, `B64WRITE`, `END`, `DISPLAY`, `IDLE`.
 - Adds a Home Assistant update entity that checks the latest GitHub release.
+- Supports colour or mono weather display mode.
+- Adds a Wi-Fi wake-window sync button that does not alter frame timer settings.
 
 ## License
 

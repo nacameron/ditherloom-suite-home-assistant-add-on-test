@@ -44,3 +44,8 @@ Open-Meteo is used as the initial free/non-commercial weather data path. Weather
 data, API terms, and provider branding remain controlled by Open-Meteo and its
 data providers. Keep provider selection configurable before wider release.
 
+Nominatim/OpenStreetMap is used only as an optional reverse lookup for a display
+place name when the user picks a map coordinate without entering a location
+name. Results are cached in-process to avoid repeated lookups for the same
+coordinate. Nominatim/OpenStreetMap data, API terms, and provider branding
+remain controlled by their respective projects.

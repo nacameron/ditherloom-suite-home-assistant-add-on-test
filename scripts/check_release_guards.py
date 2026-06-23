@@ -54,18 +54,25 @@ def check_branding() -> None:
 def check_licenses() -> None:
     license_path = ROOT / "LICENSE.md"
     notices_path = ROOT / "THIRD_PARTY_NOTICES.md"
+    privacy_path = ROOT / "PRIVACY.md"
     if not license_path.exists():
         fail("LICENSE.md is missing")
     if not notices_path.exists():
         fail("THIRD_PARTY_NOTICES.md is missing")
+    if not privacy_path.exists():
+        fail("PRIVACY.md is missing")
     license_text = license_path.read_text(encoding="utf-8")
     notices_text = notices_path.read_text(encoding="utf-8")
+    privacy_text = privacy_path.read_text(encoding="utf-8")
     for required in ("Polycom 1", "Neil Cameron", "third-party"):
         if required not in license_text:
             fail(f"LICENSE.md missing required text: {required}")
     for required in ("FastAPI", "Uvicorn", "Pillow", "Eclipse Paho MQTT", "python-multipart", "Open-Meteo"):
         if required not in notices_text:
             fail(f"THIRD_PARTY_NOTICES.md missing required component: {required}")
+    for required in ("Open-Meteo", "Nominatim/OpenStreetMap", "place name", "latitude", "longitude"):
+        if required not in privacy_text:
+            fail(f"PRIVACY.md missing required text: {required}")
 
 
 def check_no_generated_cache_files() -> None:
@@ -142,8 +149,12 @@ def check_device_spec_alignment() -> None:
     pack_text = pack_path.read_text(encoding="utf-8")
     for required in (
         "PACKED_LENGTH = DEVICE_PACKED_PAYLOAD_BYTES",
+        'DEVICE_ORIENTATION_TRANSFORM = "flip_horizontal_and_vertical"',
+        "Image.Transpose.FLIP_LEFT_RIGHT",
+        "Image.Transpose.FLIP_TOP_BOTTOM",
         '"slot_stride_bytes": DEVICE_SLOT_STRIDE_BYTES',
         '"source_metadata_payload_bytes": DEVICE_SOURCE_METADATA_PAYLOAD_BYTES',
+        '"device_orientation_transform": DEVICE_ORIENTATION_TRANSFORM',
         "ppbin_path.write_bytes(artifact.packed)",
     ):
         if required not in pack_text:
@@ -190,8 +201,68 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.10"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.10")
+    if '"version": "0.1.11"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.11")
+
+
+def check_weather_renderer_options() -> None:
+    const_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "const.py"
+    flow_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "config_flow.py"
+    init_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py"
+    cards_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "renderer" / "cards.py"
+    open_meteo_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "open_meteo.py"
+
+    checks = {
+        const_path: (
+            'CONF_DISPLAY_MODE = "display_mode"',
+            'DISPLAY_MODE_COLOUR = "colour"',
+            'DISPLAY_MODE_MONO = "mono"',
+            "DEFAULT_DISPLAY_MODE = DISPLAY_MODE_COLOUR",
+        ),
+        flow_path: (
+            "CONF_DISPLAY_MODE",
+            "vol.In([DISPLAY_MODE_COLOUR, DISPLAY_MODE_MONO])",
+        ),
+        init_path: (
+            "display_mode = str(data.get(CONF_DISPLAY_MODE) or opts.get(CONF_DISPLAY_MODE, DEFAULT_DISPLAY_MODE))",
+            "render_weather_card(card_data, colour_mode=display_mode)",
+            'metadata["display_mode"] = display_mode',
+            'PLATFORMS = ["sensor", "update", "button"]',
+            "async_sync_wake_window",
+            "_probe_existing_gateway",
+        ),
+        cards_path: (
+            "COLOUR_MODE_COLOUR = \"colour\"",
+            "COLOUR_MODE_MONO = \"mono\"",
+            "render_weather_card(data: WeatherCardData, colour_mode: str = COLOUR_MODE_COLOUR)",
+            "_draw_bars(draw, data, colours)",
+            "_draw_symbol(draw, kind, data, colours)",
+        ),
+        open_meteo_path: (
+            "NOMINATIM_REVERSE_URL",
+            "@lru_cache(maxsize=64)",
+            "REVERSE_GEOCODE_USER_AGENT",
+        ),
+    }
+    for path, required_values in checks.items():
+        text = path.read_text(encoding="utf-8")
+        for required in required_values:
+            if required not in text:
+                fail(f"weather renderer option route missing required text in {path.name}: {required}")
+
+
+def check_sync_button() -> None:
+    button_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "button.py"
+    if not button_path.exists():
+        fail("Home Assistant sync button platform is missing")
+    button_text = button_path.read_text(encoding="utf-8")
+    for required in (
+        "ButtonEntity",
+        "Synchronise Wi-Fi wake window",
+        "async_sync_wake_window",
+    ):
+        if required not in button_text:
+            fail(f"sync button missing required text: {required}")
 
 
 def main() -> None:
@@ -200,6 +271,8 @@ def main() -> None:
     check_no_generated_cache_files()
     check_device_spec_alignment()
     check_update_platform()
+    check_weather_renderer_options()
+    check_sync_button()
     print("release guards passed")
 
 

@@ -23,6 +23,7 @@ WIDTH = DEVICE_FRAME_WIDTH
 HEIGHT = DEVICE_FRAME_HEIGHT
 PIXEL_COUNT = DEVICE_PIXEL_COUNT
 PACKED_LENGTH = DEVICE_PACKED_PAYLOAD_BYTES
+DEVICE_ORIENTATION_TRANSFORM = "flip_horizontal_and_vertical"
 
 
 @dataclass(frozen=True)
@@ -85,7 +86,8 @@ def codes_to_image(codes: List[int], palette: Dict[int, tuple[int, int, int]]) -
 
 
 def render_to_artifact(image: Image.Image, template_name: str, source_entity_ids: list[str]) -> RenderArtifact:
-    codes = image_to_codes(image)
+    oriented_image = orient_image_for_device(image)
+    codes = image_to_codes(oriented_image)
     packed = pack_pixel_codes(codes)
     if len(codes) != PIXEL_COUNT:
         raise ValueError(f"Expected {PIXEL_COUNT} pixel codes, got {len(codes)}")
@@ -107,7 +109,10 @@ def render_to_artifact(image: Image.Image, template_name: str, source_entity_ids
         "source_entity_ids": source_entity_ids,
         "renderer_version": "prototype-0.1",
         "template_name": template_name,
+        "device_orientation_transform": DEVICE_ORIENTATION_TRANSFORM,
     }
+    raw_preview = codes_to_image(codes, PREVIEW_RGB)
+    raw_packet_debug = codes_to_image(codes, PACKET_RGB)
     return RenderArtifact(
         width=WIDTH,
         height=HEIGHT,
@@ -116,9 +121,19 @@ def render_to_artifact(image: Image.Image, template_name: str, source_entity_ids
         crc32=crc32,
         content_id=content_id,
         metadata=metadata,
-        preview_image=codes_to_image(codes, PREVIEW_RGB),
-        packet_debug_image=codes_to_image(codes, PACKET_RGB),
+        preview_image=orient_preview_for_viewer(raw_preview),
+        packet_debug_image=orient_preview_for_viewer(raw_packet_debug),
     )
+
+
+def orient_image_for_device(image: Image.Image) -> Image.Image:
+    if image.size != (WIDTH, HEIGHT):
+        raise ValueError(f"Expected {WIDTH}x{HEIGHT}, got {image.size[0]}x{image.size[1]}")
+    return image.transpose(Image.Transpose.FLIP_LEFT_RIGHT).transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+
+
+def orient_preview_for_viewer(image: Image.Image) -> Image.Image:
+    return image.transpose(Image.Transpose.FLIP_LEFT_RIGHT).transpose(Image.Transpose.FLIP_TOP_BOTTOM)
 
 
 def write_artifact(artifact: RenderArtifact, output_dir: Path, stem: str) -> Dict[str, Path]:

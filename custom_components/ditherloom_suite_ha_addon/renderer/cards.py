@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,6 +10,11 @@ from .palette import TEMPLATE_COLOURS
 
 WIDTH = 400
 HEIGHT = 300
+TOP_BAR_HEIGHT = 38
+BOTTOM_BAR_HEIGHT = 38
+
+COLOUR_MODE_COLOUR = "colour"
+COLOUR_MODE_MONO = "mono"
 
 
 @dataclass(frozen=True)
@@ -33,9 +39,9 @@ class WeatherCardData:
 
 def _font(size: int, bold: bool = False) -> ImageFont.ImageFont:
     candidates = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "C:/Windows/Fonts/arialbd.ttf" if bold else "C:/Windows/Fonts/arial.ttf",
         "C:/Windows/Fonts/segoeuib.ttf" if bold else "C:/Windows/Fonts/segoeui.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     ]
     for candidate in candidates:
         if Path(candidate).exists():
@@ -45,153 +51,388 @@ def _font(size: int, bold: bool = False) -> ImageFont.ImageFont:
 
 def _fit_text(draw: ImageDraw.ImageDraw, text: str, max_width: int, size: int, min_size: int, bold: bool = False) -> ImageFont.ImageFont:
     current = size
-    while current > min_size:
+    while current >= min_size:
         font = _font(current, bold=bold)
-        left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+        left, top, right, bottom = draw.textbbox((0, 0), str(text), font=font)
         if right - left <= max_width:
             return font
-        current -= 2
+        current -= 1
     return _font(min_size, bold=bold)
 
 
-def _text(draw: ImageDraw.ImageDraw, xy: tuple[int, int], text: str, font: ImageFont.ImageFont, fill_name: str = "black") -> None:
-    draw.text(xy, text, font=font, fill=TEMPLATE_COLOURS[fill_name].rgb)
+def _draw_centred_text(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    text: str,
+    size: int,
+    colours: dict[str, str],
+    fill_name: str = "text",
+    bold: bool = True,
+    min_size: int = 10,
+) -> None:
+    x1, y1, x2, y2 = box
+    font = _fit_text(draw, text, x2 - x1 - 8, size, min_size, bold=bold)
+    left, top, right, bottom = draw.textbbox((0, 0), str(text), font=font)
+    draw.text(
+        (x1 + (x2 - x1 - (right - left)) / 2, y1 + (y2 - y1 - (bottom - top)) / 2 - 1),
+        str(text),
+        font=font,
+        fill=_rgb(colours[fill_name]),
+    )
 
 
-def _draw_sun(draw: ImageDraw.ImageDraw, cx: int, cy: int, radius: int = 29) -> None:
-    yellow = TEMPLATE_COLOURS["bright_yellow"].rgb
-    black = TEMPLATE_COLOURS["black"].rgb
-    for angle in range(0, 360, 45):
-        import math
+def _draw_text(
+    draw: ImageDraw.ImageDraw,
+    xy: tuple[int, int],
+    text: str,
+    size: int,
+    colours: dict[str, str],
+    fill_name: str = "text",
+    bold: bool = False,
+    max_width: int | None = None,
+    min_size: int = 10,
+) -> None:
+    font = _fit_text(draw, text, max_width, size, min_size, bold=bold) if max_width else _font(size, bold=bold)
+    draw.text(xy, str(text), font=font, fill=_rgb(colours[fill_name]))
 
+
+def _rgb(name: str) -> tuple[int, int, int]:
+    return TEMPLATE_COLOURS[name].rgb
+
+
+def _is_mono(colour_mode: str) -> bool:
+    return str(colour_mode).lower() in {COLOUR_MODE_MONO, "black_white", "black-and-white", "bw", "b&w"}
+
+
+def _condition_kind(condition: str, alert: str) -> str:
+    normalized = f"{condition} {alert}".lower()
+    if "storm" in normalized or "thunder" in normalized:
+        return "storm"
+    if "rain" in normalized or "shower" in normalized or "drizzle" in normalized:
+        return "rain"
+    if "night" in normalized:
+        return "night"
+    if "cloud" in normalized or "overcast" in normalized or "fog" in normalized:
+        return "cloud"
+    return "sun"
+
+
+def _colours(kind: str, colour_mode: str) -> dict[str, str]:
+    if _is_mono(colour_mode):
+        return {
+            "background": "white",
+            "texture": "white",
+            "top": "black",
+            "top_text": "white",
+            "bottom": "black",
+            "bottom_text": "white",
+            "panel": "white",
+            "symbol_panel": "white",
+            "symbol_fill": "white",
+            "symbol_accent": "black",
+            "metric": "white",
+            "metric_accent": "black",
+            "metric_text": "black",
+            "text": "black",
+            "inverse_text": "white",
+            "outline": "black",
+        }
+
+    if kind == "storm":
+        return {
+            "background": "paper",
+            "texture": "linen",
+            "top": "red",
+            "top_text": "white",
+            "bottom": "red",
+            "bottom_text": "white",
+            "panel": "white",
+            "symbol_panel": "warm_red",
+            "symbol_fill": "white",
+            "symbol_accent": "bright_yellow",
+            "metric": "white",
+            "metric_accent": "red",
+            "metric_text": "black",
+            "text": "black",
+            "inverse_text": "white",
+            "outline": "black",
+        }
+    if kind == "cloud":
+        return {
+            "background": "cream",
+            "texture": "pale_yellow",
+            "top": "black",
+            "top_text": "bright_yellow",
+            "bottom": "black",
+            "bottom_text": "bright_yellow",
+            "panel": "white",
+            "symbol_panel": "white",
+            "symbol_fill": "paper",
+            "symbol_accent": "bright_yellow",
+            "metric": "white",
+            "metric_accent": "bright_yellow",
+            "metric_text": "black",
+            "text": "black",
+            "inverse_text": "bright_yellow",
+            "outline": "black",
+        }
+    if kind == "rain":
+        return {
+            "background": "white",
+            "texture": "pale_cream",
+            "top": "bright_yellow",
+            "top_text": "black",
+            "bottom": "bright_yellow",
+            "bottom_text": "black",
+            "panel": "white",
+            "symbol_panel": "pale_cream",
+            "symbol_fill": "white",
+            "symbol_accent": "bright_yellow",
+            "metric": "white",
+            "metric_accent": "bright_yellow",
+            "metric_text": "black",
+            "text": "black",
+            "inverse_text": "bright_yellow",
+            "outline": "black",
+        }
+    if kind == "night":
+        return {
+            "background": "black",
+            "texture": "charcoal",
+            "top": "bright_yellow",
+            "top_text": "black",
+            "bottom": "bright_yellow",
+            "bottom_text": "black",
+            "panel": "white",
+            "symbol_panel": "warm_white",
+            "symbol_fill": "bright_yellow",
+            "symbol_accent": "red",
+            "metric": "white",
+            "metric_accent": "bright_yellow",
+            "metric_text": "black",
+            "text": "black",
+            "inverse_text": "bright_yellow",
+            "outline": "black",
+        }
+    return {
+        "background": "warm_white",
+        "texture": "pale_yellow",
+        "top": "bright_yellow",
+        "top_text": "black",
+        "bottom": "bright_yellow",
+        "bottom_text": "black",
+        "panel": "white",
+        "symbol_panel": "pale_yellow",
+        "symbol_fill": "bright_yellow",
+        "symbol_accent": "red",
+        "metric": "white",
+        "metric_accent": "bright_yellow",
+        "metric_text": "black",
+        "text": "black",
+        "inverse_text": "bright_yellow",
+        "outline": "black",
+    }
+
+
+def _draw_bars(draw: ImageDraw.ImageDraw, data: WeatherCardData, colours: dict[str, str]) -> None:
+    draw.rectangle((0, 0, WIDTH, TOP_BAR_HEIGHT), fill=_rgb(colours["top"]))
+    draw.rectangle((0, HEIGHT - BOTTOM_BAR_HEIGHT, WIDTH, HEIGHT), fill=_rgb(colours["bottom"]))
+    draw.line((0, TOP_BAR_HEIGHT, WIDTH, TOP_BAR_HEIGHT), fill=_rgb("black"), width=4)
+    draw.line((0, HEIGHT - BOTTOM_BAR_HEIGHT, WIDTH, HEIGHT - BOTTOM_BAR_HEIGHT), fill=_rgb("black"), width=4)
+    title = data.alert.strip() or data.condition.strip() or "Weather"
+    _draw_centred_text(draw, (8, 0, WIDTH - 8, TOP_BAR_HEIGHT), title.upper(), 27, colours, "top_text", True, 14)
+    _draw_centred_text(
+        draw,
+        (8, HEIGHT - BOTTOM_BAR_HEIGHT, WIDTH - 8, HEIGHT),
+        (data.location or "Weather location").upper(),
+        24,
+        colours,
+        "bottom_text",
+        True,
+        12,
+    )
+
+
+def _draw_texture(draw: ImageDraw.ImageDraw, colours: dict[str, str], kind: str) -> None:
+    if _is_mono(colours["texture"]):
+        return
+    texture = _rgb(colours["texture"])
+    if kind == "rain":
+        for x in range(-48, WIDTH, 32):
+            draw.line((x, TOP_BAR_HEIGHT + 4, x + 78, HEIGHT - BOTTOM_BAR_HEIGHT - 4), fill=texture, width=8)
+    else:
+        for x in range(0, WIDTH, 14):
+            for y in range(TOP_BAR_HEIGHT + 12, HEIGHT - BOTTOM_BAR_HEIGHT - 8, 14):
+                draw.point((x, y), fill=texture)
+                draw.point((x + 4, y + 5), fill=texture)
+
+
+def _draw_sun(draw: ImageDraw.ImageDraw, cx: int, cy: int, radius: int, colours: dict[str, str]) -> None:
+    outline = _rgb(colours["outline"])
+    for angle in range(0, 360, 30):
         x1 = cx + int(math.cos(math.radians(angle)) * (radius + 8))
         y1 = cy + int(math.sin(math.radians(angle)) * (radius + 8))
-        x2 = cx + int(math.cos(math.radians(angle)) * (radius + 24))
-        y2 = cy + int(math.sin(math.radians(angle)) * (radius + 24))
-        draw.line((x1, y1, x2, y2), fill=black, width=3)
-    draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=yellow, outline=black, width=3)
+        x2 = cx + int(math.cos(math.radians(angle)) * (radius + 32))
+        y2 = cy + int(math.sin(math.radians(angle)) * (radius + 32))
+        draw.line((x1, y1, x2, y2), fill=outline, width=5)
+    draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=_rgb(colours["symbol_fill"]), outline=outline, width=5)
+    if not _is_mono(colours["symbol_accent"]):
+        draw.ellipse((cx - radius + 15, cy - radius + 15, cx + radius - 15, cy + radius - 15), outline=_rgb(colours["symbol_accent"]), width=5)
 
 
-def _draw_cloud(draw: ImageDraw.ImageDraw, x: int, y: int, storm: bool = False) -> None:
-    white = TEMPLATE_COLOURS["white"].rgb
-    black = TEMPLATE_COLOURS["black"].rgb
-    yellow = TEMPLATE_COLOURS["bright_yellow"].rgb
-    draw.ellipse((x + 12, y + 24, x + 66, y + 74), fill=white, outline=black, width=3)
-    draw.ellipse((x + 48, y + 10, x + 112, y + 76), fill=white, outline=black, width=3)
-    draw.ellipse((x + 96, y + 26, x + 150, y + 74), fill=white, outline=black, width=3)
-    draw.rectangle((x + 31, y + 48, x + 132, y + 78), fill=white)
-    draw.line((x + 22, y + 77, x + 138, y + 77), fill=black, width=3)
+def _draw_cloud(
+    draw: ImageDraw.ImageDraw,
+    cx: int,
+    cy: int,
+    colours: dict[str, str],
+    scale: float = 1.0,
+    storm: bool = False,
+    rain: bool = False,
+) -> None:
+    outline = _rgb(colours["outline"])
+    fill = _rgb(colours["symbol_fill"])
+    width = max(3, int(5 * scale))
+
+    def ellipse(dx1: int, dy1: int, dx2: int, dy2: int) -> None:
+        draw.ellipse(
+            (cx + int(dx1 * scale), cy + int(dy1 * scale), cx + int(dx2 * scale), cy + int(dy2 * scale)),
+            fill=fill,
+            outline=outline,
+            width=width,
+        )
+
+    ellipse(-92, -4, -30, 58)
+    ellipse(-50, -38, 38, 60)
+    ellipse(14, -8, 92, 58)
+    draw.rectangle((cx - int(72 * scale), cy + int(24 * scale), cx + int(72 * scale), cy + int(62 * scale)), fill=fill)
+    draw.line((cx - int(78 * scale), cy + int(62 * scale), cx + int(80 * scale), cy + int(62 * scale)), fill=outline, width=width)
+    if rain:
+        for dx in (-48, -16, 16, 48):
+            draw.line((cx + int(dx * scale), cy + int(76 * scale), cx + int((dx - 13) * scale), cy + int(118 * scale)), fill=outline, width=width)
     if storm:
-        draw.polygon((x + 70, y + 78, x + 52, y + 128, x + 82, y + 112, x + 70, y + 154, x + 112, y + 94, x + 82, y + 108), fill=yellow, outline=black)
+        points = [
+            (cx - 10 * scale, cy + 62 * scale),
+            (cx - 44 * scale, cy + 132 * scale),
+            (cx - 4 * scale, cy + 110 * scale),
+            (cx - 18 * scale, cy + 166 * scale),
+            (cx + 42 * scale, cy + 82 * scale),
+            (cx + 2 * scale, cy + 104 * scale),
+        ]
+        int_points = [(int(x), int(y)) for x, y in points]
+        draw.polygon(int_points, fill=_rgb(colours["symbol_accent"]), outline=outline)
+        draw.line(int_points + [int_points[0]], fill=outline, width=4)
 
 
-def _draw_weather_scene(draw: ImageDraw.ImageDraw, condition: str, alert: str) -> None:
-    black = TEMPLATE_COLOURS["black"].rgb
-    white = TEMPLATE_COLOURS["white"].rgb
-    yellow = TEMPLATE_COLOURS["bright_yellow"].rgb
-    parchment = TEMPLATE_COLOURS["parchment"].rgb
-    pale_cream = TEMPLATE_COLOURS["pale_cream"].rgb
-    red = TEMPLATE_COLOURS["red"].rgb
+def _draw_moon(draw: ImageDraw.ImageDraw, cx: int, cy: int, colours: dict[str, str]) -> None:
+    outline = _rgb(colours["outline"])
+    draw.ellipse((cx - 36, cy - 40, cx + 36, cy + 32), fill=_rgb(colours["symbol_fill"]), outline=outline, width=4)
+    draw.ellipse((cx - 10, cy - 48, cx + 58, cy + 26), fill=_rgb(colours["symbol_panel"]))
+    draw.arc((cx - 36, cy - 40, cx + 36, cy + 32), 70, 285, fill=outline, width=5)
+    if not _is_mono(colours["symbol_accent"]):
+        for sx, sy in ((cx - 44, cy - 46), (cx + 48, cy - 36), (cx + 38, cy + 60)):
+            draw.line((sx - 10, sy, sx + 10, sy), fill=_rgb(colours["symbol_accent"]), width=4)
+            draw.line((sx, sy - 10, sx, sy + 10), fill=_rgb(colours["symbol_accent"]), width=4)
 
-    normalized = condition.lower()
-    storm = "storm" in normalized or "thunder" in normalized
-    rain = "rain" in normalized or "shower" in normalized
-    cloud = storm or rain or "cloud" in normalized or "overcast" in normalized
 
-    draw.rectangle((12, 14, 170, 224), fill=white, outline=black, width=5)
-    draw.rectangle((18, 20, 164, 116), fill=yellow)
-    draw.rectangle((18, 116, 164, 218), fill=parchment)
-    draw.line((18, 116, 164, 116), fill=black, width=4)
-
-    if cloud:
-        draw.ellipse((104, 28, 170, 94), fill=yellow, outline=black, width=4)
-        draw.ellipse((24, 76, 94, 146), fill=white, outline=black, width=5)
-        draw.ellipse((66, 48, 150, 148), fill=white, outline=black, width=5)
-        draw.ellipse((120, 82, 178, 146), fill=white, outline=black, width=5)
-        draw.rectangle((42, 108, 158, 150), fill=white)
-        draw.line((30, 149, 160, 149), fill=black, width=5)
-        if storm:
-            draw.polygon((98, 148, 72, 214, 110, 188, 96, 230, 148, 160, 112, 182), fill=yellow, outline=black)
-            draw.rectangle((24, 28, 58, 62), fill=red, outline=black, width=3)
-        elif rain:
-            for x in (56, 86, 116, 146):
-                draw.line((x, 158, x - 14, 204), fill=black, width=5)
-                draw.line((x + 8, 158, x - 6, 204), fill=yellow, width=4)
+def _draw_symbol(draw: ImageDraw.ImageDraw, kind: str, data: WeatherCardData, colours: dict[str, str]) -> None:
+    draw.rectangle((136, 50, 264, 210), fill=_rgb(colours["symbol_panel"]), outline=_rgb("black"), width=5)
+    if kind == "storm":
+        _draw_cloud(draw, 200, 96, colours, scale=0.72, storm=True, rain=True)
+    elif kind == "rain":
+        _draw_cloud(draw, 200, 88, colours, scale=0.72, rain=True)
+    elif kind == "cloud":
+        _draw_sun(draw, 178, 105, 33, colours)
+        _draw_cloud(draw, 214, 116, colours, scale=0.62)
+    elif kind == "night":
+        _draw_moon(draw, 198, 116, colours)
     else:
-        _draw_sun(draw, 94, 92, radius=52)
+        _draw_sun(draw, 200, 134, 46, colours)
 
-    draw.polygon((18, 218, 18, 166, 58, 138, 94, 176, 128, 140, 164, 170, 164, 218), fill=white, outline=black)
-    draw.arc((32, 138, 140, 248), 200, 340, fill=black, width=5)
-    draw.rectangle((18, 198, 164, 218), fill=yellow if not alert.strip() else red)
-
-
-def _draw_weather_icon(draw: ImageDraw.ImageDraw, condition: str) -> None:
-    normalized = condition.lower()
-    if "storm" in normalized or "thunder" in normalized:
-        _draw_cloud(draw, 28, 48, storm=True)
-    elif "cloud" in normalized or "rain" in normalized or "shower" in normalized:
-        _draw_cloud(draw, 28, 62, storm=False)
-        if "rain" in normalized or "shower" in normalized:
-            black = TEMPLATE_COLOURS["black"].rgb
-            for x in (62, 92, 122):
-                draw.line((x, 148, x - 8, 170), fill=black, width=3)
-    else:
-        _draw_sun(draw, 96, 104)
+    draw.rectangle((144, 160, 256, 204), fill=_rgb("black"))
+    _draw_centred_text(draw, (144, 160, 256, 204), f"{data.temperature}{data.unit}", 40, colours, "inverse_text", True, 24)
+    feels_like = f"FEELS LIKE {data.feels_like}" if data.feels_like else "FEELS LIKE --"
+    _draw_centred_text(draw, (126, 226, 274, 252), feels_like, 19, colours, "text", True, 11)
 
 
-def render_weather_card(data: WeatherCardData) -> Image.Image:
-    white = TEMPLATE_COLOURS["white"].rgb
-    warm_white = TEMPLATE_COLOURS["warm_white"].rgb
-    parchment = TEMPLATE_COLOURS["parchment"].rgb
-    yellow = TEMPLATE_COLOURS["bright_yellow"].rgb
-    red = TEMPLATE_COLOURS["red"].rgb
-    black = TEMPLATE_COLOURS["black"].rgb
-    warm_grey = TEMPLATE_COLOURS["warm_grey"].rgb
+def _draw_metric(
+    draw: ImageDraw.ImageDraw,
+    x: int,
+    y: int,
+    label: str,
+    value: str,
+    colours: dict[str, str],
+    accent: str | None = None,
+) -> None:
+    accent_name = accent or colours["metric_accent"]
+    draw.rectangle((x, y, x + 112, y + 34), fill=_rgb(colours["metric"]), outline=_rgb("black"), width=3)
+    draw.rectangle((x, y, x + 30, y + 34), fill=_rgb(accent_name))
+    draw.line((x + 30, y, x + 30, y + 34), fill=_rgb("black"), width=3)
+    label_fill = "inverse_text" if accent_name in {"black", "charcoal", "warm_grey"} else "metric_text"
+    _draw_centred_text(draw, (x + 2, y, x + 30, y + 34), label[:2].upper(), 14, colours, label_fill, True, 9)
+    _draw_centred_text(draw, (x + 34, y, x + 108, y + 34), value, 18, colours, "metric_text", True, 10)
 
-    image = Image.new("RGB", (WIDTH, HEIGHT), white)
+
+def _detail_value(data: WeatherCardData, labels: tuple[str, ...], fallback: str) -> str:
+    details = {label.lower(): value for label, value in data.details}
+    for label in labels:
+        value = details.get(label.lower())
+        if value:
+            return value
+    return fallback or "--"
+
+
+def render_weather_card(data: WeatherCardData, colour_mode: str = COLOUR_MODE_COLOUR) -> Image.Image:
+    kind = _condition_kind(data.condition, data.alert)
+    colours = _colours(kind, colour_mode)
+
+    image = Image.new("RGB", (WIDTH, HEIGHT), _rgb(colours["background"]))
     draw = ImageDraw.Draw(image)
 
-    # Warm left panel gives the card colour without making text noisy.
-    draw.rectangle((0, 0, 184, HEIGHT), fill=warm_white)
-    draw.rectangle((184, 0, 192, HEIGHT), fill=yellow)
-    if not data.alert.strip():
-        draw.rectangle((192, 0, WIDTH, 12), fill=yellow)
-    _draw_weather_scene(draw, data.condition, data.alert)
+    _draw_texture(draw, colours, kind)
+    _draw_bars(draw, data, colours)
+    _draw_symbol(draw, kind, data, colours)
 
-    if data.alert.strip():
-        draw.rectangle((0, 0, WIDTH, 38), fill=red)
-        alert_font = _fit_text(draw, data.alert.strip().upper(), 370, 22, 16, bold=True)
-        _text(draw, (16, 7), data.alert.strip().upper(), alert_font, "white")
-
-    title_y = 48 if data.alert.strip() else 20
-    title_font = _fit_text(draw, data.location, 180, 30, 20, bold=True)
-    _text(draw, (208, title_y), data.location, title_font)
-
-    temp_label = f"{data.temperature}{data.unit}"
-    temp_font = _fit_text(draw, temp_label, 174, 78, 52, bold=True)
-    _text(draw, (208, title_y + 34), temp_label, temp_font)
-
-    condition_font = _fit_text(draw, data.condition, 174, 28, 18, bold=True)
-    _text(draw, (210, title_y + 118), data.condition, condition_font)
-
-    draw.rectangle((208, 202, 382, 206), fill=warm_grey)
-    detail_font = _font(19, bold=True)
-    label_font = _font(14, bold=True)
-    details = data.details or (
-        ("High", f"{data.high}{data.unit}"),
-        ("Low", f"{data.low}{data.unit}"),
-        ("Hum", data.humidity or "--"),
-        ("UV", data.uv_index or "--"),
-        ("Rain", data.rain),
-        ("Wind", data.wind),
+    left_details = (
+        ("HI", f"{data.high}{data.unit}"),
+        ("LO", f"{data.low}{data.unit}"),
+        ("UV", _detail_value(data, ("UV", "uv_index"), data.uv_index)),
     )
-    slots = ((210, 219), (300, 219), (210, 247), (300, 247), (210, 275), (300, 275))
-    for (label, value), (x, y) in zip(details[:6], slots):
-        short_label = label[:5]
-        _text(draw, (x, y), short_label, label_font)
-        fitted = _fit_text(draw, value, 48, 19, 13, bold=True)
-        _text(draw, (x + 41, y - 2), value, fitted)
+    right_details = (
+        ("HU", _detail_value(data, ("Hum", "Humidity"), data.humidity)),
+        ("RA", _detail_value(data, ("Rain",), data.rain)),
+        ("WI", _detail_value(data, ("Wind",), data.wind)),
+    )
+    if kind == "sun":
+        left_details = (
+            ("UV", _detail_value(data, ("UV", "uv_index"), data.uv_index)),
+            ("RA", _detail_value(data, ("Rain",), data.rain)),
+            ("PR", data.pressure or "--"),
+        )
+        right_details = (
+            ("HI", f"{data.high}{data.unit}"),
+            ("LO", f"{data.low}{data.unit}"),
+            ("HU", _detail_value(data, ("Hum", "Humidity"), data.humidity)),
+            ("WI", _detail_value(data, ("Wind",), data.wind)),
+        )
+    if kind == "storm":
+        left_details = (("RA", data.rain), ("WI", data.wind), ("UV", data.uv_index or "--"))
+        right_details = (("HI", f"{data.high}{data.unit}"), ("LO", f"{data.low}{data.unit}"), ("HU", data.humidity or "--"))
+    if kind == "rain":
+        left_details = (("RA", data.rain), ("HU", data.humidity or "--"), ("LO", f"{data.low}{data.unit}"))
+        right_details = (("HI", f"{data.high}{data.unit}"), ("WI", data.wind), ("PR", data.pressure or "--"))
+    if kind == "night":
+        left_details = (("LO", f"{data.low}{data.unit}"), ("HU", data.humidity or "--"), ("WI", data.wind))
+        right_details = (("HI", f"{data.high}{data.unit}"), ("UV", data.uv_index or "--"), ("PR", data.pressure or "--"))
 
-    footer_font = _font(15)
-    _text(draw, (18, 260), f"Updated {data.updated}", footer_font)
+    if kind == "sun":
+        for y, (label, value) in zip((72, 126, 180), left_details):
+            _draw_metric(draw, 20, y, label, value, colours, "red" if label in {"UV", "RA"} and not _is_mono(colour_mode) else None)
+        for y, (label, value) in zip((58, 100, 142, 184), right_details):
+            _draw_metric(draw, 268, y, label, value, colours)
+    else:
+        for y, (label, value) in zip((58, 105, 152), left_details):
+            _draw_metric(draw, 20, y, label, value, colours, "red" if label in {"UV", "RA"} and not _is_mono(colour_mode) else None)
+        for y, (label, value) in zip((58, 105, 152), right_details):
+            _draw_metric(draw, 268, y, label, value, colours, "red" if label in {"UV", "RA"} and not _is_mono(colour_mode) else None)
+
     return image

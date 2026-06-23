@@ -10,6 +10,7 @@ from homeassistant.core import callback
 from .const import (
     CONF_FRAME_HOST,
     CONF_FRAME_PORT,
+    CONF_DISPLAY_MODE,
     CONF_LATITUDE,
     CONF_LIBRARY_ID,
     CONF_LOCATION_NAME,
@@ -20,10 +21,13 @@ from .const import (
     CONF_UPDATE_INTERVAL_MINUTES,
     CONF_WAKE_WINDOW_MINUTES,
     DEFAULT_FRAME_PORT,
+    DEFAULT_DISPLAY_MODE,
     DEFAULT_MAX_JOBS_PER_WAKE,
     DEFAULT_TARGET_SLOT,
     DEFAULT_UPDATE_INTERVAL_MINUTES,
     DEFAULT_WAKE_WINDOW_MINUTES,
+    DISPLAY_MODE_COLOUR,
+    DISPLAY_MODE_MONO,
     DOMAIN,
 )
 
@@ -56,6 +60,7 @@ class DitherloomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_WAKE_WINDOW_MINUTES, default=DEFAULT_WAKE_WINDOW_MINUTES): int,
                 vol.Optional(CONF_MAX_JOBS_PER_WAKE, default=DEFAULT_MAX_JOBS_PER_WAKE): int,
                 vol.Optional(CONF_TARGET_SLOT, default=DEFAULT_TARGET_SLOT): int,
+                vol.Optional(CONF_DISPLAY_MODE, default=DEFAULT_DISPLAY_MODE): vol.In([DISPLAY_MODE_COLOUR, DISPLAY_MODE_MONO]),
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
@@ -96,6 +101,10 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                     default=data.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE),
                 ): int,
                 vol.Optional(CONF_TARGET_SLOT, default=data.get(CONF_TARGET_SLOT, DEFAULT_TARGET_SLOT)): int,
+                vol.Optional(
+                    CONF_DISPLAY_MODE,
+                    default=data.get(CONF_DISPLAY_MODE, DEFAULT_DISPLAY_MODE),
+                ): vol.In([DISPLAY_MODE_COLOUR, DISPLAY_MODE_MONO]),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
