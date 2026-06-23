@@ -200,8 +200,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.17"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.17")
+    if '"version": "0.1.18"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.18")
 
 
 def check_weather_renderer_options() -> None:
@@ -238,12 +238,17 @@ def check_weather_renderer_options() -> None:
             "GLYPHS: dict[str, tuple[str, ...]]",
             "_draw_bitmap_text",
             "_fit_bitmap_scale",
+            'label_width = 22 if label.upper().startswith("PR") else 30',
+            'min_value_size = 14 if label.upper().startswith("PR") else 10',
             "render_weather_card(data: WeatherCardData, colour_mode: str = COLOUR_MODE_COLOUR)",
             "_draw_bars(draw, data, colours)",
             "_draw_symbol(draw, kind, data, colours)",
         ),
         open_meteo_path: (
             "NOMINATIM_REVERSE_URL",
+            '"is_day"',
+            "NIGHT_AWARE_CODES",
+            "_condition_text",
             "@lru_cache(maxsize=64)",
             "REVERSE_GEOCODE_USER_AGENT",
         ),

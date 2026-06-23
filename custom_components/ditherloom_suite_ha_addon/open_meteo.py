@@ -38,6 +38,8 @@ WEATHER_CODES = {
     99: "Storm warning",
 }
 
+NIGHT_AWARE_CODES = {0, 1, 2}
+
 
 def fetch_open_meteo_card(latitude: str, longitude: str, location: str) -> WeatherCardData:
     latitude, longitude = _normalise_coordinates(latitude, longitude)
@@ -53,6 +55,7 @@ def fetch_open_meteo_card(latitude: str, longitude: str, location: str) -> Weath
                 "precipitation",
                 "weather_code",
                 "cloud_cover",
+                "is_day",
                 "pressure_msl",
                 "wind_speed_10m",
                 "wind_gusts_10m",
@@ -79,7 +82,7 @@ def fetch_open_meteo_card(latitude: str, longitude: str, location: str) -> Weath
     current = payload.get("current", {})
     daily = payload.get("daily", {})
     code = int(current.get("weather_code", 0))
-    condition = WEATHER_CODES.get(code, f"Code {code}")
+    condition = _condition_text(code, current.get("is_day"))
     updated = current.get("time") or datetime.now().strftime("%H:%M")
     if "T" in updated:
         updated = updated.split("T", 1)[1]
@@ -219,3 +222,11 @@ def _percent(value: Any) -> str:
     if rounded == "--":
         return "--"
     return f"{rounded}%"
+
+
+def _condition_text(code: int, is_day: Any) -> str:
+    if code in NIGHT_AWARE_CODES and str(is_day) == "0":
+        if code == 2:
+            return "Partly cloudy night"
+        return "Clear night"
+    return WEATHER_CODES.get(code, f"Code {code}")

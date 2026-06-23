@@ -441,12 +441,14 @@ def _draw_metric(
     accent: str | None = None,
 ) -> None:
     accent_name = accent or colours["metric_accent"]
+    label_width = 22 if label.upper().startswith("PR") else 30
     draw.rectangle((x, y, x + 112, y + 34), fill=_rgb(colours["metric"]), outline=_rgb("black"), width=1)
-    draw.rectangle((x, y, x + 30, y + 34), fill=_rgb(accent_name))
-    draw.line((x + 30, y, x + 30, y + 34), fill=_rgb("black"), width=1)
+    draw.rectangle((x, y, x + label_width, y + 34), fill=_rgb(accent_name))
+    draw.line((x + label_width, y, x + label_width, y + 34), fill=_rgb("black"), width=1)
     label_fill = "inverse_text" if accent_name in {"black", "charcoal", "warm_grey"} else "metric_text"
-    _draw_centred_text(draw, (x + 2, y, x + 30, y + 34), label[:2].upper(), 14, colours, label_fill, True, 9)
-    _draw_centred_text(draw, (x + 34, y, x + 108, y + 34), value, 18, colours, "metric_text", True, 10)
+    _draw_centred_text(draw, (x + 2, y, x + label_width, y + 34), label[:2].upper(), 14, colours, label_fill, True, 9)
+    min_value_size = 14 if label.upper().startswith("PR") else 10
+    _draw_centred_text(draw, (x + label_width + 3, y, x + 108, y + 34), value, 18, colours, "metric_text", True, min_value_size)
 
 
 def _detail_value(data: WeatherCardData, labels: tuple[str, ...], fallback: str) -> str:
