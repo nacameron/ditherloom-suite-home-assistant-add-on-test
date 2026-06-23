@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import urllib.parse
 import urllib.request
 from datetime import datetime
@@ -36,6 +37,8 @@ WEATHER_CODES = {
 
 
 def fetch_open_meteo_card(latitude: str, longitude: str, location: str) -> WeatherCardData:
+    latitude = _normalise_coordinate(latitude, "latitude")
+    longitude = _normalise_coordinate(longitude, "longitude")
     params = {
         "latitude": latitude,
         "longitude": longitude,
@@ -115,6 +118,35 @@ def fetch_open_meteo_card(latitude: str, longitude: str, location: str) -> Weath
         pressure=pressure,
         details=details,
     )
+
+
+_COORDINATE_RE = re.compile(r"([+-]?\d+(?:\.\d+)?)")
+
+
+def _normalise_coordinate(value: Any, axis: str) -> str:
+    raw = str(value or "").strip()
+    match = _COORDINATE_RE.search(raw)
+    if not match:
+        raise ValueError(f"{axis} must contain a numeric coordinate")
+
+    number = float(match.group(1))
+    upper = raw.upper()
+    direction = None
+    for candidate in ("N", "S", "E", "W"):
+        if re.search(rf"(^|[^A-Z]){candidate}([^A-Z]|$)", upper):
+            direction = candidate
+            break
+
+    if direction in ("S", "W"):
+        number = -abs(number)
+    elif direction in ("N", "E"):
+        number = abs(number)
+
+    limit = 90 if axis == "latitude" else 180
+    if not -limit <= number <= limit:
+        raise ValueError(f"{axis} must be between {-limit} and {limit}")
+
+    return f"{number:.6f}".rstrip("0").rstrip(".")
 
 
 def _first(value: Any) -> Any:
