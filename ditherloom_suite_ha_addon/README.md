@@ -37,3 +37,10 @@ The current weather payload is served at:
 ```text
 /payloads/weather-current.ppbin
 ```
+
+## Runtime model
+
+Production behavior should be sleep-first and repeating: the frame wakes on a
+configured Home Assistant update schedule, opens its Wi-Fi Gateway window,
+receives the latest intended update job, validates/displays it, acknowledges it,
+returns to `IDLE`/`SLEEP`, then wakes again on the next configured update.
