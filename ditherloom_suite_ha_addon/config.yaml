@@ -1,8 +1,8 @@
-name: "PicPak Home Assistant Renderer"
+name: "Ditherloom Suite Home Assistant Add On"
 version: "0.1.0"
-slug: "picpak_ha_renderer"
-description: "Prototype PicPak/Ditherloom renderer and MQTT job publisher for Home Assistant"
-url: "https://github.com/nacameron/picpak-home-assistant-addon-test"
+slug: "ditherloom_suite_ha_addon"
+description: "Prototype Ditherloom renderer and MQTT job publisher for Home Assistant"
+url: "https://github.com/nacameron/ditherloom-suite-home-assistant-add-on-test"
 arch:
   - aarch64
   - amd64

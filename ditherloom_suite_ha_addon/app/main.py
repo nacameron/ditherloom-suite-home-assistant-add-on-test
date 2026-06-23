@@ -14,8 +14,8 @@ from app.open_meteo import fetch_open_meteo_card
 from renderer import WeatherCardData, render_to_artifact, render_weather_card
 from renderer.pack import write_artifact
 
-APP_TITLE = "PicPak Home Assistant Renderer"
-DATA_ROOT = Path(os.environ.get("PICPAK_DATA_DIR", "/data/picpak")).resolve()
+APP_TITLE = "Ditherloom Suite Home Assistant Add On"
+DATA_ROOT = Path(os.environ.get("DITHERLOOM_DATA_DIR", "/data/ditherloom")).resolve()
 PAYLOAD_DIR = DATA_ROOT / "payloads"
 SETTINGS_PATH = DATA_ROOT / "settings.json"
 
@@ -31,7 +31,7 @@ def _load_settings() -> Dict[str, Any]:
         "mqtt_username": "",
         "mqtt_password": "",
         "library_id": "replace-with-library-id",
-        "topic_base": "picpak/replace-with-library-id",
+        "topic_base": "ditherloom/replace-with-library-id",
         "public_base_url": "http://homeassistant.local:8099",
         "expires_minutes": 15,
     }
@@ -206,7 +206,7 @@ def _form_body(settings: Dict[str, Any], result: Dict[str, Any] | None = None) -
     if artifact:
         preview_html = f"""
         <h2>Latest Preview</h2>
-        <img class="preview" src="/payloads/weather-current.preview.png?crc={artifact.crc32}" alt="PicPak display preview">
+        <img class="preview" src="/payloads/weather-current.preview.png?crc={artifact.crc32}" alt="Ditherloom display preview">
         <div class="meta">
           content_id={artifact.content_id}<br>
           length={len(artifact.packed)}<br>
