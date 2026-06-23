@@ -17,7 +17,9 @@
           "wake_window_minutes": "Wake window minutes",
           "max_jobs_per_wake": "Maximum jobs per wake",
           "target_slot": "Reserved Home Assistant content slot",
-          "display_mode": "Weather display mode"
+          "display_mode": "Weather display mode",
+          "temperature_unit": "Temperature unit",
+          "wind_speed_unit": "Wind speed unit"
         }
       }
     }
@@ -37,7 +39,9 @@
           "wake_window_minutes": "Wake window minutes",
           "max_jobs_per_wake": "Maximum jobs per wake",
           "target_slot": "Reserved Home Assistant content slot",
-          "display_mode": "Weather display mode"
+          "display_mode": "Weather display mode",
+          "temperature_unit": "Temperature unit",
+          "wind_speed_unit": "Wind speed unit"
         }
       }
     }

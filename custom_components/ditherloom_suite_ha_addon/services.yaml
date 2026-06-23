@@ -23,6 +23,20 @@ render_weather_card:
             - colour
             - mono
       required: false
+    temperature_unit:
+      selector:
+        select:
+          options:
+            - celsius
+            - fahrenheit
+      required: false
+    wind_speed_unit:
+      selector:
+        select:
+          options:
+            - kmh
+            - mph
+      required: false
 send_weather_card:
   fields:
     location_name:
@@ -47,6 +61,20 @@ send_weather_card:
           options:
             - colour
             - mono
+      required: false
+    temperature_unit:
+      selector:
+        select:
+          options:
+            - celsius
+            - fahrenheit
+      required: false
+    wind_speed_unit:
+      selector:
+        select:
+          options:
+            - kmh
+            - mph
       required: false
     display:
       selector:

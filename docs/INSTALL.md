@@ -68,6 +68,8 @@ Use the values shown in the Ditherloom Suite Home Assistant setup screen.
 | `Max jobs per wake` | Currently `1`. |
 | `Target slot` | Reserved frame slot. Default `445`. |
 | `Display mode` | `colour` or `mono`. |
+| `Temperature unit` | `celsius` or `fahrenheit`. Controls current, high, low, and feels-like values. |
+| `Wind speed unit` | `kmh` or `mph`. Controls the wind speed shown on weather cards. |
 
 The frame owns the real Home Assistant schedule. After setup, use the sync
 button to import the firmware-controlled timer values from the frame.

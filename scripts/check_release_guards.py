@@ -202,8 +202,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.28"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.28")
+    if '"version": "0.1.29"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.29")
 
 
 def check_weather_renderer_options() -> None:
@@ -211,6 +211,8 @@ def check_weather_renderer_options() -> None:
     flow_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "config_flow.py"
     init_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py"
     button_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "button.py"
+    services_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "services.yaml"
+    strings_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "strings.json"
     cards_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "renderer" / "cards.py"
     open_meteo_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "open_meteo.py"
 
@@ -220,13 +222,25 @@ def check_weather_renderer_options() -> None:
             'DISPLAY_MODE_COLOUR = "colour"',
             'DISPLAY_MODE_MONO = "mono"',
             "DEFAULT_DISPLAY_MODE = DISPLAY_MODE_COLOUR",
+            'CONF_TEMPERATURE_UNIT = "temperature_unit"',
+            'CONF_WIND_SPEED_UNIT = "wind_speed_unit"',
+            'TEMPERATURE_UNIT_FAHRENHEIT = "fahrenheit"',
+            'WIND_SPEED_UNIT_MPH = "mph"',
         ),
         flow_path: (
             "CONF_DISPLAY_MODE",
             "vol.In([DISPLAY_MODE_COLOUR, DISPLAY_MODE_MONO])",
+            "CONF_TEMPERATURE_UNIT",
+            "TEMPERATURE_UNIT_FAHRENHEIT",
+            "CONF_WIND_SPEED_UNIT",
+            "WIND_SPEED_UNIT_MPH",
         ),
         init_path: (
             "display_mode = str(data.get(CONF_DISPLAY_MODE) or opts.get(CONF_DISPLAY_MODE, DEFAULT_DISPLAY_MODE))",
+            "temperature_unit = str(data.get(CONF_TEMPERATURE_UNIT) or opts.get(CONF_TEMPERATURE_UNIT, DEFAULT_TEMPERATURE_UNIT))",
+            "wind_speed_unit = str(data.get(CONF_WIND_SPEED_UNIT) or opts.get(CONF_WIND_SPEED_UNIT, DEFAULT_WIND_SPEED_UNIT))",
+            'metadata["temperature_unit"] = temperature_unit',
+            'metadata["wind_speed_unit"] = wind_speed_unit',
             "render_weather_card(card_data, colour_mode=display_mode)",
             'metadata["display_mode"] = display_mode',
             'PLATFORMS = ["sensor", "update", "button", "image"]',
@@ -264,6 +278,16 @@ def check_weather_renderer_options() -> None:
             'action="render weather"',
             'action="send weather"',
         ),
+        services_path: (
+            "temperature_unit:",
+            "fahrenheit",
+            "wind_speed_unit:",
+            "mph",
+        ),
+        strings_path: (
+            '"temperature_unit": "Temperature unit"',
+            '"wind_speed_unit": "Wind speed unit"',
+        ),
         cards_path: (
             "COLOUR_MODE_COLOUR = \"colour\"",
             "COLOUR_MODE_MONO = \"mono\"",
@@ -287,6 +311,10 @@ def check_weather_renderer_options() -> None:
             "NOMINATIM_REVERSE_URL",
             '"is_day"',
             "NIGHT_AWARE_CODES",
+            '"temperature_unit": temperature_unit',
+            '"wind_speed_unit": wind_speed_unit',
+            'temperature_suffix = "F" if temperature_unit == "fahrenheit" else "C"',
+            'wind_suffix = "mph" if wind_speed_unit == "mph" else "km/h"',
             "_condition_text",
             "@lru_cache(maxsize=64)",
             "REVERSE_GEOCODE_USER_AGENT",

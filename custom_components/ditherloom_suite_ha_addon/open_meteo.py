@@ -41,9 +41,19 @@ WEATHER_CODES = {
 NIGHT_AWARE_CODES = {0, 1, 2}
 
 
-def fetch_open_meteo_card(latitude: str, longitude: str, location: str) -> WeatherCardData:
+def fetch_open_meteo_card(
+    latitude: str,
+    longitude: str,
+    location: str,
+    temperature_unit: str = "celsius",
+    wind_speed_unit: str = "kmh",
+) -> WeatherCardData:
     latitude, longitude = _normalise_coordinates(latitude, longitude)
     resolved_location = location.strip() or _reverse_location_name(latitude, longitude) or "Open-Meteo"
+    temperature_unit = _temperature_unit(temperature_unit)
+    wind_speed_unit = _wind_speed_unit(wind_speed_unit)
+    temperature_suffix = "F" if temperature_unit == "fahrenheit" else "C"
+    wind_suffix = "mph" if wind_speed_unit == "mph" else "km/h"
     params = {
         "latitude": latitude,
         "longitude": longitude,
@@ -71,8 +81,8 @@ def fetch_open_meteo_card(latitude: str, longitude: str, location: str) -> Weath
         ),
         "timezone": "auto",
         "forecast_days": "1",
-        "temperature_unit": "celsius",
-        "wind_speed_unit": "kmh",
+        "temperature_unit": temperature_unit,
+        "wind_speed_unit": wind_speed_unit,
         "precipitation_unit": "mm",
     }
     url = f"{OPEN_METEO_URL}?{urllib.parse.urlencode(params)}"
@@ -93,13 +103,13 @@ def fetch_open_meteo_card(latitude: str, longitude: str, location: str) -> Weath
     humidity = _percent(current.get("relative_humidity_2m"))
     uv = _round_text(_first(daily.get("uv_index_max")), digits=1)
     rain_probability = _percent(_first(daily.get("precipitation_probability_max")))
-    wind = f"{_round_text(current.get('wind_speed_10m'))}km/h"
-    feels = f"{_round_text(current.get('apparent_temperature'))}C"
+    wind = f"{_round_text(current.get('wind_speed_10m'))}{wind_suffix}"
+    feels = f"{_round_text(current.get('apparent_temperature'))}{temperature_suffix}"
     pressure = f"{_round_text(current.get('pressure_msl'))}hPa"
 
     details = (
-        ("High", f"{high}C"),
-        ("Low", f"{low}C"),
+        ("High", f"{high}{temperature_suffix}"),
+        ("Low", f"{low}{temperature_suffix}"),
         ("Hum", humidity),
         ("UV", uv),
         ("Rain", rain_probability),
@@ -110,7 +120,7 @@ def fetch_open_meteo_card(latitude: str, longitude: str, location: str) -> Weath
         location=resolved_location,
         condition=condition,
         temperature=temp,
-        unit="C",
+        unit=temperature_suffix,
         high=high,
         low=low,
         rain=rain_probability,
@@ -134,6 +144,14 @@ def _normalise_coordinates(latitude: Any, longitude: Any) -> tuple[str, str]:
         latitude, longitude = longitude, latitude
 
     return _normalise_coordinate(latitude, "latitude"), _normalise_coordinate(longitude, "longitude")
+
+
+def _temperature_unit(value: Any) -> str:
+    return "fahrenheit" if str(value).strip().lower() in {"fahrenheit", "f", "imperial"} else "celsius"
+
+
+def _wind_speed_unit(value: Any) -> str:
+    return "mph" if str(value).strip().lower() in {"mph", "m/h", "imperial"} else "kmh"
 
 
 def _coordinate_direction(value: Any) -> str | None:

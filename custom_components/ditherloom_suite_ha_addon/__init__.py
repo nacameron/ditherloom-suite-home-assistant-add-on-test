@@ -33,17 +33,21 @@ from .const import (
     CONF_LONGITUDE,
     CONF_MAX_JOBS_PER_WAKE,
     CONF_TARGET_SLOT,
+    CONF_TEMPERATURE_UNIT,
     CONF_TOPIC_BASE,
     CONF_UPDATE_INTERVAL_MINUTES,
     CONF_WEATHER_LOCATION,
     CONF_WAKE_WINDOW_MINUTES,
     CONF_WAKE_WINDOW_SECONDS,
+    CONF_WIND_SPEED_UNIT,
     DEFAULT_FRAME_PORT,
     DEFAULT_DISPLAY_MODE,
     DEFAULT_MAX_JOBS_PER_WAKE,
     DEFAULT_TARGET_SLOT,
+    DEFAULT_TEMPERATURE_UNIT,
     DEFAULT_UPDATE_INTERVAL_MINUTES,
     DEFAULT_WAKE_WINDOW_MINUTES,
+    DEFAULT_WIND_SPEED_UNIT,
     DEVICE_PACKED_PAYLOAD_BYTES,
     DEVICE_SLOT_COUNT,
     DEVICE_WIFI_B64WRITE_CHUNK_BYTES,
@@ -211,7 +215,16 @@ class DitherloomRuntime:
             longitude = str(data.get(CONF_LONGITUDE) or opts.get(CONF_LONGITUDE) or "0")
             location = str(data.get(CONF_LOCATION_NAME) or data.get("location") or opts.get(CONF_LOCATION_NAME) or "Home")
 
-        card_data = await self.hass.async_add_executor_job(fetch_open_meteo_card, latitude, longitude, location)
+        temperature_unit = str(data.get(CONF_TEMPERATURE_UNIT) or opts.get(CONF_TEMPERATURE_UNIT, DEFAULT_TEMPERATURE_UNIT))
+        wind_speed_unit = str(data.get(CONF_WIND_SPEED_UNIT) or opts.get(CONF_WIND_SPEED_UNIT, DEFAULT_WIND_SPEED_UNIT))
+        card_data = await self.hass.async_add_executor_job(
+            fetch_open_meteo_card,
+            latitude,
+            longitude,
+            location,
+            temperature_unit,
+            wind_speed_unit,
+        )
         display_mode = str(data.get(CONF_DISPLAY_MODE) or opts.get(CONF_DISPLAY_MODE, DEFAULT_DISPLAY_MODE))
         image = render_weather_card(card_data, colour_mode=display_mode)
         artifact = render_to_artifact(image, "weather_current", [card_data.source_entity_id])
@@ -226,6 +239,8 @@ class DitherloomRuntime:
         metadata["wake_window_minutes"] = self._effective_wake_window_minutes()
         metadata["max_jobs_per_wake"] = opts.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE)
         metadata["display_mode"] = display_mode
+        metadata["temperature_unit"] = temperature_unit
+        metadata["wind_speed_unit"] = wind_speed_unit
         for preserved_key in ("frame_timer", "frame_ha_config", "frame_sleep_info"):
             preserved = self.last_metadata.get(preserved_key)
             if isinstance(preserved, dict):
