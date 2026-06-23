@@ -6,6 +6,27 @@ serving packed payloads, and publishing MQTT jobs to a modified Ditherloom frame
 This add-on is the runtime side. The Ditherloom Suite desktop app should only
 configure the Home Assistant integration on the frame.
 
+## Preferred install path
+
+This repository also contains a Home Assistant custom integration at:
+
+```text
+custom_components/ditherloom_suite_ha_addon
+```
+
+Use HACS custom repositories and choose category `Integration`, then add this
+repo:
+
+```text
+https://github.com/nacameron/ditherloom-suite-home-assistant-add-on-test
+```
+
+After installing and restarting Home Assistant, add it from:
+
+```text
+Settings > Devices & services > Add integration
+```
+
 ## Current prototype
 
 - Weather card renderer.

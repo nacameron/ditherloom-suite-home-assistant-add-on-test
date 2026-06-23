@@ -1,0 +1,33 @@
+render_weather_card:
+  fields:
+    location:
+      selector:
+        text:
+      required: false
+    latitude:
+      selector:
+        text:
+      required: false
+    longitude:
+      selector:
+        text:
+      required: false
+send_weather_card:
+  fields:
+    location:
+      selector:
+        text:
+      required: false
+    latitude:
+      selector:
+        text:
+      required: false
+    longitude:
+      selector:
+        text:
+      required: false
+    display:
+      selector:
+        boolean:
+      required: false
+

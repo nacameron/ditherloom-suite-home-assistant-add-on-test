@@ -1,0 +1,43 @@
+{
+  "title": "Ditherloom Suite Home Assistant Add On",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Ditherloom",
+        "description": "Configure the Ditherloom frame and its repeating Home Assistant update wake window.",
+        "data": {
+          "library_id": "Library ID",
+          "frame_host": "Frame Wi-Fi host or IP",
+          "frame_port": "Frame Gateway port",
+          "topic_base": "MQTT topic base",
+          "location_name": "Weather location name",
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "update_interval_minutes": "Repeating update interval minutes",
+          "wake_window_minutes": "Wake window minutes",
+          "max_jobs_per_wake": "Maximum jobs per wake",
+          "target_slot": "Reserved Home Assistant content slot"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ditherloom options",
+        "data": {
+          "frame_host": "Frame Wi-Fi host or IP",
+          "frame_port": "Frame Gateway port",
+          "topic_base": "MQTT topic base",
+          "location_name": "Weather location name",
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "update_interval_minutes": "Repeating update interval minutes",
+          "wake_window_minutes": "Wake window minutes",
+          "max_jobs_per_wake": "Maximum jobs per wake",
+          "target_slot": "Reserved Home Assistant content slot"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Ditherloom Suite Home Assistant Add On",
+  "content_in_root": false,
+  "render_readme": true,
+  "domains": ["ditherloom_suite_ha_addon"],
+  "homeassistant": "2025.1.0"
+}
+
