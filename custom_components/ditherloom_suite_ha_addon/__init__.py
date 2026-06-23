@@ -13,6 +13,7 @@ from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import aiohttp_client
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
@@ -60,10 +61,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.http.register_view(DitherloomPreviewView(coordinator))
 
     async def handle_render_weather(call: ServiceCall) -> None:
-        await coordinator.async_render_weather(dict(call.data), publish=False, send_to_frame=False)
+        await _handle_weather_service(coordinator, call, publish=False, send_to_frame=False, action="render weather")
 
     async def handle_send_weather(call: ServiceCall) -> None:
-        await coordinator.async_render_weather(dict(call.data), publish=True, send_to_frame=True)
+        await _handle_weather_service(coordinator, call, publish=True, send_to_frame=True, action="send weather")
 
     hass.services.async_register(DOMAIN, SERVICE_RENDER_WEATHER, handle_render_weather)
     hass.services.async_register(DOMAIN, SERVICE_SEND_WEATHER, handle_send_weather)
@@ -77,6 +78,23 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok
+
+
+async def _handle_weather_service(
+    coordinator: DitherloomRuntime,
+    call: ServiceCall,
+    publish: bool,
+    send_to_frame: bool,
+    action: str,
+) -> None:
+    try:
+        await coordinator.async_render_weather(dict(call.data), publish=publish, send_to_frame=send_to_frame)
+    except Exception as exc:
+        message = f"Ditherloom {action} failed: {type(exc).__name__}: {exc}"
+        coordinator.last_status = "error"
+        coordinator.last_metadata[ATTR_LAST_ERROR] = message
+        await coordinator.async_save()
+        raise HomeAssistantError(message) from exc
 
 
 @dataclass
