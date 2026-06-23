@@ -368,6 +368,8 @@ class DitherloomRuntime:
         if self._auto_send_running:
             return
         self._auto_send_running = True
+        # Locked render delivery pathway: pre-render before wake, then probe
+        # the Gateway and send the existing packed payload only after it answers.
         expected_wake = _parse_datetime(self.last_metadata.get("auto_send_expected_wake_at")) or fired_at
         window_expires = _parse_datetime(self.last_metadata.get("auto_send_window_expires_at"))
         if window_expires is None:

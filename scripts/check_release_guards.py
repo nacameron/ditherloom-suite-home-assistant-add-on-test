@@ -359,6 +359,52 @@ def check_dashboard_surface() -> None:
                 fail(f"dashboard surface missing required text in {path.name}: {required}")
 
 
+def check_locked_render_delivery_pathway() -> None:
+    init_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py"
+    docs_path = ROOT / "docs" / "LOCKED_RENDER_DELIVERY_PATHWAY.md"
+    if not docs_path.exists():
+        fail("locked render delivery pathway documentation is missing")
+
+    init_text = init_path.read_text(encoding="utf-8")
+    doc_text = docs_path.read_text(encoding="utf-8")
+
+    for required in (
+        "AUTO_SEND_PRERENDER_LEAD_SECONDS = 30",
+        "AUTO_SEND_PROBE_INTERVAL_SECONDS = 10",
+        "AUTO_SEND_COUNTER_DRIFT_SECONDS = 300",
+        "await self.async_render_weather({}, publish=True, send_to_frame=False)",
+        'self.last_status = "auto_send_prerendered"',
+        "async_track_point_in_time(self.hass, self._handle_auto_send, expected_wake)",
+        "_probe_existing_gateway",
+        "packed = await self.hass.async_add_executor_job(self.payload_path().read_bytes)",
+        "await self.async_send_to_frame(packed, crc32)",
+        'last_job["expires_at"] = search_expires.isoformat()',
+        "if now + timedelta(seconds=AUTO_SEND_PROBE_INTERVAL_SECONDS) < search_expires:",
+        "self._schedule_next_auto_send(from_time=expected_wake)",
+    ):
+        if required not in init_text:
+            fail(f"locked render delivery pathway missing required code/text: {required}")
+
+    for forbidden in (
+        "await self.async_render_weather({}, publish=True, send_to_frame=True)",
+        "self._schedule_next_auto_send(from_time=now)",
+        "self._schedule_next_auto_send(from_time=fired_at)",
+    ):
+        if forbidden in init_text:
+            fail(f"locked render delivery pathway contains forbidden shortcut: {forbidden}")
+
+    for required in (
+        "Locked Render Delivery Pathway",
+        "pre-render",
+        "probe the frame gateway before sending",
+        "send the existing packed payload",
+        "schedule the next cycle from the expected wake anchor",
+        "Do not render during the frame wake window",
+    ):
+        if required not in doc_text:
+            fail(f"locked render delivery pathway documentation missing required text: {required}")
+
+
 def main() -> None:
     check_branding()
     check_licenses()
@@ -368,6 +414,7 @@ def main() -> None:
     check_weather_renderer_options()
     check_sync_button()
     check_dashboard_surface()
+    check_locked_render_delivery_pathway()
     print("release guards passed")
 
 
