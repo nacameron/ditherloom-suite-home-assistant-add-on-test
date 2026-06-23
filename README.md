@@ -50,6 +50,16 @@ If HACS was added before this repository had the custom integration files, remov
 the custom repository from HACS, add it again as category `Integration`, install
 again, and restart Home Assistant.
 
+If HACS says:
+
+```text
+Repository 'nacameron/ditherloom-suite-home-assistant-add-on-test' exists in the store.
+```
+
+then the repository is already registered. Close the custom repository dialog,
+search HACS for `Ditherloom`, open the existing store entry, and install or
+redownload the integration from there.
+
 ## What it currently does
 
 - Renders a Ditherloom weather card inside Home Assistant.
