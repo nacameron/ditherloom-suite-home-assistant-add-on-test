@@ -18,7 +18,7 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-SCAN_INTERVAL = timedelta(hours=6)
+SCAN_INTERVAL = timedelta(minutes=30)
 GITHUB_REPOSITORY = "nacameron/ditherloom-suite-home-assistant-add-on-test"
 LATEST_RELEASE_API_URL = f"https://api.github.com/repos/{GITHUB_REPOSITORY}/releases/latest"
 LATEST_RELEASE_URL = f"https://github.com/{GITHUB_REPOSITORY}/releases/latest"

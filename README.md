@@ -33,8 +33,8 @@ configured, that publish step is skipped.
 ## Update Alerts
 
 The integration creates a diagnostic Home Assistant update entity. Home
-Assistant checks the latest GitHub release periodically and can show when the
-installed custom integration is behind.
+Assistant checks the latest GitHub release every 30 minutes and can show when
+the installed custom integration is behind.
 
 HACS remains the install and redownload route. This update entity does not
 install files by itself.

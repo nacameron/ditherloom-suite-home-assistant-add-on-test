@@ -192,7 +192,7 @@ def check_update_platform() -> None:
 
     for required in (
         "UpdateEntity",
-        "SCAN_INTERVAL = timedelta(hours=6)",
+        "SCAN_INTERVAL = timedelta(minutes=30)",
         "releases/latest",
         "async_get_clientsession",
         "UpdateEntityFeature.RELEASE_NOTES",
@@ -200,8 +200,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.19"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.19")
+    if '"version": "0.1.20"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.20")
 
 
 def check_weather_renderer_options() -> None:
