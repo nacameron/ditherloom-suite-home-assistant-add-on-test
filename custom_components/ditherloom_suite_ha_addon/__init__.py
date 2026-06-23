@@ -57,6 +57,8 @@ from .const import (
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
+AUTO_SEND_PRERENDER_LEAD_SECONDS = 30
+AUTO_SEND_PROBE_INTERVAL_SECONDS = 10
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -222,6 +224,7 @@ class DitherloomRuntime:
         if send_to_frame:
             await self.async_send_to_frame(artifact.packed, artifact.crc32)
             self.last_status = "sent"
+            self.last_metadata.pop(ATTR_LAST_ERROR, None)
 
         await self.async_save()
         return metadata
@@ -249,6 +252,7 @@ class DitherloomRuntime:
                 self._apply_imported_frame_timer(imported)
                 self.last_status = "frame_timer_synced"
                 self.last_metadata.update(imported)
+                self.last_metadata.pop(ATTR_LAST_ERROR, None)
                 frame_timer = imported.get("frame_timer")
                 if isinstance(frame_timer, dict):
                     synced_seconds = _positive_int(frame_timer.get("wake_window_seconds"))
@@ -320,43 +324,85 @@ class DitherloomRuntime:
         now = from_time or datetime.now(timezone.utc)
         timer_us = _positive_int(timer.get("ha_timer_us")) if use_frame_timer_us else None
         if timer_us:
-            next_send = now + timedelta(microseconds=timer_us)
+            expected_wake = now + timedelta(microseconds=timer_us)
         else:
             sync_started = _parse_datetime(self.last_metadata.get("sync_window_started_at")) or now
-            next_send = sync_started + timedelta(minutes=interval_minutes)
-        while next_send <= now + timedelta(seconds=2):
-            next_send += timedelta(minutes=interval_minutes)
+            expected_wake = sync_started + timedelta(minutes=interval_minutes)
+        prerender_at = expected_wake - timedelta(seconds=AUTO_SEND_PRERENDER_LEAD_SECONDS)
+        while prerender_at <= now + timedelta(seconds=2):
+            expected_wake += timedelta(minutes=interval_minutes)
+            prerender_at = expected_wake - timedelta(seconds=AUTO_SEND_PRERENDER_LEAD_SECONDS)
 
         self.async_cancel_auto_send()
-        self.last_metadata["auto_send_next_at"] = next_send.isoformat()
-        self.last_metadata["auto_send_window_expires_at"] = (next_send + timedelta(seconds=wake_window_seconds)).isoformat()
+        self.last_metadata["auto_send_next_at"] = prerender_at.isoformat()
+        self.last_metadata["auto_send_prerender_at"] = prerender_at.isoformat()
+        self.last_metadata["auto_send_expected_wake_at"] = expected_wake.isoformat()
+        self.last_metadata["auto_send_window_expires_at"] = (expected_wake + timedelta(seconds=wake_window_seconds)).isoformat()
         self.last_metadata["auto_send_interval_minutes"] = interval_minutes
         self.last_metadata["auto_send_wake_window_seconds"] = wake_window_seconds
-        self._auto_send_unsub = async_track_point_in_time(self.hass, self._handle_auto_send, next_send)
+        self.last_metadata["auto_send_probe_interval_seconds"] = AUTO_SEND_PROBE_INTERVAL_SECONDS
+        self._auto_send_unsub = async_track_point_in_time(self.hass, self._handle_auto_send, prerender_at)
         return True
 
     async def _handle_auto_send(self, fired_at: datetime) -> None:
         if self._auto_send_running:
             return
         self._auto_send_running = True
+        expected_wake = _parse_datetime(self.last_metadata.get("auto_send_expected_wake_at")) or fired_at
+        window_expires = _parse_datetime(self.last_metadata.get("auto_send_window_expires_at"))
+        if window_expires is None:
+            window_expires = expected_wake + timedelta(seconds=self._effective_wake_window_seconds())
+        window_metadata = {
+            "auto_send_expected_wake_at": expected_wake.isoformat(),
+            "auto_send_window_expires_at": (
+                expected_wake + timedelta(seconds=self._effective_wake_window_seconds())
+            ).isoformat(),
+            "auto_send_interval_minutes": self._effective_update_interval_minutes(),
+            "auto_send_wake_window_seconds": self._effective_wake_window_seconds(),
+            "auto_send_probe_interval_seconds": AUTO_SEND_PROBE_INTERVAL_SECONDS,
+        }
         try:
-            await self.async_render_weather({}, publish=True, send_to_frame=True)
+            attempt_anchor = expected_wake.isoformat()
+            if self.last_metadata.get("auto_send_attempt_anchor_at") != attempt_anchor or not self.payload_path().exists():
+                await self.async_render_weather({}, publish=True, send_to_frame=False)
+                self.last_metadata.update(window_metadata)
+                self.last_metadata["auto_send_attempt_anchor_at"] = attempt_anchor
+            now = datetime.now(timezone.utc)
+            if now < expected_wake:
+                self.last_status = "auto_send_prerendered"
+                self.last_metadata.update(window_metadata)
+                self.last_metadata["auto_send_next_at"] = expected_wake.isoformat()
+                self.async_cancel_auto_send()
+                self._auto_send_unsub = async_track_point_in_time(self.hass, self._handle_auto_send, expected_wake)
+                return
+            await self.hass.async_add_executor_job(
+                _probe_existing_gateway,
+                str(self.options.get(CONF_FRAME_HOST) or ""),
+                int(self.options.get(CONF_FRAME_PORT, DEFAULT_FRAME_PORT)),
+            )
+            packed = await self.hass.async_add_executor_job(self.payload_path().read_bytes)
+            crc32 = str(self.last_metadata[ATTR_CRC32])
+            await self.async_send_to_frame(packed, crc32)
             self.last_status = "auto_sent"
             self.last_metadata["auto_send_last_success_at"] = datetime.now(timezone.utc).isoformat()
-            self._schedule_next_auto_send(from_time=fired_at)
+            self.last_metadata.pop(ATTR_LAST_ERROR, None)
+            self.last_metadata.pop("auto_send_retry_at", None)
+            self._schedule_next_auto_send(from_time=expected_wake)
         except Exception as exc:
             now = datetime.now(timezone.utc)
             self.last_status = "auto_send_waiting"
             self.last_metadata[ATTR_LAST_ERROR] = f"Automatic weather send failed: {type(exc).__name__}: {exc}"
             self.last_metadata["auto_send_last_failed_at"] = now.isoformat()
-            window_expires = _parse_datetime(self.last_metadata.get("auto_send_window_expires_at"))
-            if window_expires and now + timedelta(seconds=15) < window_expires:
-                retry_at = now + timedelta(seconds=15)
+            self.last_metadata.update(window_metadata)
+            if now + timedelta(seconds=AUTO_SEND_PROBE_INTERVAL_SECONDS) < window_expires:
+                retry_at = now + timedelta(seconds=AUTO_SEND_PROBE_INTERVAL_SECONDS)
                 self.last_metadata["auto_send_retry_at"] = retry_at.isoformat()
+                self.last_metadata["auto_send_next_at"] = retry_at.isoformat()
                 self.async_cancel_auto_send()
                 self._auto_send_unsub = async_track_point_in_time(self.hass, self._handle_auto_send, retry_at)
             else:
-                self._schedule_next_auto_send(from_time=now)
+                self.last_metadata.pop("auto_send_retry_at", None)
+                self._schedule_next_auto_send(from_time=expected_wake)
         finally:
             self._auto_send_running = False
             await self.async_save()
