@@ -8,12 +8,21 @@ from typing import Dict, List
 
 from PIL import Image
 
+from ..const import (
+    DEVICE_FRAME_HEIGHT,
+    DEVICE_FRAME_WIDTH,
+    DEVICE_PACKED_PAYLOAD_BYTES,
+    DEVICE_PIXEL_COUNT,
+    DEVICE_SLOT_STRIDE_BYTES,
+    DEVICE_SOURCE_METADATA_HEADER_BYTES,
+    DEVICE_SOURCE_METADATA_PAYLOAD_BYTES,
+)
 from .palette import RGB_TO_TEMPLATE_NAME, TEMPLATE_COLOURS, codes_to_preview_rgb, nearest_panel_code, ordered_code
 
-WIDTH = 400
-HEIGHT = 300
-PIXEL_COUNT = WIDTH * HEIGHT
-PACKED_LENGTH = PIXEL_COUNT // 4
+WIDTH = DEVICE_FRAME_WIDTH
+HEIGHT = DEVICE_FRAME_HEIGHT
+PIXEL_COUNT = DEVICE_PIXEL_COUNT
+PACKED_LENGTH = DEVICE_PACKED_PAYLOAD_BYTES
 
 
 @dataclass(frozen=True)
@@ -90,6 +99,9 @@ def render_to_artifact(image: Image.Image, template_name: str, source_entity_ids
         "width": WIDTH,
         "height": HEIGHT,
         "packed_length": len(packed),
+        "slot_stride_bytes": DEVICE_SLOT_STRIDE_BYTES,
+        "source_metadata_header_bytes": DEVICE_SOURCE_METADATA_HEADER_BYTES,
+        "source_metadata_payload_bytes": DEVICE_SOURCE_METADATA_PAYLOAD_BYTES,
         "crc32": crc32,
         "content_id": content_id,
         "source_entity_ids": source_entity_ids,
@@ -126,4 +138,3 @@ def write_artifact(artifact: RenderArtifact, output_dir: Path, stem: str) -> Dic
         "packet_debug": debug_path,
         "metadata": metadata_path,
     }
-

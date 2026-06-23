@@ -38,6 +38,10 @@ from .const import (
     DEFAULT_MAX_JOBS_PER_WAKE,
     DEFAULT_TARGET_SLOT,
     DEFAULT_WAKE_WINDOW_MINUTES,
+    DEVICE_PACKED_PAYLOAD_BYTES,
+    DEVICE_SLOT_COUNT,
+    DEVICE_WIFI_B64WRITE_CHUNK_BYTES,
+    DEVICE_WIFI_COMMAND_MAX_CHARS,
     DOMAIN,
     SERVICE_RENDER_WEATHER,
     SERVICE_SEND_WEATHER,
@@ -271,23 +275,33 @@ def _send_command(sock_file, command: str) -> str:
 
 
 def _send_existing_gateway_job(host: str, port: int, packed: bytes, crc32: str, slot: int) -> None:
+    if len(packed) != DEVICE_PACKED_PAYLOAD_BYTES:
+        raise ValueError(f"Packed payload must be exactly {DEVICE_PACKED_PAYLOAD_BYTES} bytes, got {len(packed)}")
+    if slot < 1 or slot > DEVICE_SLOT_COUNT:
+        raise ValueError(f"Target slot must be between 1 and {DEVICE_SLOT_COUNT}, got {slot}")
+
     with socket.create_connection((host, port), timeout=20) as sock:
         sock.settimeout(30)
         sock_file = sock.makefile("rwb")
         pong = _send_command(sock_file, "PING")
         if not pong.startswith("OK"):
             raise RuntimeError(f"PING failed: {pong}")
-        begin = _send_command(sock_file, f"BEGIN {slot} {len(packed)} {crc32}")
+        begin = _send_command(sock_file, f"BEGIN {slot} {len(packed)} 0x{crc32}")
         if not begin.startswith("OK"):
             raise RuntimeError(f"BEGIN failed: {begin}")
         offset = 0
-        chunk_size = 768
         while offset < len(packed):
-            chunk = packed[offset : offset + chunk_size]
+            chunk = packed[offset : offset + DEVICE_WIFI_B64WRITE_CHUNK_BYTES]
             encoded = base64.b64encode(chunk).decode("ascii")
-            response = _send_command(sock_file, f"B64WRITE {slot} {offset} {encoded}")
+            command = f"B64WRITE {slot} {offset} {encoded}"
+            if len(command) > DEVICE_WIFI_COMMAND_MAX_CHARS:
+                raise ValueError(f"B64WRITE command exceeds {DEVICE_WIFI_COMMAND_MAX_CHARS} characters")
+            response = _send_command(sock_file, command)
             if not response.startswith("OK"):
-                raise RuntimeError(f"B64WRITE failed at {offset}: {response}")
+                raise RuntimeError(
+                    f"B64WRITE failed at {offset}: {response} "
+                    f"slot={slot} chunk_bytes={len(chunk)} command_chars={len(command)}"
+                )
             offset += len(chunk)
         end = _send_command(sock_file, f"END {slot}")
         if not end.startswith("OK"):
