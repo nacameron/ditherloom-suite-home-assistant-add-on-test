@@ -200,8 +200,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.18"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.18")
+    if '"version": "0.1.19"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.19")
 
 
 def check_weather_renderer_options() -> None:
@@ -226,7 +226,7 @@ def check_weather_renderer_options() -> None:
             "display_mode = str(data.get(CONF_DISPLAY_MODE) or opts.get(CONF_DISPLAY_MODE, DEFAULT_DISPLAY_MODE))",
             "render_weather_card(card_data, colour_mode=display_mode)",
             'metadata["display_mode"] = display_mode',
-            'PLATFORMS = ["sensor", "update", "button"]',
+            'PLATFORMS = ["sensor", "update", "button", "image"]',
             "SERVICE_SYNC_WAKE_WINDOW",
             "hass.services.async_register(DOMAIN, SERVICE_SYNC_WAKE_WINDOW, handle_sync_wake_window)",
             "async_sync_wake_window",
@@ -275,6 +275,47 @@ def check_sync_button() -> None:
             fail(f"sync button missing required text: {required}")
 
 
+def check_dashboard_surface() -> None:
+    button_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "button.py"
+    sensor_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "sensor.py"
+    image_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "image.py"
+    dashboard_path = ROOT / "docs" / "DASHBOARD.md"
+    if not image_path.exists():
+        fail("Home Assistant preview image platform is missing")
+    if not dashboard_path.exists():
+        fail("dashboard documentation is missing")
+    checks = {
+        button_path: (
+            "DitherloomRenderWeatherButton",
+            "DitherloomSendWeatherButton",
+            "Render weather preview",
+            "Send weather to frame",
+        ),
+        sensor_path: (
+            "EntityCategory.DIAGNOSTIC",
+            "DeviceInfo",
+            "Last job status",
+        ),
+        image_path: (
+            "ImageEntity",
+            "Weather preview",
+            "async_image",
+            "preview_path",
+        ),
+        dashboard_path: (
+            "picture-entity",
+            "Render weather preview",
+            "Send weather to frame",
+            "Synchronise Wi-Fi wake window",
+        ),
+    }
+    for path, required_values in checks.items():
+        text = path.read_text(encoding="utf-8")
+        for required in required_values:
+            if required not in text:
+                fail(f"dashboard surface missing required text in {path.name}: {required}")
+
+
 def main() -> None:
     check_branding()
     check_licenses()
@@ -283,6 +324,7 @@ def main() -> None:
     check_update_platform()
     check_weather_renderer_options()
     check_sync_button()
+    check_dashboard_surface()
     print("release guards passed")
 
 

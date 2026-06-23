@@ -50,7 +50,7 @@ from .const import (
     SERVICE_SYNC_WAKE_WINDOW,
 )
 
-PLATFORMS = ["sensor", "update", "button"]
+PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
 

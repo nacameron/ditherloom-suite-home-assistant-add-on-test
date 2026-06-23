@@ -112,6 +112,11 @@ redownload the integration from there.
 - Adds a Home Assistant update entity that checks the latest GitHub release.
 - Supports colour or mono weather display mode.
 - Adds a Wi-Fi wake-window sync button that does not alter frame timer settings.
+- Adds dashboard-friendly entities for preview, render, send, sync, and status.
+
+## Dashboard
+
+A starter dashboard card is documented in [docs/DASHBOARD.md](docs/DASHBOARD.md).
 
 ## License
 
