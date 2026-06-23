@@ -18,7 +18,37 @@ Use HACS custom repositories:
 5. Install `Ditherloom Suite Home Assistant Add On`.
 6. Restart Home Assistant.
 7. Go to Settings > Devices & services > Add integration.
-8. Search for `Ditherloom Suite Home Assistant Add On`.
+8. Search for `Ditherloom` or `Ditherloom Suite Home Assistant Add On`.
+
+## If It Does Not Appear In Add Integration
+
+There is no expected long delay after restart. If it does not appear:
+
+1. Confirm HACS installed it as category `Integration`, not as an app/add-on.
+2. In HACS, open the integration and confirm it says installed.
+3. Confirm this folder exists on the Home Assistant server:
+
+   ```text
+   /config/custom_components/ditherloom_suite_ha_addon
+   ```
+
+4. Confirm this file exists:
+
+   ```text
+   /config/custom_components/ditherloom_suite_ha_addon/manifest.json
+   ```
+
+5. Restart Home Assistant again after the files are present.
+6. Search Add integration for `Ditherloom`.
+7. If it still does not appear, check Settings > System > Logs for:
+
+   ```text
+   ditherloom_suite_ha_addon
+   ```
+
+If HACS was added before this repository had the custom integration files, remove
+the custom repository from HACS, add it again as category `Integration`, install
+again, and restart Home Assistant.
 
 ## What it currently does
 
@@ -36,4 +66,3 @@ Project license: Polycom 1. Ditherloom-specific source, custom renderer rules,
 custom device-screen graphics, and project documentation are copyright Neil
 Cameron. Third-party components keep their original licenses and notices; see
 `THIRD_PARTY_NOTICES.md`.
-
