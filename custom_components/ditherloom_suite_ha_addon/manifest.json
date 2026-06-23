@@ -1,7 +1,6 @@
 {
   "domain": "ditherloom_suite_ha_addon",
   "name": "Ditherloom Suite Home Assistant Add On",
-  "after_dependencies": ["mqtt"],
   "codeowners": ["@nacameron"],
   "config_flow": true,
   "documentation": "https://github.com/nacameron/ditherloom-suite-home-assistant-add-on",
@@ -10,4 +9,3 @@
   "requirements": ["Pillow==11.0.0"],
   "version": "0.1.0"
 }
-
