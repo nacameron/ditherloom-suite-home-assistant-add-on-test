@@ -47,6 +47,7 @@ from .const import (
     DOMAIN,
     SERVICE_RENDER_WEATHER,
     SERVICE_SEND_WEATHER,
+    SERVICE_SYNC_WAKE_WINDOW,
 )
 
 PLATFORMS = ["sensor", "update", "button"]
@@ -73,8 +74,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_send_weather(call: ServiceCall) -> None:
         await _handle_weather_service(coordinator, call, publish=True, send_to_frame=True, action="send weather")
 
+    async def handle_sync_wake_window(call: ServiceCall) -> None:
+        try:
+            await coordinator.async_sync_wake_window()
+        except Exception as exc:
+            message = f"Ditherloom sync wake window failed: {type(exc).__name__}: {exc}"
+            coordinator.last_status = "error"
+            coordinator.last_metadata[ATTR_LAST_ERROR] = message
+            await coordinator.async_save()
+            raise HomeAssistantError(message) from exc
+
     hass.services.async_register(DOMAIN, SERVICE_RENDER_WEATHER, handle_render_weather)
     hass.services.async_register(DOMAIN, SERVICE_SEND_WEATHER, handle_send_weather)
+    hass.services.async_register(DOMAIN, SERVICE_SYNC_WAKE_WINDOW, handle_sync_wake_window)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

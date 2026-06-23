@@ -12,6 +12,7 @@ WIDTH = 400
 HEIGHT = 300
 TOP_BAR_HEIGHT = 38
 BOTTOM_BAR_HEIGHT = 38
+FONT_SCALE = 1.4
 
 COLOUR_MODE_COLOUR = "colour"
 COLOUR_MODE_MONO = "mono"
@@ -49,12 +50,24 @@ def _font(size: int, bold: bool = False) -> ImageFont.ImageFont:
     return ImageFont.load_default()
 
 
-def _fit_text(draw: ImageDraw.ImageDraw, text: str, max_width: int, size: int, min_size: int, bold: bool = False) -> ImageFont.ImageFont:
+def _scaled(size: int) -> int:
+    return max(1, int(round(size * FONT_SCALE)))
+
+
+def _fit_text(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    max_width: int,
+    size: int,
+    min_size: int,
+    bold: bool = False,
+    max_height: int | None = None,
+) -> ImageFont.ImageFont:
     current = size
     while current >= min_size:
         font = _font(current, bold=bold)
         left, top, right, bottom = draw.textbbox((0, 0), str(text), font=font)
-        if right - left <= max_width:
+        if right - left <= max_width and (max_height is None or bottom - top <= max_height):
             return font
         current -= 1
     return _font(min_size, bold=bold)
@@ -71,7 +84,7 @@ def _draw_centred_text(
     min_size: int = 10,
 ) -> None:
     x1, y1, x2, y2 = box
-    font = _fit_text(draw, text, x2 - x1 - 8, size, min_size, bold=bold)
+    font = _fit_text(draw, text, x2 - x1 - 8, _scaled(size), min_size, bold=bold, max_height=y2 - y1 - 4)
     left, top, right, bottom = draw.textbbox((0, 0), str(text), font=font)
     draw.text(
         (x1 + (x2 - x1 - (right - left)) / 2, y1 + (y2 - y1 - (bottom - top)) / 2 - 1),
@@ -92,7 +105,7 @@ def _draw_text(
     max_width: int | None = None,
     min_size: int = 10,
 ) -> None:
-    font = _fit_text(draw, text, max_width, size, min_size, bold=bold) if max_width else _font(size, bold=bold)
+    font = _fit_text(draw, text, max_width, _scaled(size), min_size, bold=bold) if max_width else _font(_scaled(size), bold=bold)
     draw.text(xy, str(text), font=font, fill=_rgb(colours[fill_name]))
 
 
@@ -349,7 +362,7 @@ def _draw_symbol(draw: ImageDraw.ImageDraw, kind: str, data: WeatherCardData, co
         _draw_sun(draw, 200, 134, 46, colours)
 
     draw.rectangle((144, 160, 256, 204), fill=_rgb("black"))
-    _draw_centred_text(draw, (144, 160, 256, 204), f"{data.temperature}{data.unit}", 40, colours, "inverse_text", True, 24)
+    _draw_centred_text(draw, (144, 160, 256, 204), f"{data.temperature}{data.unit}", 56, colours, "inverse_text", True, 32)
     feels_like = f"FEELS LIKE {data.feels_like}" if data.feels_like else "FEELS LIKE --"
     _draw_centred_text(draw, (126, 226, 274, 252), feels_like, 19, colours, "text", True, 11)
 

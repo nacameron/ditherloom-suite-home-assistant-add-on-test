@@ -45,8 +45,8 @@ Weather cards can render in `colour` or `mono` mode. `colour` is the default and
 uses the Ditherloom palette-safe colour recipes. `mono` keeps the same larger,
 high-contrast layout but restricts the card to black and white.
 
-Weather payloads are packed with the device-required horizontal and vertical
-flip so the physical frame displays the card in the intended orientation.
+Weather payloads are packed with the confirmed horizontal correction and
+corrected vertical scan order for the physical frame.
 
 Location privacy notes are in [PRIVACY.md](PRIVACY.md).
 

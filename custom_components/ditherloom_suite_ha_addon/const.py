@@ -36,6 +36,7 @@ DEVICE_WIFI_COMMAND_MAX_CHARS = 2048
 
 SERVICE_RENDER_WEATHER = "render_weather_card"
 SERVICE_SEND_WEATHER = "send_weather_card"
+SERVICE_SYNC_WAKE_WINDOW = "sync_wake_window"
 
 ATTR_PREVIEW_URL = "preview_url"
 ATTR_PAYLOAD_URL = "payload_url"

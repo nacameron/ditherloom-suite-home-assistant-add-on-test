@@ -149,9 +149,8 @@ def check_device_spec_alignment() -> None:
     pack_text = pack_path.read_text(encoding="utf-8")
     for required in (
         "PACKED_LENGTH = DEVICE_PACKED_PAYLOAD_BYTES",
-        'DEVICE_ORIENTATION_TRANSFORM = "flip_horizontal_and_vertical"',
+        'DEVICE_ORIENTATION_TRANSFORM = "flip_horizontal_with_corrected_vertical_scan_order"',
         "Image.Transpose.FLIP_LEFT_RIGHT",
-        "Image.Transpose.FLIP_TOP_BOTTOM",
         '"slot_stride_bytes": DEVICE_SLOT_STRIDE_BYTES',
         '"source_metadata_payload_bytes": DEVICE_SOURCE_METADATA_PAYLOAD_BYTES',
         '"device_orientation_transform": DEVICE_ORIENTATION_TRANSFORM',
@@ -201,8 +200,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.11"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.11")
+    if '"version": "0.1.12"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.12")
 
 
 def check_weather_renderer_options() -> None:
@@ -228,6 +227,8 @@ def check_weather_renderer_options() -> None:
             "render_weather_card(card_data, colour_mode=display_mode)",
             'metadata["display_mode"] = display_mode',
             'PLATFORMS = ["sensor", "update", "button"]',
+            "SERVICE_SYNC_WAKE_WINDOW",
+            "hass.services.async_register(DOMAIN, SERVICE_SYNC_WAKE_WINDOW, handle_sync_wake_window)",
             "async_sync_wake_window",
             "_probe_existing_gateway",
         ),
@@ -258,6 +259,7 @@ def check_sync_button() -> None:
     button_text = button_path.read_text(encoding="utf-8")
     for required in (
         "ButtonEntity",
+        "EntityCategory.CONFIG",
         "Synchronise Wi-Fi wake window",
         "async_sync_wake_window",
     ):
