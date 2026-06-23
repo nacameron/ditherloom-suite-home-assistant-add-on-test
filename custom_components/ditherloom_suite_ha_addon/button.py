@@ -57,12 +57,7 @@ class DitherloomSendWeatherButton(DitherloomButtonBase):
         self._attr_unique_id = f"{entry.entry_id}_send_weather_to_frame"
 
     async def async_press(self) -> None:
-        await self._coordinator.async_run_weather_action(
-            {},
-            publish=True,
-            send_to_frame=True,
-            action="send weather",
-        )
+        await self._coordinator.async_send_cached_weather_action()
 
 
 class DitherloomSyncWakeWindowButton(DitherloomButtonBase):

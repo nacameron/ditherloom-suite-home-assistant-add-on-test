@@ -199,6 +199,33 @@ class DitherloomRuntime:
             self._create_notification(f"Ditherloom {action} failed", message)
             raise HomeAssistantError(message) from exc
 
+    async def async_send_cached_weather_action(self) -> dict[str, Any]:
+        try:
+            return await self.async_send_cached_weather()
+        except Exception as exc:
+            message = f"Ditherloom send weather failed: {type(exc).__name__}: {exc}"
+            self.last_status = "error"
+            self.last_metadata[ATTR_LAST_ERROR] = message
+            await self.async_save()
+            self._create_notification("Ditherloom send weather failed", message)
+            raise HomeAssistantError(message) from exc
+
+    async def async_send_cached_weather(self) -> dict[str, Any]:
+        if not self.payload_path().exists() or ATTR_CRC32 not in self.last_metadata:
+            await self.async_render_weather({}, publish=True, send_to_frame=False)
+        else:
+            await self.async_publish_job(self.last_metadata)
+            self.last_status = "published"
+            await self.async_save()
+        packed = await self.hass.async_add_executor_job(self.payload_path().read_bytes)
+        crc32 = str(self.last_metadata[ATTR_CRC32])
+        await self.async_send_to_frame(packed, crc32)
+        self.last_status = "sent"
+        self.last_metadata["manual_send_last_success_at"] = datetime.now(timezone.utc).isoformat()
+        self.last_metadata.pop(ATTR_LAST_ERROR, None)
+        await self.async_save()
+        return dict(self.last_metadata)
+
     async def async_render_weather(self, data: dict[str, Any], publish: bool, send_to_frame: bool) -> dict[str, Any]:
         from .open_meteo import fetch_open_meteo_card
         from .renderer import render_modern_weather_card, render_to_artifact
@@ -621,7 +648,6 @@ def _send_existing_gateway_job(host: str, port: int, packed: bytes, crc32: str, 
     if slot < 1 or slot > DEVICE_SLOT_COUNT:
         raise ValueError(f"Target slot must be between 1 and {DEVICE_SLOT_COUNT}, got {slot}")
 
-    _best_effort_gateway_idle(host, port)
     with socket.create_connection((host, port), timeout=20) as sock:
         sock.settimeout(30)
         sock_file = sock.makefile("rwb")
@@ -671,16 +697,6 @@ def _send_gateway_stage(sock_file, command: str, stage: str) -> str:
 def _best_effort_open_connection_idle(sock_file) -> None:
     try:
         _send_command(sock_file, "IDLE")
-    except Exception:
-        pass
-
-
-def _best_effort_gateway_idle(host: str, port: int) -> None:
-    try:
-        with socket.create_connection((host, port), timeout=3) as sock:
-            sock.settimeout(3)
-            sock_file = sock.makefile("rwb")
-            _best_effort_open_connection_idle(sock_file)
     except Exception:
         pass
 
