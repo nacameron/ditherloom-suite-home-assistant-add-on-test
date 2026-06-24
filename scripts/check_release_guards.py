@@ -208,8 +208,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.35"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.35")
+    if '"version": "0.1.36"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.36")
 
 
 def check_public_repo_single_version() -> None:
@@ -451,6 +451,12 @@ def check_frame_awake_handshake() -> None:
     for required in (
         "DitherloomFrameAwakeView(coordinator)",
         "DitherloomFrameSleepingView(coordinator)",
+        "DitherloomDiscoveryView(hass)",
+        'url = "/api/ditherloom/discovery"',
+        "app_discovery_payload",
+        '"frameAwakePath": self.frame_awake_url',
+        '"frameSleepingPath": self.frame_sleeping_url',
+        '"schema": "ditherloom-ha-config-v1"',
         'self.url = f"/api/ditherloom/{runtime.entry.entry_id}/frame-awake"',
         'self.url = f"/api/ditherloom/{runtime.entry.entry_id}/frame-sleeping"',
         "async_handle_frame_awake",

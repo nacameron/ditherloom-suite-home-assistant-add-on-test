@@ -62,6 +62,7 @@ STORAGE_KEY = f"{DOMAIN}.payloads"
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    hass.http.register_view(DitherloomDiscoveryView(hass))
     return True
 
 
@@ -442,6 +443,55 @@ class DitherloomRuntime:
     def preview_url(self) -> str:
         return f"/api/ditherloom/{self.entry.entry_id}/preview/{self.latest_payload_name}.preview.png"
 
+    @property
+    def frame_awake_url(self) -> str:
+        return f"/api/ditherloom/{self.entry.entry_id}/frame-awake"
+
+    @property
+    def frame_sleeping_url(self) -> str:
+        return f"/api/ditherloom/{self.entry.entry_id}/frame-sleeping"
+
+    def app_discovery_payload(self, origin: str) -> dict[str, Any]:
+        origin = origin.rstrip("/")
+        options = self.options
+        callback_base_path = f"/api/ditherloom/{self.entry.entry_id}"
+        return {
+            "integrationInstalled": True,
+            "integrationDomain": DOMAIN,
+            "integrationName": "Ditherloom Suite Home Assistant Add On",
+            "entryId": self.entry.entry_id,
+            "libraryId": self.entry.data.get("library_id"),
+            "haUrl": origin,
+            "callbackBasePath": callback_base_path,
+            "frameAwakePath": self.frame_awake_url,
+            "frameSleepingPath": self.frame_sleeping_url,
+            "frameAwakeUrl": f"{origin}{self.frame_awake_url}",
+            "frameSleepingUrl": f"{origin}{self.frame_sleeping_url}",
+            "payloadPath": self.payload_url,
+            "payloadUrl": f"{origin}{self.payload_url}",
+            "previewPath": self.preview_url,
+            "previewUrl": f"{origin}{self.preview_url}",
+            "config": {
+                "schema": "ditherloom-ha-config-v1",
+                "haUrl": origin,
+                "integrationDomain": DOMAIN,
+                "integrationInstalled": True,
+                "entryId": self.entry.entry_id,
+                "callbackBasePath": callback_base_path,
+                "frameAwakePath": self.frame_awake_url,
+                "frameSleepingPath": self.frame_sleeping_url,
+                "intervalMinutes": self._effective_update_interval_minutes(),
+                "wakeWindowSeconds": self._effective_wake_window_seconds(),
+                "maxJobsPerWake": options.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE),
+                "reservedSlot": options.get(CONF_TARGET_SLOT, DEFAULT_TARGET_SLOT),
+                "scheduleEnabled": True,
+                "sleepAfterEmpty": True,
+                "sleepAfterJob": True,
+                "libraryId": self.entry.data.get("library_id"),
+                "topicBase": options.get(CONF_TOPIC_BASE) or f"ditherloom/{self.entry.data.get('library_id')}",
+            },
+        }
+
     def payload_path(self) -> Path:
         return self.payload_dir / f"{self.latest_payload_name}.ppbin"
 
@@ -498,6 +548,67 @@ class DitherloomRuntime:
         if target_slot < 1 or target_slot > DEVICE_SLOT_COUNT:
             raise ValueError(f"Frame target slot {target_slot} is outside the supported slot range")
         await self.hass.async_add_executor_job(_send_existing_gateway_job, host, port, packed, crc32, target_slot)
+
+
+class DitherloomDiscoveryView(HomeAssistantView):
+    requires_auth = True
+    url = "/api/ditherloom/discovery"
+    name = f"api:{DOMAIN}:discovery"
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self.hass = hass
+
+    async def get(self, request):
+        return await self._handle(request, {})
+
+    async def post(self, request):
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        if body is None:
+            body = {}
+        if not isinstance(body, dict):
+            return self.json({"error": "JSON body must be an object"}, status_code=400)
+        return await self._handle(request, body)
+
+    async def _handle(self, request, body: dict[str, Any]):
+        runtimes = list(self.hass.data.get(DOMAIN, {}).values())
+        library_id = str(body.get("library_id") or body.get("libraryId") or request.query.get("library_id") or "").strip()
+        if library_id:
+            runtimes = [
+                runtime
+                for runtime in runtimes
+                if str(runtime.entry.data.get("library_id") or "").lower() == library_id.lower()
+            ]
+        if not runtimes:
+            return self.json(
+                {
+                    "integrationInstalled": False,
+                    "integrationDomain": DOMAIN,
+                    "error": "No configured Ditherloom integration entry matched the request",
+                },
+                status_code=404,
+            )
+        if len(runtimes) > 1:
+            return self.json(
+                {
+                    "integrationInstalled": True,
+                    "integrationDomain": DOMAIN,
+                    "error": "Multiple Ditherloom integration entries are configured; include library_id",
+                    "entries": [
+                        {
+                            "entryId": runtime.entry.entry_id,
+                            "libraryId": runtime.entry.data.get("library_id"),
+                        }
+                        for runtime in runtimes
+                    ],
+                },
+                status_code=409,
+            )
+
+        origin = f"{request.scheme}://{request.host}"
+        return self.json(runtimes[0].app_discovery_payload(origin))
 
 
 class DitherloomPayloadView(HomeAssistantView):

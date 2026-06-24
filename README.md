@@ -22,6 +22,11 @@ Short version:
 7. Go to Settings > Devices & services > Add integration.
 8. Search for `Ditherloom` or `Ditherloom Suite Home Assistant Add On`.
 
+For frame setup, the Ditherloom Suite app should call the authenticated Home
+Assistant endpoint `/api/ditherloom/discovery` after the user enters their Home
+Assistant URL and access token. The response includes the installed callback
+paths that the app writes into the frame's Home Assistant configuration.
+
 ## MQTT Is Optional
 
 MQTT is not required for the current prototype setup. The integration can send

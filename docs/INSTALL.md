@@ -85,6 +85,26 @@ entry:
 /api/ditherloom/<entry_id>/frame-sleeping
 ```
 
+The Ditherloom Suite app should not ask the user to type the `entry_id`. After
+the user enters the Home Assistant URL and access token, the app can ask this
+integration for the correct callback paths:
+
+```text
+GET /api/ditherloom/discovery
+```
+
+If more than one Ditherloom integration entry is configured, the app should call
+the same endpoint with the library ID:
+
+```text
+GET /api/ditherloom/discovery?library_id=<library_id>
+```
+
+This endpoint returns the installed integration entry ID, the frame-awake and
+frame-sleeping callback paths, and a `config` object that the app can write into
+the frame's `HACONFIG`. The firmware should use those saved callback paths when
+it wakes; it should not try to discover the Home Assistant entry ID itself.
+
 When the frame wakes, firmware posts to `frame-awake` with its live Gateway IP,
 port, serial/library identity, and target slot. Home Assistant immediately
 starts sending the already-rendered packed weather payload through the existing
