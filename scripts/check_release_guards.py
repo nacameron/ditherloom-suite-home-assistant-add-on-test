@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import ast
+import json
 import struct
 import subprocess
 import sys
@@ -209,6 +210,47 @@ def check_update_platform() -> None:
 
     if '"version": "0.1.34"' not in manifest_text:
         fail("manifest version was not bumped to 0.1.34")
+
+
+def check_public_repo_single_version() -> None:
+    manifest_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    expected_tag = f"v{manifest['version']}"
+
+    remote = subprocess.run(
+        ["git", "remote", "get-url", "origin"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if "ditherloom-suite-home-assistant-add-on-test" not in remote:
+        return
+
+    releases = subprocess.run(
+        ["gh", "release", "list", "--repo", "nacameron/ditherloom-suite-home-assistant-add-on-test", "--limit", "100"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    if len(releases) != 1 or not releases[0].startswith(f"{expected_tag}\t"):
+        fail(f"public GitHub repo must expose exactly one release: {expected_tag}")
+
+    tags_output = subprocess.run(
+        ["git", "ls-remote", "--tags", "origin", "v*"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    tags = sorted(
+        line.split("refs/tags/", 1)[1]
+        for line in tags_output
+        if "refs/tags/" in line and not line.endswith("^{}")
+    )
+    if tags != [expected_tag]:
+        fail(f"public GitHub repo must expose exactly one version tag: {expected_tag}, got {tags}")
 
 
 def check_weather_renderer_options() -> None:
@@ -525,6 +567,7 @@ def main() -> None:
     check_no_generated_cache_files()
     check_device_spec_alignment()
     check_update_platform()
+    check_public_repo_single_version()
     check_weather_renderer_options()
     check_weather_template_assets()
     check_weather_packer_photo_path()
