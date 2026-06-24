@@ -207,8 +207,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.33"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.33")
+    if '"version": "0.1.34"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.34")
 
 
 def check_weather_renderer_options() -> None:
@@ -386,16 +386,25 @@ def check_weather_template_assets() -> None:
             fail(f"weather template asset has wrong size: {slug}")
 
 
-def check_weather_packer_recipe_matching() -> None:
+def check_weather_packer_photo_path() -> None:
     pack_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "renderer" / "pack.py"
     pack_text = pack_path.read_text(encoding="utf-8")
     for required in (
-        "SAFE_RECIPE_DISTANCE_LIMIT",
-        "nearest_recipe_template_name",
-        "ordered_code(TEMPLATE_COLOURS[recipe_name].recipe, x, y)",
+        "ATKINSON_KERNEL",
+        "closest_panel_code_and_rgb",
+        "diffuse_photo_error",
+        "RGB_TO_TEMPLATE_NAME.get(rgb)",
+        "ordered_code(colour.recipe, x, y)",
     ):
         if required not in pack_text:
-            fail(f"weather packer missing near-safe recipe matching: {required}")
+            fail(f"weather packer missing hybrid protected/photo conversion: {required}")
+    forbidden = (
+        "SAFE_RECIPE_DISTANCE_LIMIT",
+        "nearest_recipe_template_name",
+    )
+    for blocked in forbidden:
+        if blocked in pack_text:
+            fail(f"weather packer still has global near-safe recipe snapping: {blocked}")
 
 
 def check_sync_button() -> None:
@@ -518,7 +527,7 @@ def main() -> None:
     check_update_platform()
     check_weather_renderer_options()
     check_weather_template_assets()
-    check_weather_packer_recipe_matching()
+    check_weather_packer_photo_path()
     check_sync_button()
     check_dashboard_surface()
     check_locked_render_delivery_pathway()

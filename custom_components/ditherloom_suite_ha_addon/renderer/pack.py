@@ -17,14 +17,21 @@ from ..const import (
     DEVICE_SOURCE_METADATA_HEADER_BYTES,
     DEVICE_SOURCE_METADATA_PAYLOAD_BYTES,
 )
-from .palette import RGB_TO_TEMPLATE_NAME, TEMPLATE_COLOURS, codes_to_preview_rgb, nearest_panel_code, ordered_code
+from .palette import PACKET_RGB, RGB_TO_TEMPLATE_NAME, TEMPLATE_COLOURS, ordered_code
 
 WIDTH = DEVICE_FRAME_WIDTH
 HEIGHT = DEVICE_FRAME_HEIGHT
 PIXEL_COUNT = DEVICE_PIXEL_COUNT
 PACKED_LENGTH = DEVICE_PACKED_PAYLOAD_BYTES
 DEVICE_ORIENTATION_TRANSFORM = "flip_vertical_per_device_packet_spec"
-SAFE_RECIPE_DISTANCE_LIMIT = 45 * 45
+ATKINSON_KERNEL = (
+    (1, 0, 1 / 8),
+    (2, 0, 1 / 8),
+    (-1, 1, 1 / 8),
+    (0, 1, 1 / 8),
+    (1, 1, 1 / 8),
+    (0, 2, 1 / 8),
+)
 
 
 @dataclass(frozen=True)
@@ -44,48 +51,64 @@ def image_to_codes(image: Image.Image) -> List[int]:
     if image.size != (WIDTH, HEIGHT):
         raise ValueError(f"Expected {WIDTH}x{HEIGHT}, got {image.size[0]}x{image.size[1]}")
     rgb_image = image.convert("RGB")
-    pixels = rgb_image.load()
-    codes: List[int] = []
+    pixels = [
+        [[float(channel) for channel in rgb_image.getpixel((x, y))] for x in range(WIDTH)]
+        for y in range(HEIGHT)
+    ]
+    source_pixels = rgb_image.load()
+    codes: List[int] = [0] * PIXEL_COUNT
     for y in range(HEIGHT):
         for x in range(WIDTH):
-            rgb = pixels[x, y]
+            rgb = source_pixels[x, y]
             template_name = RGB_TO_TEMPLATE_NAME.get(rgb)
             if template_name:
                 colour = TEMPLATE_COLOURS[template_name]
                 if colour.recipe is not None:
-                    codes.append(ordered_code(colour.recipe, x, y))
+                    codes[y * WIDTH + x] = ordered_code(colour.recipe, x, y)
                     continue
                 if template_name == "red":
-                    codes.append(3)
+                    codes[y * WIDTH + x] = 3
                     continue
                 if template_name == "white":
-                    codes.append(1)
+                    codes[y * WIDTH + x] = 1
                     continue
-                codes.append(0)
+                codes[y * WIDTH + x] = 0
                 continue
-            recipe_name = nearest_recipe_template_name(rgb)
-            if recipe_name:
-                codes.append(ordered_code(TEMPLATE_COLOURS[recipe_name].recipe, x, y))
-                continue
-            codes.append(nearest_panel_code(rgb))
+
+            r, g, b = pixels[y][x]
+            code, nr, ng, nb = closest_panel_code_and_rgb(r, g, b)
+            codes[y * WIDTH + x] = code
+            diffuse_photo_error(pixels, x, y, (r - nr, g - ng, b - nb))
     return codes
 
 
-def nearest_recipe_template_name(rgb: tuple[int, int, int]) -> str | None:
-    r, g, b = rgb
-    best_name: str | None = None
-    best_distance: int | None = None
-    for name, colour in TEMPLATE_COLOURS.items():
-        if colour.recipe is None:
-            continue
-        cr, cg, cb = colour.rgb
-        distance = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2
-        if best_distance is None or distance < best_distance:
-            best_name = name
-            best_distance = distance
-    if best_distance is not None and best_distance <= SAFE_RECIPE_DISTANCE_LIMIT:
-        return best_name
-    return None
+def closest_panel_code_and_rgb(r: float, g: float, b: float) -> tuple[int, int, int, int]:
+    best_code = 0
+    best_rgb = PACKET_RGB[0]
+    best_error = float("inf")
+    for code, (pr, pg, pb) in PACKET_RGB.items():
+        error = abs(r - pr) + abs(g - pg) + abs(b - pb)
+        if error < best_error:
+            best_code = code
+            best_rgb = (pr, pg, pb)
+            best_error = error
+    return best_code, best_rgb[0], best_rgb[1], best_rgb[2]
+
+
+def diffuse_photo_error(
+    pixels: list[list[list[float]]],
+    x: int,
+    y: int,
+    error: tuple[float, float, float],
+) -> None:
+    er, eg, eb = error
+    for dx, dy, weight in ATKINSON_KERNEL:
+        xx = x + dx
+        yy = y + dy
+        if 0 <= xx < WIDTH and 0 <= yy < HEIGHT:
+            pixels[yy][xx][0] += er * weight
+            pixels[yy][xx][1] += eg * weight
+            pixels[yy][xx][2] += eb * weight
 
 
 def pack_pixel_codes(codes: List[int]) -> bytes:

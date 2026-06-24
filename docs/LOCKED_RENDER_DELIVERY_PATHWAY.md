@@ -17,6 +17,14 @@ Do not render during the frame wake window. Rendering and network lookups must a
 
 Do not create content-specific send paths. Weather, future calendar cards, alerts, sensor dashboards, and other cards must feed into the same pre-render, probe, send-existing-payload pathway.
 
+Locked hybrid render conversion:
+
+1. Exact Ditherloom safe template colours are protected and rendered through their locked ordered recipes.
+2. Non-exact pixels, including central weather artwork and generated photographic/weather graphics, use the same Atkinson-style four-colour photo conversion family as the main Ditherloom app.
+3. The final packer must not globally snap near-safe colours to ordered recipes. Near-safe snapping destroys photo-style artwork and produces visibly incorrect central graphics on the device.
+
+This conversion rule applies to every current and future weather card, not only the sunny template.
+
 Do not bypass the gateway probe. A send attempt must only happen after the frame gateway has answered.
 
 Do not schedule the next cycle from a failed attempt time. The cycle must stay aligned to the expected wake anchor so retry delays do not drift the schedule.
