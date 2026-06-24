@@ -208,8 +208,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.34"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.34")
+    if '"version": "0.1.35"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.35")
 
 
 def check_public_repo_single_version() -> None:
@@ -294,36 +294,28 @@ def check_weather_renderer_options() -> None:
             'CONF_UPDATE_INTERVAL_MINUTES',
             'DEFAULT_UPDATE_INTERVAL_MINUTES',
             'CONF_WAKE_WINDOW_SECONDS',
-            "async_track_point_in_time",
-            "_schedule_next_auto_send",
-            "_handle_auto_send",
-            "AUTO_SEND_PRERENDER_LEAD_SECONDS",
-            "AUTO_SEND_PROBE_INTERVAL_SECONDS",
-            "AUTO_SEND_COUNTER_DRIFT_SECONDS",
-            "auto_send_prerender_at",
-            "auto_send_expected_wake_at",
-            "auto_send_search_expires_at",
-            "_probe_existing_gateway",
+            "async_track_time_interval",
+            "_schedule_weather_refresh",
+            "_handle_weather_refresh",
+            "async_refresh_weather_payload",
+            "weather_refresh_next_at",
+            "weather_refresh_last_success_at",
+            "DitherloomFrameAwakeView",
+            "DitherloomFrameSleepingView",
+            "async_handle_frame_awake",
+            "async_handle_frame_sleeping",
+            "async_deliver_cached_weather_to_announced_frame",
+            '"mode": "gateway_push"',
+            "frame_awake_last_success_at",
+            "frame_sleeping_last_received_at",
             "_create_notification",
             '"persistent_notification"',
-            '"ha_timer_us"',
-            '"auto_send_next_at"',
-            '"auto_send_window_expires_at"',
-            "SERVICE_SYNC_WAKE_WINDOW",
-            "hass.services.async_register(DOMAIN, SERVICE_SYNC_WAKE_WINDOW, handle_sync_wake_window)",
-            "async_sync_wake_window",
             "async_run_weather_action",
-            "_probe_existing_gateway",
-            "_read_existing_gateway_timer_config",
-            '"HACONFIG"',
-            '"SLEEPINFO"',
-            '"frame_timer"',
             '"wake_window_seconds"',
         ),
         button_path: (
             "async_run_weather_action",
             'action="render weather"',
-            "async_send_cached_weather_action",
         ),
         services_path: (
             "temperature_unit:",
@@ -449,19 +441,38 @@ def check_weather_packer_photo_path() -> None:
             fail(f"weather packer still has global near-safe recipe snapping: {blocked}")
 
 
-def check_sync_button() -> None:
+def check_frame_awake_handshake() -> None:
+    init_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py"
     button_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "button.py"
-    if not button_path.exists():
-        fail("Home Assistant sync button platform is missing")
+    services_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "services.yaml"
+    init_text = init_path.read_text(encoding="utf-8")
     button_text = button_path.read_text(encoding="utf-8")
+    services_text = services_path.read_text(encoding="utf-8")
     for required in (
-        "ButtonEntity",
-        "EntityCategory.CONFIG",
+        "DitherloomFrameAwakeView(coordinator)",
+        "DitherloomFrameSleepingView(coordinator)",
+        'self.url = f"/api/ditherloom/{runtime.entry.entry_id}/frame-awake"',
+        'self.url = f"/api/ditherloom/{runtime.entry.entry_id}/frame-sleeping"',
+        "async_handle_frame_awake",
+        "async_deliver_cached_weather_to_announced_frame",
+        "async_send_to_frame_host",
+        '"mode": "gateway_push"',
+    ):
+        if required not in init_text:
+            fail(f"frame awake handshake missing required code/text: {required}")
+    for forbidden in (
         "Synchronise Wi-Fi wake window",
         "async_sync_wake_window",
+        "SERVICE_SYNC_WAKE_WINDOW",
+        "_schedule_next_auto_send",
+        "_handle_auto_send",
+        "_probe_existing_gateway",
+        "_read_existing_gateway_timer_config",
+        "DitherloomSendWeatherButton",
+        "Send weather to frame",
     ):
-        if required not in button_text:
-            fail(f"sync button missing required text: {required}")
+        if forbidden in init_text or forbidden in button_text or forbidden in services_text:
+            fail(f"removed frame sync/manual-send/probe surface is still present: {forbidden}")
 
 
 def check_dashboard_surface() -> None:
@@ -476,18 +487,17 @@ def check_dashboard_surface() -> None:
     checks = {
         button_path: (
             "DitherloomRenderWeatherButton",
-            "DitherloomSendWeatherButton",
             "Render weather preview",
-            "Send weather to frame",
         ),
         sensor_path: (
             "EntityCategory.DIAGNOSTIC",
             "DeviceInfo",
             "Last job status",
             "DitherloomFrameScheduleSensor",
-            "Frame schedule status",
+            "Frame handshake status",
             "async_add_listener",
-            "next_auto_send",
+            "weather_refresh_next_at",
+            "frame_awake_last_received_at",
         ),
         image_path: (
             "ImageEntity",
@@ -498,8 +508,8 @@ def check_dashboard_surface() -> None:
         dashboard_path: (
             "picture-entity",
             "Render weather preview",
-            "Send weather to frame",
-            "Synchronise Wi-Fi wake window",
+            "Frame handshake",
+            "weather_refresh_next_at",
         ),
     }
     for path, required_values in checks.items():
@@ -519,43 +529,46 @@ def check_locked_render_delivery_pathway() -> None:
     doc_text = docs_path.read_text(encoding="utf-8")
 
     for required in (
-        "AUTO_SEND_PRERENDER_LEAD_SECONDS = 30",
-        "AUTO_SEND_PROBE_INTERVAL_SECONDS = 10",
-        "AUTO_SEND_COUNTER_DRIFT_SECONDS = 300",
+        "async_refresh_weather_payload",
+        "async_track_time_interval",
+        "_schedule_weather_refresh",
+        "_handle_weather_refresh",
+        "DitherloomFrameAwakeView",
+        "DitherloomFrameSleepingView",
+        "async_handle_frame_awake",
+        "async_deliver_cached_weather_to_announced_frame",
         "_send_gateway_stage",
         "_best_effort_open_connection_idle",
         "timed out during Gateway",
-        "async_send_cached_weather_action",
-        "async_send_cached_weather",
+        "async_send_to_frame_host",
         "manual_send_last_success_at",
         "await self.async_render_weather({}, publish=True, send_to_frame=False)",
-        'self.last_status = "auto_send_prerendered"',
-        "async_track_point_in_time(self.hass, self._handle_auto_send, expected_wake)",
-        "_probe_existing_gateway",
+        'self.last_status = "weather_ready"',
+        'self.last_status = "frame_awake_received"',
+        'self.last_status = "frame_awake_sent"',
         "packed = await self.hass.async_add_executor_job(self.payload_path().read_bytes)",
-        "await self.async_send_to_frame(packed, crc32)",
-        'last_job["expires_at"] = search_expires.isoformat()',
-        "if now + timedelta(seconds=AUTO_SEND_PROBE_INTERVAL_SECONDS) < search_expires:",
-        "self._schedule_next_auto_send(from_time=expected_wake)",
+        "await self.async_send_to_frame_host(host, port, packed, crc32, target_slot)",
     ):
         if required not in init_text:
             fail(f"locked render delivery pathway missing required code/text: {required}")
 
     for forbidden in (
-        "await self.async_render_weather({}, publish=True, send_to_frame=True)",
-        "self._schedule_next_auto_send(from_time=now)",
-        "self._schedule_next_auto_send(from_time=fired_at)",
+        "_probe_existing_gateway",
+        "_read_existing_gateway_timer_config",
+        "async_track_point_in_time",
+        "_schedule_next_auto_send",
+        "_handle_auto_send",
     ):
         if forbidden in init_text:
             fail(f"locked render delivery pathway contains forbidden shortcut: {forbidden}")
 
     for required in (
         "Locked Render Delivery Pathway",
-        "pre-render",
-        "probe the frame gateway before sending",
+        "refresh the weather payload on the Home Assistant interval",
+        "frame wakes on its firmware schedule",
+        "frame-awake",
         "send the existing packed payload",
-        "schedule the next cycle from the expected wake anchor",
-        "Do not render during the frame wake window",
+        "Do not probe for the frame from Home Assistant",
     ):
         if required not in doc_text:
             fail(f"locked render delivery pathway documentation missing required text: {required}")
@@ -571,7 +584,7 @@ def main() -> None:
     check_weather_renderer_options()
     check_weather_template_assets()
     check_weather_packer_photo_path()
-    check_sync_button()
+    check_frame_awake_handshake()
     check_dashboard_surface()
     check_locked_render_delivery_pathway()
     print("release guards passed")

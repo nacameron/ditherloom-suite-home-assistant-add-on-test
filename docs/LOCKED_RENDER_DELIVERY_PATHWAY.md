@@ -1,21 +1,33 @@
 # Locked Render Delivery Pathway
 
-This pathway is locked because it has been tested successfully against the Ditherloom frame wake cycle.
+This pathway is locked because the frame wake timing belongs to firmware, not
+Home Assistant.
+
+Home Assistant must refresh the weather payload on the Home Assistant interval
+and wait for the frame to initiate delivery. When the frame is awake, Home
+Assistant must send the existing packed payload rather than render a new one.
 
 All scheduled content types must use this sequence:
 
-1. Pre-render the content before the expected frame wake.
-2. Write the 400x300 packed payload to disk using the existing device packer.
-3. Publish the job metadata with the same payload URL, CRC, slot, and expiry window.
-4. Wait until the expected frame wake anchor.
-5. probe the frame gateway before sending.
-6. send the existing packed payload only after the gateway answers.
-7. Retry gateway probing during the configured drift/search window.
-8. schedule the next cycle from the expected wake anchor, not from a failure time or wall-clock now.
+1. Home Assistant refreshes the weather payload on the Home Assistant interval.
+2. Rendering and weather/network lookups finish before any frame contact.
+3. The 400x300 packed payload is written to disk using the existing device packer.
+4. Job metadata is published with the same payload URL, CRC, slot, and expiry window.
+5. The frame wakes on its firmware schedule and connects to Wi-Fi.
+6. Firmware posts to `/api/ditherloom/<entry_id>/frame-awake` with its live Gateway host, port, and slot.
+7. Home Assistant sends the existing packed payload through the existing Gateway path: `PING`, `BEGIN`, `B64WRITE`, `END`, `DISPLAY`, `IDLE`.
+8. Firmware may post to `/api/ditherloom/<entry_id>/frame-sleeping` before it returns to deep sleep.
 
-Do not render during the frame wake window. Rendering and network lookups must already be complete before the device is expected to be reachable.
+Do not probe for the frame from Home Assistant. The frame wake callback is the
+delivery trigger.
 
-Do not create content-specific send paths. Weather, future calendar cards, alerts, sensor dashboards, and other cards must feed into the same pre-render, probe, send-existing-payload pathway.
+Do not render during the frame wake window unless there is no cached payload.
+The normal operating state is that a fresh payload is already waiting before
+the frame wakes.
+
+Do not create content-specific send paths. Weather, future calendar cards,
+alerts, sensor dashboards, and other cards must feed into the same refresh,
+frame-awake, send-existing-payload pathway.
 
 Locked hybrid render conversion:
 
@@ -23,14 +35,5 @@ Locked hybrid render conversion:
 2. Non-exact pixels, including central weather artwork and generated photographic/weather graphics, use the same Atkinson-style four-colour photo conversion family as the main Ditherloom app.
 3. The final packer must not globally snap near-safe colours to ordered recipes. Near-safe snapping destroys photo-style artwork and produces visibly incorrect central graphics on the device.
 
-This conversion rule applies to every current and future weather card, not only the sunny template.
-
-Do not bypass the gateway probe. A send attempt must only happen after the frame gateway has answered.
-
-Do not schedule the next cycle from a failed attempt time. The cycle must stay aligned to the expected wake anchor so retry delays do not drift the schedule.
-
-Current locked timings:
-
-- Pre-render lead: 30 seconds before expected wake.
-- Probe interval: 10 seconds.
-- Counter drift search: 300 seconds after the configured wake window.
+This conversion rule applies to every current and future weather card, not only
+the sunny template.

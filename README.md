@@ -52,19 +52,15 @@ device photo testing.
 
 Location privacy notes are in [PRIVACY.md](PRIVACY.md).
 
-## Wi-Fi Wake Sync
+## Frame-Initiated Wi-Fi Delivery
 
-The integration adds a `Synchronise Wi-Fi wake window` button entity. Use it
-while the frame is awake on Wi-Fi to import the firmware-owned Home Assistant
-timer settings from `HACONFIG` and `SLEEPINFO`.
-The imported interval and wake-window seconds are then used for Home Assistant
-job expiry timing. The button reads the frame timer; it does not write a new
-timer to the frame.
+The frame owns its wake schedule. Home Assistant no longer tries to predict,
+sync, or probe for the frame wake window.
 
-After a successful sync, the integration automatically schedules weather sends
-for the frame's imported wake windows and creates a persistent notification with
-the next send time. The device page also shows a `Frame schedule status` sensor
-so sync state is visible in Home Assistant.
+Home Assistant refreshes the weather payload on its configured update interval
+so a current card is already waiting. When the frame wakes on Wi-Fi, firmware
+posts to the integration's frame-awake endpoint. Home Assistant then uses the
+existing Wi-Fi Gateway command path to push the waiting packed payload.
 
 ## If It Does Not Appear In Add Integration
 
@@ -116,12 +112,12 @@ redownload the integration from there.
 - Serves a `.ppbin` payload through a Home Assistant HTTP endpoint.
 - Serves a preview PNG endpoint.
 - Publishes optional MQTT job metadata if MQTT is configured.
-- Can attempt the existing Wi-Fi Gateway command path while the frame is awake:
+- Uses the existing Wi-Fi Gateway command path after the frame announces it is awake:
   `PING`, `BEGIN`, `B64WRITE`, `END`, `DISPLAY`, `IDLE`.
 - Adds a Home Assistant update entity that checks the latest GitHub release.
 - Supports colour or mono weather display mode.
-- Adds a Wi-Fi wake-window sync button that does not alter frame timer settings.
-- Adds dashboard-friendly entities for preview, render, send, sync, and status.
+- Adds dashboard-friendly entities for preview, render, frame handshake status,
+  and integration updates.
 
 ## Dashboard
 

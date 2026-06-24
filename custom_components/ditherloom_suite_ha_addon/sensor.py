@@ -59,30 +59,36 @@ class DitherloomStatusSensor(DitherloomSensorBase):
 
 
 class DitherloomFrameScheduleSensor(DitherloomSensorBase):
-    _attr_name = "Frame schedule status"
+    _attr_name = "Frame handshake status"
 
     def __init__(self, coordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{entry.entry_id}_frame_schedule_status"
+        self._attr_unique_id = f"{entry.entry_id}_frame_handshake_status"
 
     @property
     def native_value(self):
         metadata = self._coordinator.last_metadata
-        frame_timer = metadata.get("frame_timer")
-        if isinstance(frame_timer, dict) and frame_timer.get("schedule_enabled"):
-            return "synced"
-        if self._coordinator.last_status == "sync_window_waiting":
-            return "waiting"
-        return "not synced"
+        if self._coordinator.last_status == "frame_awake_send_failed":
+            return "delivery failed"
+        if metadata.get("frame_awake_last_success_at"):
+            return "delivered"
+        if metadata.get("frame_awake_last_received_at"):
+            return "frame awake"
+        if metadata.get("weather_refresh_last_success_at") or metadata.get("rendered_at"):
+            return "weather ready"
+        return "waiting for weather"
 
     @property
     def extra_state_attributes(self):
         metadata = self._coordinator.last_metadata
         return {
-            "next_auto_send": metadata.get("auto_send_next_at"),
-            "auto_send_window_expires_at": metadata.get("auto_send_window_expires_at"),
-            "sync_window_started_at": metadata.get("sync_window_started_at"),
-            "sync_window_expires_at": metadata.get("sync_window_expires_at"),
-            "frame_timer": metadata.get("frame_timer"),
+            "weather_refresh_next_at": metadata.get("weather_refresh_next_at"),
+            "weather_refresh_interval_minutes": metadata.get("weather_refresh_interval_minutes"),
+            "weather_refresh_last_success_at": metadata.get("weather_refresh_last_success_at"),
+            "frame_awake_last_received_at": metadata.get("frame_awake_last_received_at"),
+            "frame_awake_last_success_at": metadata.get("frame_awake_last_success_at"),
+            "frame_sleeping_last_received_at": metadata.get("frame_sleeping_last_received_at"),
+            "frame_awake": metadata.get("frame_awake"),
+            "frame_sleeping": metadata.get("frame_sleeping"),
             "last_error": metadata.get("last_error"),
         }

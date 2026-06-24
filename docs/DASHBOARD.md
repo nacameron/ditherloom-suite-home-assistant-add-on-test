@@ -5,16 +5,13 @@ small Ditherloom control dashboard:
 
 - `Weather preview` image entity
 - `Render weather preview` button
-- `Send weather to frame` button
-- `Synchronise Wi-Fi wake window` button
 - `Last job status` diagnostic sensor
-- `Frame schedule status` diagnostic sensor
+- `Frame handshake status` diagnostic sensor
 - Ditherloom update entity
 
-The sync button connects to the frame over the configured Wi-Fi Gateway and
-imports the firmware-owned Home Assistant timer values from `HACONFIG` and
-`SLEEPINFO`. The imported interval and wake-window seconds are exposed on the
-`Last job status` and `Frame schedule status` sensor attributes.
+Home Assistant refreshes the weather payload on its configured interval. The
+frame sends a `frame-awake` callback when it wakes on Wi-Fi, and Home Assistant
+then pushes the waiting packed payload through the existing frame Gateway.
 
 Entity IDs are assigned by Home Assistant and can vary by install. Open the
 Ditherloom device page after restart, copy the entity IDs, then paste them into
@@ -35,7 +32,7 @@ cards:
     name: Last rendered preview
     show_state: false
   - type: grid
-    columns: 3
+    columns: 2
     square: false
     cards:
       - type: button
@@ -43,30 +40,16 @@ cards:
         name: Render
         tap_action:
           action: toggle
-      - type: button
-        entity: button.ditherloom_suite_home_assistant_add_on_send_weather_to_frame
-        name: Send
-        tap_action:
-          action: toggle
-      - type: button
-        entity: button.ditherloom_suite_home_assistant_add_on_synchronise_wi_fi_wake_window
-        name: Sync
-        tap_action:
-          action: toggle
   - type: entities
     entities:
       - entity: sensor.ditherloom_suite_home_assistant_add_on_last_job_status
         name: Last job
-      - entity: sensor.ditherloom_suite_home_assistant_add_on_frame_schedule_status
-        name: Frame schedule
+      - entity: sensor.ditherloom_suite_home_assistant_add_on_frame_handshake_status
+        name: Frame handshake
       - entity: update.ditherloom_suite_home_assistant_add_on_update
         name: Integration update
 ```
 
-Automatic scheduled sending starts after the sync button successfully imports
-the firmware-owned timer from the frame. Until sync has succeeded, use the
-`Send weather to frame` button or the `ditherloom_suite_ha_addon.send_weather_card`
-action.
-
-After a successful sync, Home Assistant creates a persistent notification with
-the next automatic weather-send time.
+Useful diagnostic attributes on **Frame handshake status** include
+`weather_refresh_next_at`, `frame_awake_last_received_at`,
+`frame_awake_last_success_at`, and `frame_sleeping_last_received_at`.

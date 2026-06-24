@@ -80,5 +80,3 @@ send_weather_card:
       selector:
         boolean:
       required: false
-sync_wake_window:
-  fields: {}

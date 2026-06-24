@@ -63,49 +63,39 @@ Use the values shown in the Ditherloom Suite Home Assistant setup screen.
 | `MQTT topic base` | Optional. Defaults to `ditherloom/<library_id>`. |
 | `Location name` | Weather display location label. |
 | `Latitude` / `Longitude` | Weather lookup coordinates. |
-| `Repeating update interval minutes` | Fallback only until the frame timer is synced. |
-| `Wake window minutes` | Fallback only until the frame timer is synced. |
+| `Repeating update interval minutes` | How often Home Assistant refreshes the waiting weather card. |
+| `Wake window minutes` | Used for job expiry metadata. The firmware still owns the real wake window. |
 | `Max jobs per wake` | Currently `1`. |
 | `Target slot` | Reserved frame slot. Default `445`. |
 | `Display mode` | `colour` or `mono`. |
 | `Temperature unit` | `celsius` or `fahrenheit`. Controls current, high, low, and feels-like values. |
 | `Wind speed unit` | `kmh` or `mph`. Controls the wind speed shown on weather cards. |
 
-The frame owns the real Home Assistant schedule. After setup, use the sync
-button to import the firmware-controlled timer values from the frame.
+The frame owns the real Home Assistant schedule. Home Assistant only keeps the
+weather card freshly rendered and waits for the frame to announce that it is
+awake.
 
-## Sync The Frame Timer
+## Frame-Awake Delivery
 
-The integration creates a **Synchronise Wi-Fi wake window** button.
+The integration exposes two firmware endpoints for the configured integration
+entry:
 
-Use it when the frame is awake on Wi-Fi:
+```text
+/api/ditherloom/<entry_id>/frame-awake
+/api/ditherloom/<entry_id>/frame-sleeping
+```
 
-1. Wake the frame onto Wi-Fi using the Ditherloom firmware workflow.
-2. In Home Assistant, open the Ditherloom integration device.
-3. Press **Synchronise Wi-Fi wake window**.
+When the frame wakes, firmware posts to `frame-awake` with its live Gateway IP,
+port, serial/library identity, and target slot. Home Assistant immediately
+starts sending the already-rendered packed weather payload through the existing
+Wi-Fi Gateway command path.
 
-The integration connects to the frame Gateway and reads:
+When the frame is finished and about to sleep, firmware may post to
+`frame-sleeping` so the Home Assistant device page records the sleep event.
 
-- `HACONFIG`
-- `SLEEPINFO`
-
-It imports the firmware-owned Home Assistant timer values, including
-`intervalMinutes` and `wakeWindowSeconds`.
-
-The sync button reads the frame timer. It does not write a new timer to the
-frame and does not keep Wi-Fi permanently alive.
-
-After a successful sync, Home Assistant schedules one automatic weather send for
-the next expected firmware wake window. It repeats from the imported
-`intervalMinutes` value and uses the imported `wakeWindowSeconds` value as the
-retry window if the frame is not reachable on the first attempt.
-
-Home Assistant also creates a persistent notification confirming the sync and
-showing the next automatic weather-send time.
-
-The Ditherloom device page also exposes **Frame schedule status**. After sync,
-that sensor should show `synced` and include the next automatic send time in its
-attributes.
+The Ditherloom device page exposes **Frame handshake status**. It shows whether
+weather is ready, whether the frame has announced awake, and whether the latest
+delivery succeeded.
 
 ## Test Weather Rendering
 
@@ -114,8 +104,8 @@ After setup:
 1. Open the Ditherloom integration device in Home Assistant.
 2. Press **Render weather preview**.
 3. Check the **Weather preview** image entity.
-4. Wake the frame onto Wi-Fi.
-5. Press **Send weather to frame**.
+4. Wake the frame with firmware that posts to the `frame-awake` endpoint.
+5. Confirm **Frame handshake status** changes to `delivered`.
 
 Weather data is fetched from Open-Meteo. The optional place-name lookup uses
 Nominatim/OpenStreetMap when a map-picked location needs a display name. See
@@ -193,17 +183,18 @@ If it still does not appear, check **Settings > System > Logs** for:
 ditherloom_suite_ha_addon
 ```
 
-### Sync Button Says The Frame Is Not Reachable
+### Frame-Awake Delivery Does Not Happen
 
 Confirmed causes to check:
 
 - The frame is asleep.
 - The frame is not currently in its Wi-Fi Gateway window.
-- The configured frame host/IP is wrong.
-- The configured Gateway port is wrong.
+- The firmware did not post to the `frame-awake` endpoint.
+- The `frame-awake` body did not include the frame's live Gateway IP/host.
+- The announced Gateway port is wrong.
 - Home Assistant and the frame are not on reachable local network paths.
 - VPN, VLAN, firewall, or router isolation is blocking the connection.
-- The frame firmware does not support `HACONFIG` and `SLEEPINFO`.
+- The frame firmware does not support the existing Gateway send commands.
 
 ### Weather Does Not Render
 
@@ -219,7 +210,8 @@ Check:
 Check:
 
 - The frame is awake on Wi-Fi.
-- The frame Gateway responds at the configured host/IP and port.
+- The frame posted a `frame-awake` event.
+- The **Frame handshake status** sensor shows the latest awake event.
 - The frame firmware supports the existing Gateway send commands.
 - The target slot is valid. The default reserved slot is `445`.
 
