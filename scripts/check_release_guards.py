@@ -211,8 +211,8 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.39"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.39")
+    if '"version": "0.1.40"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.40")
 
 
 def check_public_repo_single_version() -> None:

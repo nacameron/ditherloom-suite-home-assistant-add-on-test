@@ -63,6 +63,8 @@ class WeatherCardData:
 class SunCardData:
     location: str = "Home"
     date_label: str = "TODAY"
+    scene_id: str = "sunrise"
+    scene_name: str = "Sunrise"
     sunrise: str = "06:00"
     sunset: str = "18:00"
     civil_dawn: str = "05:30"
@@ -292,7 +294,9 @@ def _weather_art_for_title(title: str, kind: str) -> Image.Image | None:
 
 
 def render_sun_card(data: SunCardData) -> Image.Image:
-    image = _load_sun_art("sunrise_sunset_background")
+    image = _load_sun_art(f"sun_{data.scene_id}_background")
+    if image is None:
+        image = _load_sun_art("sunrise_sunset_background")
     if image is None:
         image = Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
         draw = ImageDraw.Draw(image)
@@ -306,7 +310,7 @@ def render_sun_card(data: SunCardData) -> Image.Image:
 
     draw.rectangle((0, 0, WIDTH, 22), fill=_rgb("paper"))
     draw.line((0, 22, WIDTH, 22), fill=_rgb("black"), width=1)
-    footer = f"SUNRISE / SUNSET  {data.location.upper()}  {data.date_label}"
+    footer = f"{data.scene_name.upper()}  {data.location.upper()}  {data.date_label}"
     _draw_centred_text(draw, (8, 1, WIDTH - 8, 21), footer, 15, {"text": "black"}, "text", True, 8)
 
     _draw_sun_time_panel(draw, (16, 28, 194, 72), "RISE", data.sunrise, "bright_yellow")

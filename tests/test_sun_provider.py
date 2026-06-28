@@ -47,6 +47,13 @@ def test_sun_card_renders_full_background_layout():
     assert len(set(image.getdata())) > 30
 
 
+def test_sun_card_accepts_provider_payload():
+    data = build_sun_provider_data("-33.8688", "151.2093", "Sydney", "Australia/Sydney", date(2026, 6, 27))
+    image = render_sun_card(SunCardData(**data.__dict__))
+
+    assert image.size == (WIDTH, HEIGHT)
+
+
 def test_sun_card_packs_to_device_payload_length():
     image = render_sun_card(SunCardData())
     artifact = render_to_artifact(image, "sunrise_sunset", ["ditherloom.sunrise_sunset"])
