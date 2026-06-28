@@ -211,8 +211,21 @@ def check_update_platform() -> None:
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
 
-    if '"version": "0.1.40"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.40")
+    init_required = (
+        "HAROTATION",
+        "ha_rotation_command",
+        "_ha_rotation_config",
+        "_set_gateway_ha_rotation",
+        "_harotation_on_response_ok",
+        "normal_rotation=off",
+        "provider_slot_map",
+    )
+    for required in init_required:
+        if required not in init_text:
+            fail(f"runtime missing HA lane/rotation route/text: {required}")
+
+    if '"version": "0.1.41"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.41")
 
 
 def check_public_repo_single_version() -> None:

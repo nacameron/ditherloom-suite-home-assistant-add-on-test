@@ -16,6 +16,8 @@ from .const import (
     CONF_DISPLAY_ROTATION_ENABLED,
     CONF_DISPLAY_ROTATION_HOURS,
     CONF_DISPLAY_ROTATION_MINUTES,
+    CONF_HA_ROTATION_ENABLED,
+    CONF_HA_ROTATION_SECONDS,
     CONF_LATITUDE,
     CONF_LIBRARY_ID,
     CONF_LOCATION_NAME,
@@ -34,6 +36,7 @@ from .const import (
     DEFAULT_DISPLAY_MODE,
     DEFAULT_DISPLAY_ROTATION_HOURS,
     DEFAULT_DISPLAY_ROTATION_MINUTES,
+    DEFAULT_HA_ROTATION_SECONDS,
     DEFAULT_MAX_JOBS_PER_WAKE,
     DEFAULT_TARGET_SLOT,
     DEFAULT_TEMPERATURE_UNIT,
@@ -49,6 +52,7 @@ from .const import (
     WIND_SPEED_UNIT_KMH,
     WIND_SPEED_UNIT_MPH,
 )
+from .ha_lane import validate_ha_lane
 
 
 class DitherloomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -56,17 +60,6 @@ class DitherloomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
         errors: dict[str, str] = {}
-        if user_input is not None:
-            _apply_picked_location(user_input)
-            library_id = user_input[CONF_LIBRARY_ID].strip()
-            await self.async_set_unique_id(library_id)
-            self._abort_if_unique_id_configured()
-            user_input[CONF_TOPIC_BASE] = user_input.get(CONF_TOPIC_BASE) or f"ditherloom/{library_id}"
-            return self.async_create_entry(
-                title=f"Ditherloom {library_id}",
-                data=user_input,
-            )
-
         schema = vol.Schema(
             {
                 vol.Required(CONF_LIBRARY_ID): str,
@@ -103,7 +96,28 @@ class DitherloomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_WIND_SPEED_UNIT, default=DEFAULT_WIND_SPEED_UNIT): vol.In([WIND_SPEED_UNIT_KMH, WIND_SPEED_UNIT_MPH]),
             }
         )
-        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
+        validation_message = ""
+        if user_input is not None:
+            _apply_picked_location(user_input)
+            validation = validate_ha_lane(user_input)
+            if validation.valid:
+                library_id = user_input[CONF_LIBRARY_ID].strip()
+                await self.async_set_unique_id(library_id)
+                self._abort_if_unique_id_configured()
+                user_input[CONF_TOPIC_BASE] = user_input.get(CONF_TOPIC_BASE) or f"ditherloom/{library_id}"
+                return self.async_create_entry(
+                    title=f"Ditherloom {library_id}",
+                    data=user_input,
+                )
+            errors["base"] = validation.error_key or "ha_lane_invalid"
+            validation_message = validation.message
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"ha_lane_error": validation_message},
+        )
 
     @staticmethod
     @callback
@@ -122,8 +136,6 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
         )
 
     async def async_step_weather(self, user_input: dict[str, Any] | None = None):
-        if user_input is not None:
-            return self._save_options(user_input)
         data = self._data()
         schema = vol.Schema(
             {
@@ -154,11 +166,11 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                 ): vol.In([WIND_SPEED_UNIT_KMH, WIND_SPEED_UNIT_MPH]),
             }
         )
+        if user_input is not None:
+            return self._save_options_or_show("weather", user_input, schema)
         return self.async_show_form(step_id="weather", data_schema=schema)
 
     async def async_step_sun(self, user_input: dict[str, Any] | None = None):
-        if user_input is not None:
-            return self._save_options(user_input)
         data = self._data()
         schema = vol.Schema(
             {
@@ -177,11 +189,11 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_LONGITUDE, default=data.get(CONF_LONGITUDE, "0")): str,
             }
         )
+        if user_input is not None:
+            return self._save_options_or_show("sun", user_input, schema)
         return self.async_show_form(step_id="sun", data_schema=schema)
 
     async def async_step_moon(self, user_input: dict[str, Any] | None = None):
-        if user_input is not None:
-            return self._save_options(user_input)
         data = self._data()
         schema = vol.Schema(
             {
@@ -200,33 +212,36 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_LONGITUDE, default=data.get(CONF_LONGITUDE, "0")): str,
             }
         )
+        if user_input is not None:
+            return self._save_options_or_show("moon", user_input, schema)
         return self.async_show_form(step_id="moon", data_schema=schema)
 
     async def async_step_rotation(self, user_input: dict[str, Any] | None = None):
-        if user_input is not None:
-            return self._save_options(user_input)
         data = self._data()
         schema = vol.Schema(
             {
                 vol.Optional(
-                    CONF_DISPLAY_ROTATION_ENABLED,
-                    default=_bool_option(data, CONF_DISPLAY_ROTATION_ENABLED, False),
+                    CONF_HA_ROTATION_ENABLED,
+                    default=_bool_option(
+                        data,
+                        CONF_HA_ROTATION_ENABLED,
+                        _bool_option(data, CONF_DISPLAY_ROTATION_ENABLED, False),
+                    ),
                 ): bool,
                 vol.Optional(
-                    CONF_DISPLAY_ROTATION_HOURS,
-                    default=data.get(CONF_DISPLAY_ROTATION_HOURS, DEFAULT_DISPLAY_ROTATION_HOURS),
-                ): vol.All(int, vol.Range(min=0, max=24)),
-                vol.Optional(
-                    CONF_DISPLAY_ROTATION_MINUTES,
-                    default=data.get(CONF_DISPLAY_ROTATION_MINUTES, DEFAULT_DISPLAY_ROTATION_MINUTES),
-                ): vol.All(int, vol.Range(min=0, max=59)),
+                    CONF_HA_ROTATION_SECONDS,
+                    default=data.get(
+                        CONF_HA_ROTATION_SECONDS,
+                        _legacy_rotation_seconds(data),
+                    ),
+                ): vol.All(int, vol.Range(min=60, max=86400)),
             }
         )
+        if user_input is not None:
+            return self._save_options_or_show("rotation", user_input, schema)
         return self.async_show_form(step_id="rotation", data_schema=schema)
 
     async def async_step_device(self, user_input: dict[str, Any] | None = None):
-        if user_input is not None:
-            return self._save_options(user_input)
         data = {**self._entry.data, **self._entry.options}
         schema = vol.Schema(
             {
@@ -249,7 +264,13 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_HA_SLOT_POOL, default=data.get(CONF_HA_SLOT_POOL, "")): str,
             }
         )
-        return self.async_show_form(step_id="device", data_schema=schema)
+        if user_input is not None:
+            return self._save_options_or_show("device", user_input, schema)
+        return self.async_show_form(
+            step_id="device",
+            data_schema=schema,
+            description_placeholders={"ha_lane_error": ""},
+        )
 
     def _data(self) -> dict[str, Any]:
         return {**self._entry.data, **self._entry.options}
@@ -259,6 +280,19 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
         _apply_picked_location(user_input)
         data.update(user_input)
         return self.async_create_entry(title="", data=data)
+
+    def _save_options_or_show(self, step_id: str, user_input: dict[str, Any], schema: vol.Schema):
+        _apply_picked_location(user_input)
+        candidate = {**self._data(), **user_input}
+        validation = validate_ha_lane(candidate)
+        if not validation.valid:
+            return self.async_show_form(
+                step_id=step_id,
+                data_schema=schema,
+                errors={"base": validation.error_key or "ha_lane_invalid"},
+                description_placeholders={"ha_lane_error": validation.message},
+            )
+        return self._save_options(user_input)
 
 
 def _apply_picked_location(data: dict[str, Any]) -> None:
@@ -295,3 +329,13 @@ def _float_or_zero(value: Any) -> float:
 
 def _bool_option(data: dict[str, Any], key: str, default: bool) -> bool:
     return bool(data[key]) if key in data else default
+
+
+def _legacy_rotation_seconds(data: dict[str, Any]) -> int:
+    try:
+        hours = int(data.get(CONF_DISPLAY_ROTATION_HOURS, DEFAULT_DISPLAY_ROTATION_HOURS) or 0)
+        minutes = int(data.get(CONF_DISPLAY_ROTATION_MINUTES, DEFAULT_DISPLAY_ROTATION_MINUTES) or 0)
+    except (TypeError, ValueError):
+        return DEFAULT_HA_ROTATION_SECONDS
+    seconds = ((hours * 60) + minutes) * 60
+    return seconds if seconds >= 60 else DEFAULT_HA_ROTATION_SECONDS

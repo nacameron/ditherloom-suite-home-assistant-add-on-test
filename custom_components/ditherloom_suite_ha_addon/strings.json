@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Set up Ditherloom",
-        "description": "Configure the Ditherloom frame and its repeating Home Assistant update wake window.",
+        "description": "Configure the Ditherloom frame and its repeating Home Assistant update wake window. Each enabled Home Assistant content provider needs one explicit HA slot. {ha_lane_error}",
         "data": {
           "library_id": "Library ID",
           "frame_host": "Frame Wi-Fi host or IP",
@@ -46,6 +46,7 @@
       },
       "weather": {
         "title": "Weather",
+        "description": "Each enabled Home Assistant content provider needs one explicit HA slot.",
         "data": {
           "weather_enabled": "Enable Weather",
           "location_name": "Weather location name",
@@ -59,6 +60,7 @@
       },
       "sun": {
         "title": "Sunrise / Sunset",
+        "description": "Each enabled Home Assistant content provider needs one explicit HA slot.",
         "data": {
           "sunrise_sunset_enabled": "Enable Sunrise / Sunset",
           "location_name": "Location name",
@@ -69,6 +71,7 @@
       },
       "moon": {
         "title": "Moon Phase",
+        "description": "Each enabled Home Assistant content provider needs one explicit HA slot.",
         "data": {
           "moon_phase_enabled": "Enable Moon Phase",
           "location_name": "Location name",
@@ -78,16 +81,16 @@
         }
       },
       "rotation": {
-        "title": "Display Rotation",
-        "description": "When two or more content options are enabled, Home Assistant uploads them to HA-owned slots and uses this interval to choose which HA slot to display explicitly.",
+        "title": "HA Rotation",
+        "description": "HA rotation uses only HA-owned slots through the dedicated HAROTATION Gateway command. It does not use normal frame image rotation.",
         "data": {
-          "display_rotation_enabled": "Enable display rotation",
-          "display_rotation_hours": "Rotation hours",
-          "display_rotation_minutes": "Rotation minutes"
+          "ha_rotation_enabled": "Enable HA-only rotation",
+          "ha_rotation_seconds": "HA rotation seconds"
         }
       },
       "device": {
         "title": "Device / Connection",
+        "description": "The Reserved HA slot is always the first HA slot. HA Slot Pool supplies the remaining HA lane slots. Examples: 443-444 or 443,444. Extra HA slots are marked as HA-owned and excluded from normal frame rotation. {ha_lane_error}",
         "data": {
           "frame_host": "Frame Wi-Fi host or IP",
           "frame_port": "Frame Gateway port",
@@ -100,5 +103,10 @@
         }
       }
     }
+  },
+  "error": {
+    "not_enough_ha_slots": "Not enough explicit HA slots are configured.",
+    "too_many_ha_slots": "Home Assistant supports up to 8 explicit HA slots.",
+    "ha_lane_invalid": "Home Assistant slot lane configuration is invalid."
   }
 }
