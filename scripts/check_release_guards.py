@@ -215,6 +215,12 @@ def check_update_platform() -> None:
         "HAROTATION",
         "_query_gateway_ha_rotation",
         "_parse_harotation_response",
+        "_set_gateway_ha_rotation",
+        "_harotation_on_response_ok",
+        "_upload_gateway_payload(sock_file, slot, packed, crc32)",
+        "_ensure_gateway_slot_is_ha(sock_file, slot)",
+        'command = f"HAROTATION on',
+        "HA rotation slots have no uploaded provider payload",
         "frame_ha_config",
         "haSlotCsv",
         "X-Home-Assistant-Token",
@@ -231,17 +237,16 @@ def check_update_platform() -> None:
             fail(f"runtime missing HA lane/rotation route/text: {required}")
 
     for forbidden in (
-        "_set_gateway_ha_rotation",
         "_disable_gateway_ha_rotation",
-        "_harotation_on_response_ok",
         "HAROTATION off",
         "await validator(token)",
+        '"ROTATION ',
     ):
         if forbidden in init_text:
-            fail(f"runtime must not apply HA rotation from Home Assistant: {forbidden}")
+            fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.44"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.44")
+    if '"version": "0.1.45"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.45")
 
 
 def check_public_repo_single_version() -> None:

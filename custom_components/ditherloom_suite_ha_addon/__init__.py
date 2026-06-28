@@ -70,6 +70,7 @@ from .const import (
     DEVICE_WIFI_B64WRITE_CHUNK_BYTES,
     DEVICE_WIFI_COMMAND_MAX_CHARS,
     DOMAIN,
+    MAX_HA_LANE_SLOTS,
     SERVICE_RENDER_MOON,
     SERVICE_RENDER_SUN,
     SERVICE_RENDER_WEATHER,
@@ -370,7 +371,8 @@ class DitherloomRuntime:
         try:
             jobs = await self._frame_sync_jobs()
             display_slot = self._selected_display_slot()
-            gateway_status = await self.hass.async_add_executor_job(_send_gateway_batch_jobs, host, port, jobs, display_slot, None)
+            ha_rotation = self._ha_rotation_config()
+            gateway_status = await self.hass.async_add_executor_job(_send_gateway_batch_jobs, host, port, jobs, display_slot, ha_rotation)
             synced_at = datetime.now(timezone.utc).isoformat()
             for job in jobs:
                 await self._mark_provider_frame_synced(str(job["provider_id"]), str(job["crc32"]), synced_at)
@@ -811,7 +813,7 @@ class DitherloomRuntime:
             self.options,
             CONF_FRAME_HA_ROTATION_ENABLED,
             _bool_option(self.options, CONF_HA_ROTATION_ENABLED, False),
-        ) and len(self._enabled_content_providers()) > 1
+        )
 
     def _ha_rotation_seconds(self) -> int:
         seconds = _positive_int(self.options.get(CONF_FRAME_HA_ROTATION_SECONDS, self.options.get(CONF_HA_ROTATION_SECONDS)))
@@ -1397,6 +1399,18 @@ def _send_gateway_batch_jobs(
             raise ValueError(f"Target slot must be between 1 and {DEVICE_SLOT_COUNT}, got {slot}")
     if display_slot is not None and (display_slot < 1 or display_slot > DEVICE_SLOT_COUNT):
         raise ValueError(f"Display slot must be between 1 and {DEVICE_SLOT_COUNT}, got {display_slot}")
+    ha_rotation_enabled = bool(ha_rotation and ha_rotation.get("enabled"))
+    ha_rotation_slots = [int(slot) for slot in (ha_rotation or {}).get("slots", [])]
+    if len(ha_rotation_slots) > MAX_HA_LANE_SLOTS:
+        raise ValueError(f"HA rotation supports up to {MAX_HA_LANE_SLOTS} HA-owned slots")
+    for slot in ha_rotation_slots:
+        if slot < 1 or slot > DEVICE_SLOT_COUNT:
+            raise ValueError(f"HA rotation slot must be between 1 and {DEVICE_SLOT_COUNT}, got {slot}")
+    if ha_rotation_enabled:
+        job_slots = {int(job["slot"]) for job in jobs}
+        missing_slots = [slot for slot in ha_rotation_slots if slot not in job_slots]
+        if missing_slots:
+            raise ValueError(f"HA rotation slots have no uploaded provider payload: {slot_csv(missing_slots)}")
     with socket.create_connection((host, port), timeout=20) as sock:
         sock.settimeout(30)
         sock_file = sock.makefile("rwb")
@@ -1410,8 +1424,10 @@ def _send_gateway_batch_jobs(
                 slot = int(job["slot"])
                 packed = job["packed"]
                 crc32 = str(job["crc32"])
-                _ensure_gateway_slot_is_ha(sock_file, slot)
                 _upload_gateway_payload(sock_file, slot, packed, crc32)
+                _ensure_gateway_slot_is_ha(sock_file, slot)
+            if ha_rotation_enabled:
+                _set_gateway_ha_rotation(sock_file, int((ha_rotation or {}).get("seconds") or DEFAULT_HA_ROTATION_SECONDS), ha_rotation_slots)
             if display_slot is not None:
                 _ensure_gateway_slot_is_ha(sock_file, display_slot)
                 display = _send_gateway_stage(sock_file, f"DISPLAY {display_slot}", "DISPLAY")
@@ -1462,6 +1478,32 @@ def _parse_harotation_response(response: str) -> dict[str, Any]:
     parsed["slots"] = parse_slot_pool(parsed.get("slots", ""))
     parsed["normal_rotation"] = parsed.get("normal_rotation")
     return parsed
+
+
+def _set_gateway_ha_rotation(sock_file, seconds: int, slots: list[int]) -> None:
+    if not slots:
+        raise RuntimeError("HA rotation requires at least one HA-owned slot")
+    if len(slots) > MAX_HA_LANE_SLOTS:
+        raise RuntimeError(f"HA rotation supports up to {MAX_HA_LANE_SLOTS} HA-owned slots")
+    for slot in slots:
+        _ensure_gateway_slot_is_ha(sock_file, slot)
+    command = f"HAROTATION on {max(60, int(seconds))} {slot_csv(slots)}"
+    response = _send_gateway_stage(sock_file, command, "HAROTATION")
+    if not _harotation_on_response_ok(response, seconds, slots):
+        raise RuntimeError(f"HAROTATION failed or firmware rejected HA rotation slots: {response}")
+
+
+def _harotation_on_response_ok(response: str, seconds: int, slots: list[int]) -> bool:
+    normalized = response.strip()
+    if not normalized.startswith("OK HAROTATION"):
+        return False
+    required = (
+        "enabled=1",
+        f"seconds={max(60, int(seconds))}",
+        f"count={len(slots)}",
+        f"slots={slot_csv(slots)}",
+    )
+    return all(token in normalized for token in required)
 
 
 def _upload_gateway_payload(sock_file, slot: int, packed: bytes, crc32: str) -> None:
