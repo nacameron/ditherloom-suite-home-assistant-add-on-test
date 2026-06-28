@@ -13,9 +13,16 @@ CONF_WAKE_WINDOW_MINUTES = "wake_window_minutes"
 CONF_WAKE_WINDOW_SECONDS = "wake_window_seconds"
 CONF_MAX_JOBS_PER_WAKE = "max_jobs_per_wake"
 CONF_TARGET_SLOT = "target_slot"
+CONF_HA_SLOT_POOL = "ha_slot_pool"
 CONF_DISPLAY_MODE = "display_mode"
 CONF_TEMPERATURE_UNIT = "temperature_unit"
 CONF_WIND_SPEED_UNIT = "wind_speed_unit"
+CONF_WEATHER_ENABLED = "weather_enabled"
+CONF_SUN_ENABLED = "sunrise_sunset_enabled"
+CONF_MOON_ENABLED = "moon_phase_enabled"
+CONF_DISPLAY_ROTATION_ENABLED = "display_rotation_enabled"
+CONF_DISPLAY_ROTATION_HOURS = "display_rotation_hours"
+CONF_DISPLAY_ROTATION_MINUTES = "display_rotation_minutes"
 
 DEFAULT_FRAME_PORT = 5757
 DEFAULT_UPDATE_INTERVAL_MINUTES = 60
@@ -31,6 +38,8 @@ WIND_SPEED_UNIT_KMH = "kmh"
 WIND_SPEED_UNIT_MPH = "mph"
 DEFAULT_TEMPERATURE_UNIT = TEMPERATURE_UNIT_CELSIUS
 DEFAULT_WIND_SPEED_UNIT = WIND_SPEED_UNIT_KMH
+DEFAULT_DISPLAY_ROTATION_HOURS = 0
+DEFAULT_DISPLAY_ROTATION_MINUTES = 30
 
 DEVICE_FRAME_WIDTH = 400
 DEVICE_FRAME_HEIGHT = 300
@@ -45,6 +54,10 @@ DEVICE_WIFI_COMMAND_MAX_CHARS = 2048
 
 SERVICE_RENDER_WEATHER = "render_weather_card"
 SERVICE_SEND_WEATHER = "send_weather_card"
+SERVICE_RENDER_SUN = "render_sunrise_sunset_card"
+SERVICE_SEND_SUN = "send_sunrise_sunset_card"
+SERVICE_RENDER_MOON = "render_moon_phase_card"
+SERVICE_SEND_MOON = "send_moon_phase_card"
 
 ATTR_PREVIEW_URL = "preview_url"
 ATTR_PAYLOAD_URL = "payload_url"

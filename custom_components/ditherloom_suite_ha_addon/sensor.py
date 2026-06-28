@@ -74,9 +74,9 @@ class DitherloomFrameScheduleSensor(DitherloomSensorBase):
             return "delivered"
         if metadata.get("frame_awake_last_received_at"):
             return "frame awake"
-        if metadata.get("weather_refresh_last_success_at") or metadata.get("rendered_at"):
-            return "weather ready"
-        return "waiting for weather"
+        if metadata.get("content_refresh_last_success_at") or metadata.get("weather_refresh_last_success_at") or metadata.get("rendered_at"):
+            return "content ready"
+        return "waiting for content"
 
     @property
     def extra_state_attributes(self):
@@ -85,6 +85,10 @@ class DitherloomFrameScheduleSensor(DitherloomSensorBase):
             "weather_refresh_next_at": metadata.get("weather_refresh_next_at"),
             "weather_refresh_interval_minutes": metadata.get("weather_refresh_interval_minutes"),
             "weather_refresh_last_success_at": metadata.get("weather_refresh_last_success_at"),
+            "content_refresh_last_success_at": metadata.get("content_refresh_last_success_at"),
+            "selected_provider_id": metadata.get("selected_provider_id") or metadata.get("provider_id"),
+            "display_rotation_enabled": metadata.get("display_rotation_enabled"),
+            "display_rotation_interval_minutes": metadata.get("display_rotation_interval_minutes"),
             "frame_awake_last_received_at": metadata.get("frame_awake_last_received_at"),
             "frame_awake_last_success_at": metadata.get("frame_awake_last_success_at"),
             "frame_sleeping_last_received_at": metadata.get("frame_sleeping_last_received_at"),

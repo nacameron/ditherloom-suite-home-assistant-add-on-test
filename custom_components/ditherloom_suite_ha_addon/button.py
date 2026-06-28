@@ -14,6 +14,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     async_add_entities(
         [
             DitherloomRenderWeatherButton(coordinator, entry),
+            DitherloomRenderSunButton(coordinator, entry),
+            DitherloomRenderMoonButton(coordinator, entry),
         ]
     )
 
@@ -43,4 +45,36 @@ class DitherloomRenderWeatherButton(DitherloomButtonBase):
             publish=False,
             send_to_frame=False,
             action="render weather",
+        )
+
+
+class DitherloomRenderSunButton(DitherloomButtonBase):
+    _attr_name = "Render sunrise sunset preview"
+
+    def __init__(self, coordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_render_sunrise_sunset_preview"
+
+    async def async_press(self) -> None:
+        await self._coordinator.async_run_sun_action(
+            {},
+            publish=False,
+            send_to_frame=False,
+            action="render sunrise / sunset",
+        )
+
+
+class DitherloomRenderMoonButton(DitherloomButtonBase):
+    _attr_name = "Render moon phase preview"
+
+    def __init__(self, coordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_render_moon_phase_preview"
+
+    async def async_press(self) -> None:
+        await self._coordinator.async_run_moon_action(
+            {},
+            publish=False,
+            send_to_frame=False,
+            action="render moon phase",
         )

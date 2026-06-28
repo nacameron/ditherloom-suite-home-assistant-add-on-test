@@ -29,6 +29,19 @@ Do not create content-specific send paths. Weather, future calendar cards,
 alerts, sensor dashboards, and other cards must feed into the same refresh,
 frame-awake, send-existing-payload pathway.
 
+Home Assistant may own more than one frame slot. Every HA-rendered slot must be
+explicitly assigned to the HA lane before writing:
+
+```text
+SETSLOTCLASS <slot> ha
+SLOTCLASS <slot>
+```
+
+The expected response must confirm `class=ha`, `value=3`, and
+`rotation_selectable=0`. The integration must not overwrite image, memo, or
+system slots unless those slots are explicitly configured as Home Assistant
+slots.
+
 Locked hybrid render conversion:
 
 1. Exact Ditherloom safe template colours are protected and rendered through their locked ordered recipes.

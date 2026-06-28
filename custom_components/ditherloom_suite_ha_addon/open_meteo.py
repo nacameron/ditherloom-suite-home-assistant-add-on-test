@@ -46,6 +46,8 @@ WEATHER_CODES = {
 }
 
 NIGHT_AWARE_CODES = {0, 1, 2}
+OPEN_METEO_ATTRIBUTION = "Weather data by Open-Meteo.com."
+NOMINATIM_ATTRIBUTION = "Place-name lookup by OpenStreetMap contributors via Nominatim."
 
 
 def fetch_open_meteo_card(
@@ -157,6 +159,7 @@ def fetch_open_meteo_card(
         updated=updated,
         alert=alert,
         source_entity_id="open_meteo.direct",
+        attribution=f"{OPEN_METEO_ATTRIBUTION} {NOMINATIM_ATTRIBUTION if not location.strip() else ''}".strip(),
         humidity=humidity,
         uv_index=uv,
         feels_like=feels,

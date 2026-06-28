@@ -11,12 +11,20 @@
           "frame_port": "Frame Gateway port",
           "topic_base": "Optional MQTT topic base",
           "location_name": "Weather location name",
+          "weather_location": "Pick location on map",
           "latitude": "Latitude",
           "longitude": "Longitude",
+          "weather_enabled": "Enable Weather",
+          "sunrise_sunset_enabled": "Enable Sunrise / Sunset",
+          "moon_phase_enabled": "Enable Moon Phase",
+          "display_rotation_enabled": "Enable display rotation",
+          "display_rotation_hours": "Rotation hours",
+          "display_rotation_minutes": "Rotation minutes",
           "update_interval_minutes": "Repeating update interval minutes",
           "wake_window_minutes": "Wake window minutes",
           "max_jobs_per_wake": "Maximum jobs per wake",
           "target_slot": "Reserved Home Assistant content slot",
+          "ha_slot_pool": "Additional Home Assistant slot pool",
           "display_mode": "Weather display mode",
           "temperature_unit": "Temperature unit",
           "wind_speed_unit": "Wind speed unit"
@@ -27,21 +35,68 @@
   "options": {
     "step": {
       "init": {
-        "title": "Ditherloom options",
+        "title": "Ditherloom content options",
+        "menu_options": {
+          "weather": "Weather",
+          "sun": "Sunrise / Sunset",
+          "moon": "Moon Phase",
+          "rotation": "Display Rotation",
+          "device": "Device / Connection"
+        }
+      },
+      "weather": {
+        "title": "Weather",
+        "data": {
+          "weather_enabled": "Enable Weather",
+          "location_name": "Weather location name",
+          "weather_location": "Pick location on map",
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "display_mode": "Weather display mode",
+          "temperature_unit": "Temperature unit",
+          "wind_speed_unit": "Wind speed unit"
+        }
+      },
+      "sun": {
+        "title": "Sunrise / Sunset",
+        "data": {
+          "sunrise_sunset_enabled": "Enable Sunrise / Sunset",
+          "location_name": "Location name",
+          "weather_location": "Pick location on map",
+          "latitude": "Latitude",
+          "longitude": "Longitude"
+        }
+      },
+      "moon": {
+        "title": "Moon Phase",
+        "data": {
+          "moon_phase_enabled": "Enable Moon Phase",
+          "location_name": "Location name",
+          "weather_location": "Pick location on map",
+          "latitude": "Latitude",
+          "longitude": "Longitude"
+        }
+      },
+      "rotation": {
+        "title": "Display Rotation",
+        "description": "When two or more content options are enabled, Home Assistant uploads them to HA-owned slots and uses this interval to choose which HA slot to display explicitly.",
+        "data": {
+          "display_rotation_enabled": "Enable display rotation",
+          "display_rotation_hours": "Rotation hours",
+          "display_rotation_minutes": "Rotation minutes"
+        }
+      },
+      "device": {
+        "title": "Device / Connection",
         "data": {
           "frame_host": "Frame Wi-Fi host or IP",
           "frame_port": "Frame Gateway port",
           "topic_base": "Optional MQTT topic base",
-          "location_name": "Weather location name",
-          "latitude": "Latitude",
-          "longitude": "Longitude",
           "update_interval_minutes": "Repeating update interval minutes",
           "wake_window_minutes": "Wake window minutes",
           "max_jobs_per_wake": "Maximum jobs per wake",
           "target_slot": "Reserved Home Assistant content slot",
-          "display_mode": "Weather display mode",
-          "temperature_unit": "Temperature unit",
-          "wind_speed_unit": "Wind speed unit"
+          "ha_slot_pool": "Additional Home Assistant slot pool"
         }
       }
     }

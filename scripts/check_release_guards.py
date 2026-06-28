@@ -536,6 +536,8 @@ def check_locked_render_delivery_pathway() -> None:
 
     for required in (
         "async_refresh_weather_payload",
+        "async_refresh_content_payload",
+        "async_render_provider_to_cache",
         "async_track_time_interval",
         "_schedule_weather_refresh",
         "_handle_weather_refresh",
@@ -548,12 +550,14 @@ def check_locked_render_delivery_pathway() -> None:
         "timed out during Gateway",
         "async_send_to_frame_host",
         "manual_send_last_success_at",
-        "await self.async_render_weather({}, publish=True, send_to_frame=False)",
-        'self.last_status = "weather_ready"',
+        "await self.async_refresh_content_payload(reason)",
+        'self.last_status = f"{provider_id}_ready"',
         'self.last_status = "frame_awake_received"',
         'self.last_status = "frame_awake_sent"',
-        "packed = await self.hass.async_add_executor_job(self.payload_path().read_bytes)",
-        "await self.async_send_to_frame_host(host, port, packed, crc32, target_slot)",
+        "_frame_sync_jobs",
+        "_send_gateway_batch_jobs",
+        "SETSLOTCLASS",
+        "SLOTCLASS",
     ):
         if required not in init_text:
             fail(f"locked render delivery pathway missing required code/text: {required}")

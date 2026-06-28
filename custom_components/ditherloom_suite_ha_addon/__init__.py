@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import shutil
 import socket
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -25,12 +26,18 @@ from .const import (
     ATTR_PAYLOAD_URL,
     ATTR_PREVIEW_URL,
     CONF_DISPLAY_MODE,
+    CONF_DISPLAY_ROTATION_ENABLED,
+    CONF_DISPLAY_ROTATION_HOURS,
+    CONF_DISPLAY_ROTATION_MINUTES,
     CONF_FRAME_HOST,
     CONF_FRAME_PORT,
+    CONF_HA_SLOT_POOL,
     CONF_LATITUDE,
     CONF_LOCATION_NAME,
     CONF_LONGITUDE,
     CONF_MAX_JOBS_PER_WAKE,
+    CONF_MOON_ENABLED,
+    CONF_SUN_ENABLED,
     CONF_TARGET_SLOT,
     CONF_TEMPERATURE_UNIT,
     CONF_TOPIC_BASE,
@@ -38,9 +45,12 @@ from .const import (
     CONF_WEATHER_LOCATION,
     CONF_WAKE_WINDOW_MINUTES,
     CONF_WAKE_WINDOW_SECONDS,
+    CONF_WEATHER_ENABLED,
     CONF_WIND_SPEED_UNIT,
     DEFAULT_FRAME_PORT,
     DEFAULT_DISPLAY_MODE,
+    DEFAULT_DISPLAY_ROTATION_HOURS,
+    DEFAULT_DISPLAY_ROTATION_MINUTES,
     DEFAULT_MAX_JOBS_PER_WAKE,
     DEFAULT_TARGET_SLOT,
     DEFAULT_TEMPERATURE_UNIT,
@@ -52,7 +62,11 @@ from .const import (
     DEVICE_WIFI_B64WRITE_CHUNK_BYTES,
     DEVICE_WIFI_COMMAND_MAX_CHARS,
     DOMAIN,
+    SERVICE_RENDER_MOON,
+    SERVICE_RENDER_SUN,
     SERVICE_RENDER_WEATHER,
+    SERVICE_SEND_MOON,
+    SERVICE_SEND_SUN,
     SERVICE_SEND_WEATHER,
 )
 
@@ -84,8 +98,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_send_weather(call: ServiceCall) -> None:
         await _handle_weather_service(coordinator, call, publish=True, send_to_frame=True, action="send weather")
 
+    async def handle_render_sun(call: ServiceCall) -> None:
+        await _handle_sun_service(coordinator, call, publish=False, send_to_frame=False, action="render sunrise / sunset")
+
+    async def handle_send_sun(call: ServiceCall) -> None:
+        await _handle_sun_service(coordinator, call, publish=True, send_to_frame=True, action="send sunrise / sunset")
+
+    async def handle_render_moon(call: ServiceCall) -> None:
+        await _handle_moon_service(coordinator, call, publish=False, send_to_frame=False, action="render moon phase")
+
+    async def handle_send_moon(call: ServiceCall) -> None:
+        await _handle_moon_service(coordinator, call, publish=True, send_to_frame=True, action="send moon phase")
+
     hass.services.async_register(DOMAIN, SERVICE_RENDER_WEATHER, handle_render_weather)
     hass.services.async_register(DOMAIN, SERVICE_SEND_WEATHER, handle_send_weather)
+    hass.services.async_register(DOMAIN, SERVICE_RENDER_SUN, handle_render_sun)
+    hass.services.async_register(DOMAIN, SERVICE_SEND_SUN, handle_send_sun)
+    hass.services.async_register(DOMAIN, SERVICE_RENDER_MOON, handle_render_moon)
+    hass.services.async_register(DOMAIN, SERVICE_SEND_MOON, handle_send_moon)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
@@ -109,6 +139,36 @@ async def _handle_weather_service(
     action: str,
 ) -> None:
     await coordinator.async_run_weather_action(
+        dict(call.data),
+        publish=publish,
+        send_to_frame=send_to_frame,
+        action=action,
+    )
+
+
+async def _handle_sun_service(
+    coordinator: DitherloomRuntime,
+    call: ServiceCall,
+    publish: bool,
+    send_to_frame: bool,
+    action: str,
+) -> None:
+    await coordinator.async_run_sun_action(
+        dict(call.data),
+        publish=publish,
+        send_to_frame=send_to_frame,
+        action=action,
+    )
+
+
+async def _handle_moon_service(
+    coordinator: DitherloomRuntime,
+    call: ServiceCall,
+    publish: bool,
+    send_to_frame: bool,
+    action: str,
+) -> None:
+    await coordinator.async_run_moon_action(
         dict(call.data),
         publish=publish,
         send_to_frame=send_to_frame,
@@ -146,7 +206,7 @@ class DitherloomRuntime:
     async def async_start(self) -> None:
         self._schedule_weather_refresh()
         if not self.payload_path().exists() or ATTR_CRC32 not in self.last_metadata:
-            await self.async_refresh_weather_payload(reason="startup")
+            await self.async_refresh_content_payload(reason="startup")
         else:
             await self.async_save()
 
@@ -189,6 +249,40 @@ class DitherloomRuntime:
             self._create_notification(f"Ditherloom {action} failed", message)
             raise HomeAssistantError(message) from exc
 
+    async def async_run_sun_action(
+        self,
+        data: dict[str, Any],
+        publish: bool,
+        send_to_frame: bool,
+        action: str,
+    ) -> dict[str, Any]:
+        try:
+            return await self.async_render_sun(data, publish=publish, send_to_frame=send_to_frame)
+        except Exception as exc:
+            message = f"Ditherloom {action} failed: {type(exc).__name__}: {exc}"
+            self.last_status = "error"
+            self.last_metadata[ATTR_LAST_ERROR] = message
+            await self.async_save()
+            self._create_notification(f"Ditherloom {action} failed", message)
+            raise HomeAssistantError(message) from exc
+
+    async def async_run_moon_action(
+        self,
+        data: dict[str, Any],
+        publish: bool,
+        send_to_frame: bool,
+        action: str,
+    ) -> dict[str, Any]:
+        try:
+            return await self.async_render_moon(data, publish=publish, send_to_frame=send_to_frame)
+        except Exception as exc:
+            message = f"Ditherloom {action} failed: {type(exc).__name__}: {exc}"
+            self.last_status = "error"
+            self.last_metadata[ATTR_LAST_ERROR] = message
+            await self.async_save()
+            self._create_notification(f"Ditherloom {action} failed", message)
+            raise HomeAssistantError(message) from exc
+
     async def async_send_cached_weather_action(self) -> dict[str, Any]:
         try:
             return await self.async_send_cached_weather()
@@ -202,7 +296,7 @@ class DitherloomRuntime:
 
     async def async_send_cached_weather(self) -> dict[str, Any]:
         if not self.payload_path().exists() or ATTR_CRC32 not in self.last_metadata:
-            await self.async_render_weather({}, publish=True, send_to_frame=False)
+            await self.async_render_selected_content(reason="manual_missing_payload")
         else:
             await self.async_publish_job(self.last_metadata)
             self.last_status = "published"
@@ -217,15 +311,12 @@ class DitherloomRuntime:
         return dict(self.last_metadata)
 
     async def async_handle_frame_awake(self, data: dict[str, Any], remote_addr: str | None = None) -> dict[str, Any]:
-        if not self.payload_path().exists() or ATTR_CRC32 not in self.last_metadata:
-            await self.async_refresh_weather_payload(reason="frame_awake_missing_payload")
+        await self.async_refresh_content_payload(reason="frame_awake")
 
         now = datetime.now(timezone.utc)
         host = str(data.get("ip") or data.get("host") or remote_addr or self.options.get(CONF_FRAME_HOST) or "").strip()
         port = _positive_int(data.get("port")) or int(self.options.get(CONF_FRAME_PORT, DEFAULT_FRAME_PORT))
-        target_slot = _positive_int(data.get("reservedSlot") or data.get("reserved_slot")) or int(
-            self.options.get(CONF_TARGET_SLOT, DEFAULT_TARGET_SLOT)
-        )
+        target_slot = self._selected_display_slot()
         if not host:
             raise ValueError("Frame awake callback did not include a usable host address")
         if target_slot < 1 or target_slot > DEVICE_SLOT_COUNT:
@@ -249,12 +340,12 @@ class DitherloomRuntime:
         self.last_metadata["frame_awake_last_received_at"] = now.isoformat()
         await self.async_save()
 
-        self.hass.async_create_task(self.async_deliver_cached_weather_to_announced_frame(host, port, target_slot))
+        self.hass.async_create_task(self.async_deliver_cached_content_to_announced_frame(host, port, target_slot))
         return {
             "accepted": True,
             "mode": "gateway_push",
             "has_jobs": True,
-            "job_count": 1,
+            "job_count": len(self._enabled_content_providers()),
             "payload_url": self.last_metadata.get(ATTR_PAYLOAD_URL),
             "preview_url": self.last_metadata.get(ATTR_PREVIEW_URL),
             "crc32": self.last_metadata.get(ATTR_CRC32),
@@ -263,16 +354,19 @@ class DitherloomRuntime:
             "display": True,
         }
 
-    async def async_deliver_cached_weather_to_announced_frame(self, host: str, port: int, target_slot: int) -> None:
+    async def async_deliver_cached_content_to_announced_frame(self, host: str, port: int, target_slot: int) -> None:
         try:
-            packed = await self.hass.async_add_executor_job(self.payload_path().read_bytes)
-            crc32 = str(self.last_metadata[ATTR_CRC32])
-            await self.async_send_to_frame_host(host, port, packed, crc32, target_slot)
+            jobs = await self._frame_sync_jobs()
+            await self.hass.async_add_executor_job(_send_gateway_batch_jobs, host, port, jobs, target_slot)
+            synced_at = datetime.now(timezone.utc).isoformat()
+            for job in jobs:
+                await self._mark_provider_frame_synced(str(job["provider_id"]), str(job["crc32"]), synced_at)
             self.last_status = "frame_awake_sent"
-            self.last_metadata["frame_awake_last_success_at"] = datetime.now(timezone.utc).isoformat()
+            self.last_metadata["frame_awake_last_success_at"] = synced_at
             self.last_metadata["frame_awake_last_send_host"] = host
             self.last_metadata["frame_awake_last_send_port"] = port
             self.last_metadata["frame_awake_last_target_slot"] = target_slot
+            self.last_metadata["frame_awake_last_synced_providers"] = [job["provider_id"] for job in jobs]
             self.last_metadata.pop(ATTR_LAST_ERROR, None)
         except Exception as exc:
             self.last_status = "frame_awake_send_failed"
@@ -281,6 +375,9 @@ class DitherloomRuntime:
             self._create_notification("Ditherloom frame awake delivery failed", str(self.last_metadata[ATTR_LAST_ERROR]))
         finally:
             await self.async_save()
+
+    async def async_deliver_cached_weather_to_announced_frame(self, host: str, port: int, target_slot: int) -> None:
+        await self.async_deliver_cached_content_to_announced_frame(host, port, target_slot)
 
     async def async_handle_frame_sleeping(self, data: dict[str, Any], remote_addr: str | None = None) -> dict[str, Any]:
         now = datetime.now(timezone.utc)
@@ -300,17 +397,110 @@ class DitherloomRuntime:
         return {"accepted": True, "message": "sleep recorded"}
 
     async def async_refresh_weather_payload(self, reason: str = "timer") -> dict[str, Any]:
-        metadata = await self.async_render_weather({}, publish=True, send_to_frame=False)
-        self.last_status = "weather_ready"
+        return await self.async_refresh_content_payload(reason)
+
+    async def async_refresh_content_payload(self, reason: str = "timer") -> dict[str, Any]:
+        refreshed: list[str] = []
+        for provider in self._enabled_content_providers():
+            metadata = await self._read_cached_metadata(provider)
+            if metadata is None or not self._cached_content_is_fresh(provider, metadata):
+                await self.async_render_provider_to_cache(provider)
+                refreshed.append(provider)
+        selected = self._selected_content_provider()
+        metadata = await self.async_activate_cached_content(selected, reason=reason)
+        if metadata is None:
+            metadata = await self.async_render_provider_to_cache(selected)
+            await self.async_activate_cached_content(selected, reason=reason)
+        provider_id = str((metadata or {}).get("provider_id") or selected)
+        self.last_status = f"{provider_id}_ready"
+        self.last_metadata["content_refresh_reason"] = reason
+        self.last_metadata["content_refreshed_providers"] = refreshed
+        self.last_metadata["content_refresh_last_success_at"] = datetime.now(timezone.utc).isoformat()
+        self.last_metadata["content_refresh_interval_minutes"] = self._effective_update_interval_minutes()
         self.last_metadata["weather_refresh_reason"] = reason
-        self.last_metadata["weather_refresh_last_success_at"] = datetime.now(timezone.utc).isoformat()
-        self.last_metadata["weather_refresh_interval_minutes"] = self._effective_update_interval_minutes()
+        self.last_metadata["weather_refresh_last_success_at"] = self.last_metadata["content_refresh_last_success_at"]
+        self.last_metadata["weather_refresh_interval_minutes"] = self.last_metadata["content_refresh_interval_minutes"]
         self.last_metadata.pop(ATTR_LAST_ERROR, None)
         self._schedule_weather_refresh()
         await self.async_save()
         return metadata
 
-    async def async_render_weather(self, data: dict[str, Any], publish: bool, send_to_frame: bool) -> dict[str, Any]:
+    async def async_render_provider_to_cache(self, provider: str) -> dict[str, Any]:
+        if provider == "sunrise_sunset":
+            metadata = await self.async_render_sun({}, publish=False, send_to_frame=False, cache_provider_id=provider)
+        elif provider == "moon_phase":
+            metadata = await self.async_render_moon({}, publish=False, send_to_frame=False, cache_provider_id=provider)
+        else:
+            metadata = await self.async_render_weather({}, publish=False, send_to_frame=False, cache_provider_id=provider)
+        metadata["selected_provider_id"] = provider
+        metadata["display_rotation_enabled"] = self._display_rotation_enabled()
+        metadata["display_rotation_interval_minutes"] = self._display_rotation_interval_minutes()
+        metadata["selected_provider_cache"] = "rendered"
+        await self._write_cached_metadata(provider, metadata)
+        return metadata
+
+    async def async_render_selected_content(self, reason: str = "timer") -> dict[str, Any]:
+        provider = self._selected_content_provider()
+        cached = await self.async_activate_cached_content(provider, reason=reason)
+        if cached is not None:
+            return cached
+        if provider == "sunrise_sunset":
+            metadata = await self.async_render_sun({}, publish=True, send_to_frame=False, cache_provider_id=provider)
+        elif provider == "moon_phase":
+            metadata = await self.async_render_moon({}, publish=True, send_to_frame=False, cache_provider_id=provider)
+        else:
+            metadata = await self.async_render_weather({}, publish=True, send_to_frame=False, cache_provider_id=provider)
+        metadata["selected_provider_id"] = provider
+        metadata["display_rotation_enabled"] = self._display_rotation_enabled()
+        metadata["display_rotation_interval_minutes"] = self._display_rotation_interval_minutes()
+        metadata["selected_provider_reason"] = reason
+        metadata["selected_provider_cache"] = "rendered"
+        self.last_metadata.update(
+            {
+                "selected_provider_id": provider,
+                "display_rotation_enabled": metadata["display_rotation_enabled"],
+                "display_rotation_interval_minutes": metadata["display_rotation_interval_minutes"],
+                "selected_provider_reason": reason,
+                "selected_provider_cache": "rendered",
+            }
+        )
+        await self._write_cached_metadata(provider, metadata)
+        await self.async_save()
+        return metadata
+
+    async def async_activate_cached_content(self, provider: str, reason: str) -> dict[str, Any] | None:
+        metadata = await self._read_cached_metadata(provider)
+        if metadata is None or not self._cached_content_is_fresh(provider, metadata):
+            return None
+        stem = self._provider_payload_name(provider)
+        source_payload = self.payload_dir / f"{stem}.ppbin"
+        source_preview = self.payload_dir / f"{stem}.preview.png"
+        if not source_payload.exists() or not source_preview.exists():
+            return None
+        await self.hass.async_add_executor_job(shutil.copyfile, source_payload, self.payload_path())
+        await self.hass.async_add_executor_job(shutil.copyfile, source_preview, self.preview_path())
+        metadata = dict(metadata)
+        metadata[ATTR_PAYLOAD_URL] = self.payload_url
+        metadata[ATTR_PREVIEW_URL] = self.preview_url
+        metadata["selected_provider_id"] = provider
+        metadata["display_rotation_enabled"] = self._display_rotation_enabled()
+        metadata["display_rotation_interval_minutes"] = self._display_rotation_interval_minutes()
+        metadata["selected_provider_reason"] = reason
+        metadata["selected_provider_cache"] = "cached"
+        metadata["activated_at"] = datetime.now(timezone.utc).isoformat()
+        self.last_status = "published"
+        self.last_metadata = metadata
+        await self.async_publish_job(metadata)
+        await self.async_save()
+        return metadata
+
+    async def async_render_weather(
+        self,
+        data: dict[str, Any],
+        publish: bool,
+        send_to_frame: bool,
+        cache_provider_id: str | None = None,
+    ) -> dict[str, Any]:
         from .open_meteo import fetch_open_meteo_card
         from .renderer import render_modern_weather_card, render_to_artifact
         from .renderer.pack import write_artifact
@@ -339,7 +529,11 @@ class DitherloomRuntime:
         display_mode = str(data.get(CONF_DISPLAY_MODE) or opts.get(CONF_DISPLAY_MODE, DEFAULT_DISPLAY_MODE))
         image = render_modern_weather_card(card_data, colour_mode=display_mode)
         artifact = render_to_artifact(image, "weather_current", [card_data.source_entity_id])
-        await self.hass.async_add_executor_job(write_artifact, artifact, self.payload_dir, self.latest_payload_name)
+        stem = self._provider_payload_name(cache_provider_id) if cache_provider_id else self.latest_payload_name
+        await self.hass.async_add_executor_job(write_artifact, artifact, self.payload_dir, stem)
+        if cache_provider_id:
+            await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.ppbin", self.payload_path())
+            await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.preview.png", self.preview_path())
 
         metadata = dict(artifact.metadata)
         metadata[ATTR_PAYLOAD_URL] = self.payload_url
@@ -352,6 +546,166 @@ class DitherloomRuntime:
         metadata["display_mode"] = display_mode
         metadata["temperature_unit"] = temperature_unit
         metadata["wind_speed_unit"] = wind_speed_unit
+        metadata["provider_id"] = "open_meteo_weather"
+        metadata["provider_name"] = "Open-Meteo Weather"
+        metadata["source"] = "https://open-meteo.com/"
+        metadata["attribution"] = card_data.attribution or "Weather data by Open-Meteo.com."
+        for preserved_key in (
+            "frame_awake",
+            "frame_sleeping",
+            "frame_awake_last_received_at",
+            "frame_awake_last_success_at",
+            "frame_sleeping_last_received_at",
+        ):
+            preserved = self.last_metadata.get(preserved_key)
+            if preserved:
+                metadata[preserved_key] = preserved
+
+        self.last_status = "rendered"
+        self.last_metadata = metadata
+
+        if publish:
+            await self.async_publish_job(metadata)
+            self.last_status = "published"
+        if send_to_frame:
+            await self.async_send_to_frame(artifact.packed, artifact.crc32)
+            self.last_status = "sent"
+            self.last_metadata.pop(ATTR_LAST_ERROR, None)
+
+        await self.async_save()
+        return metadata
+
+    async def async_render_sun(
+        self,
+        data: dict[str, Any],
+        publish: bool,
+        send_to_frame: bool,
+        cache_provider_id: str | None = None,
+    ) -> dict[str, Any]:
+        from .renderer import SunCardData, render_sun_card, render_to_artifact
+        from .renderer.pack import write_artifact
+        from .sun_provider import build_sun_provider_data
+
+        opts = self.options
+        picked_location = data.get(CONF_WEATHER_LOCATION)
+        if isinstance(picked_location, dict):
+            latitude = str(picked_location.get(CONF_LATITUDE) or opts.get(CONF_LATITUDE) or "0")
+            longitude = str(picked_location.get(CONF_LONGITUDE) or opts.get(CONF_LONGITUDE) or "0")
+            location = str(data.get(CONF_LOCATION_NAME) or data.get("location") or opts.get(CONF_LOCATION_NAME) or "Home")
+        else:
+            latitude = str(data.get(CONF_LATITUDE) or opts.get(CONF_LATITUDE) or "0")
+            longitude = str(data.get(CONF_LONGITUDE) or opts.get(CONF_LONGITUDE) or "0")
+            location = str(data.get(CONF_LOCATION_NAME) or data.get("location") or opts.get(CONF_LOCATION_NAME) or "Home")
+
+        provider_data = build_sun_provider_data(latitude, longitude, location, self.hass.config.time_zone)
+        card_data = SunCardData(**provider_data.__dict__)
+        image = render_sun_card(card_data)
+        artifact = render_to_artifact(image, "sunrise_sunset", [card_data.source_entity_id])
+        stem = self._provider_payload_name(cache_provider_id) if cache_provider_id else self.latest_payload_name
+        await self.hass.async_add_executor_job(write_artifact, artifact, self.payload_dir, stem)
+        if cache_provider_id:
+            await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.ppbin", self.payload_path())
+            await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.preview.png", self.preview_path())
+
+        metadata = dict(artifact.metadata)
+        metadata[ATTR_PAYLOAD_URL] = self.payload_url
+        metadata[ATTR_PREVIEW_URL] = self.preview_url
+        metadata["rendered_at"] = datetime.now(timezone.utc).isoformat()
+        metadata["provider_id"] = "sunrise_sunset"
+        metadata["provider_name"] = "Sunrise / Sunset"
+        metadata["source"] = "local_solar_calculation"
+        metadata["attribution"] = card_data.attribution
+        metadata["location"] = card_data.location
+        metadata["date_label"] = card_data.date_label
+        metadata["sunrise"] = card_data.sunrise
+        metadata["sunset"] = card_data.sunset
+        metadata["civil_dawn"] = card_data.civil_dawn
+        metadata["civil_dusk"] = card_data.civil_dusk
+        metadata["day_length"] = card_data.day_length
+        metadata["golden_morning"] = card_data.golden_morning
+        metadata["golden_evening"] = card_data.golden_evening
+        metadata["update_interval_minutes"] = self._effective_update_interval_minutes()
+        metadata["wake_window_seconds"] = self._effective_wake_window_seconds()
+        metadata["wake_window_minutes"] = self._effective_wake_window_minutes()
+        metadata["max_jobs_per_wake"] = opts.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE)
+        for preserved_key in (
+            "frame_awake",
+            "frame_sleeping",
+            "frame_awake_last_received_at",
+            "frame_awake_last_success_at",
+            "frame_sleeping_last_received_at",
+        ):
+            preserved = self.last_metadata.get(preserved_key)
+            if preserved:
+                metadata[preserved_key] = preserved
+
+        self.last_status = "rendered"
+        self.last_metadata = metadata
+
+        if publish:
+            await self.async_publish_job(metadata)
+            self.last_status = "published"
+        if send_to_frame:
+            await self.async_send_to_frame(artifact.packed, artifact.crc32)
+            self.last_status = "sent"
+            self.last_metadata.pop(ATTR_LAST_ERROR, None)
+
+        await self.async_save()
+        return metadata
+
+    async def async_render_moon(
+        self,
+        data: dict[str, Any],
+        publish: bool,
+        send_to_frame: bool,
+        cache_provider_id: str | None = None,
+    ) -> dict[str, Any]:
+        from .moon_provider import build_moon_provider_data
+        from .renderer import MoonCardData, render_moon_card, render_to_artifact
+        from .renderer.pack import write_artifact
+
+        opts = self.options
+        picked_location = data.get(CONF_WEATHER_LOCATION)
+        if isinstance(picked_location, dict):
+            latitude = str(picked_location.get(CONF_LATITUDE) or opts.get(CONF_LATITUDE) or "0")
+            longitude = str(picked_location.get(CONF_LONGITUDE) or opts.get(CONF_LONGITUDE) or "0")
+            location = str(data.get(CONF_LOCATION_NAME) or data.get("location") or opts.get(CONF_LOCATION_NAME) or "Home")
+        else:
+            latitude = str(data.get(CONF_LATITUDE) or opts.get(CONF_LATITUDE) or "0")
+            longitude = str(data.get(CONF_LONGITUDE) or opts.get(CONF_LONGITUDE) or "0")
+            location = str(data.get(CONF_LOCATION_NAME) or data.get("location") or opts.get(CONF_LOCATION_NAME) or "Home")
+
+        provider_data = build_moon_provider_data(latitude, longitude, location, self.hass.config.time_zone)
+        card_data = MoonCardData(**provider_data.__dict__)
+        image = render_moon_card(card_data)
+        artifact = render_to_artifact(image, "moon_phase", [card_data.source_entity_id])
+        stem = self._provider_payload_name(cache_provider_id) if cache_provider_id else self.latest_payload_name
+        await self.hass.async_add_executor_job(write_artifact, artifact, self.payload_dir, stem)
+        if cache_provider_id:
+            await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.ppbin", self.payload_path())
+            await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.preview.png", self.preview_path())
+
+        metadata = dict(artifact.metadata)
+        metadata[ATTR_PAYLOAD_URL] = self.payload_url
+        metadata[ATTR_PREVIEW_URL] = self.preview_url
+        metadata["rendered_at"] = datetime.now(timezone.utc).isoformat()
+        metadata["provider_id"] = "moon_phase"
+        metadata["provider_name"] = "Moon Phase"
+        metadata["source"] = "local_moon_calculation"
+        metadata["attribution"] = card_data.attribution
+        metadata["location"] = card_data.location
+        metadata["date_label"] = card_data.date_label
+        metadata["phase_name"] = card_data.phase_name
+        metadata["illumination"] = card_data.illumination
+        metadata["moon_age"] = card_data.moon_age
+        metadata["moonrise"] = card_data.moonrise
+        metadata["moonset"] = card_data.moonset
+        metadata["next_full"] = card_data.next_full
+        metadata["next_new"] = card_data.next_new
+        metadata["update_interval_minutes"] = self._effective_update_interval_minutes()
+        metadata["wake_window_seconds"] = self._effective_wake_window_seconds()
+        metadata["wake_window_minutes"] = self._effective_wake_window_minutes()
+        metadata["max_jobs_per_wake"] = opts.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE)
         for preserved_key in (
             "frame_awake",
             "frame_sleeping",
@@ -391,6 +745,157 @@ class DitherloomRuntime:
         seconds = self._effective_wake_window_seconds()
         return max(1, (seconds + 59) // 60)
 
+    def _enabled_content_providers(self) -> list[str]:
+        opts = self.options
+        providers: list[str] = []
+        if _bool_option(opts, CONF_WEATHER_ENABLED, True):
+            providers.append("open_meteo_weather")
+        if _bool_option(opts, CONF_SUN_ENABLED, False):
+            providers.append("sunrise_sunset")
+        if _bool_option(opts, CONF_MOON_ENABLED, False):
+            providers.append("moon_phase")
+        return providers or ["open_meteo_weather"]
+
+    def _ha_owned_slots(self) -> list[int]:
+        first = int(self.options.get(CONF_TARGET_SLOT, DEFAULT_TARGET_SLOT))
+        slots = [first]
+        for slot in _parse_slot_pool(self.options.get(CONF_HA_SLOT_POOL)):
+            if slot not in slots:
+                slots.append(slot)
+        return slots
+
+    def _provider_slot_map(self) -> dict[str, int]:
+        providers = self._enabled_content_providers()
+        slots = self._ha_owned_slots()
+        if len(slots) < len(providers):
+            raise ValueError(
+                "Not enough explicit Home Assistant slots are configured. "
+                f"Enabled providers need {len(providers)} slots, but only {len(slots)} HA slot(s) are configured."
+            )
+        return dict(zip(providers, slots))
+
+    def _selected_display_slot(self) -> int:
+        return self._provider_slot_map()[self._selected_content_provider()]
+
+    def _display_rotation_enabled(self) -> bool:
+        return _bool_option(self.options, CONF_DISPLAY_ROTATION_ENABLED, False) and len(self._enabled_content_providers()) > 1
+
+    def _display_rotation_interval_minutes(self) -> int:
+        opts = self.options
+        hours = _positive_int(opts.get(CONF_DISPLAY_ROTATION_HOURS))
+        minutes = _positive_int(opts.get(CONF_DISPLAY_ROTATION_MINUTES))
+        total = (hours or DEFAULT_DISPLAY_ROTATION_HOURS) * 60 + (minutes or 0)
+        if total <= 0:
+            total = DEFAULT_DISPLAY_ROTATION_MINUTES
+        return total
+
+    def _selected_content_provider(self) -> str:
+        providers = self._enabled_content_providers()
+        if not self._display_rotation_enabled():
+            return providers[0]
+        interval_seconds = max(60, self._display_rotation_interval_minutes() * 60)
+        slot = int(datetime.now(timezone.utc).timestamp() // interval_seconds)
+        return providers[slot % len(providers)]
+
+    def _should_render_selected_content(self) -> bool:
+        if not self.payload_path().exists() or ATTR_CRC32 not in self.last_metadata:
+            return True
+        selected = self._selected_content_provider()
+        current = self.last_metadata.get("provider_id") or self.last_metadata.get("selected_provider_id")
+        return current != selected
+
+    def _provider_payload_name(self, provider: str | None) -> str:
+        if provider == "sunrise_sunset":
+            return "content-sunrise-sunset"
+        if provider == "moon_phase":
+            return "content-moon-phase"
+        if provider == "open_meteo_weather":
+            return "content-weather"
+        return self.latest_payload_name
+
+    def _cached_metadata_path(self, provider: str) -> Path:
+        return self.payload_dir / f"{self._provider_payload_name(provider)}.metadata.json"
+
+    async def _write_cached_metadata(self, provider: str, metadata: dict[str, Any]) -> None:
+        payload = dict(metadata)
+        payload["cached_provider_id"] = provider
+        payload["cached_at"] = datetime.now(timezone.utc).isoformat()
+        path = self._cached_metadata_path(provider)
+        await self.hass.async_add_executor_job(path.write_text, json.dumps(payload, indent=2), "utf-8")
+
+    async def _read_cached_metadata(self, provider: str) -> dict[str, Any] | None:
+        path = self._cached_metadata_path(provider)
+        if not path.exists():
+            return None
+        try:
+            text = await self.hass.async_add_executor_job(path.read_text, "utf-8")
+            payload = json.loads(text)
+        except Exception:
+            return None
+        return payload if isinstance(payload, dict) else None
+
+    def _cached_content_is_fresh(self, provider: str, metadata: dict[str, Any]) -> bool:
+        if provider in {"sunrise_sunset", "moon_phase"}:
+            return metadata.get("date_label") == datetime.now(self._local_timezone()).strftime("%d %b").upper()
+        rendered_at = _parse_datetime(metadata.get("rendered_at"))
+        if rendered_at is None:
+            return False
+        age = datetime.now(timezone.utc) - rendered_at.astimezone(timezone.utc)
+        return age < timedelta(minutes=self._effective_update_interval_minutes())
+
+    def _local_timezone(self):
+        from zoneinfo import ZoneInfo
+
+        try:
+            return ZoneInfo(self.hass.config.time_zone or "UTC")
+        except Exception:
+            return timezone.utc
+
+    async def _frame_sync_jobs(self) -> list[dict[str, Any]]:
+        jobs: list[dict[str, Any]] = []
+        slot_map = self._provider_slot_map()
+        for provider in self._enabled_content_providers():
+            metadata = await self._read_cached_metadata(provider)
+            if metadata is None or not self._cached_content_is_fresh(provider, metadata):
+                metadata = await self.async_render_provider_to_cache(provider)
+            if not self._provider_needs_frame_sync(provider, metadata):
+                continue
+            stem = self._provider_payload_name(provider)
+            packed = await self.hass.async_add_executor_job((self.payload_dir / f"{stem}.ppbin").read_bytes)
+            jobs.append(
+                {
+                    "provider_id": provider,
+                    "slot": slot_map[provider],
+                    "packed": packed,
+                    "crc32": str(metadata[ATTR_CRC32]),
+                    "content_id": metadata.get(ATTR_CONTENT_ID),
+                    "date_label": metadata.get("date_label"),
+                }
+            )
+        self.last_metadata["ha_owned_slots"] = slot_map
+        return jobs
+
+    def _provider_needs_frame_sync(self, provider: str, metadata: dict[str, Any]) -> bool:
+        if metadata.get("frame_synced_crc32") != metadata.get(ATTR_CRC32):
+            return True
+        if provider in {"sunrise_sunset", "moon_phase"}:
+            today = datetime.now(self._local_timezone()).strftime("%d %b").upper()
+            return metadata.get("frame_synced_date_label") != today
+        synced_at = _parse_datetime(metadata.get("frame_synced_at"))
+        if synced_at is None:
+            return True
+        age = datetime.now(timezone.utc) - synced_at.astimezone(timezone.utc)
+        return age >= timedelta(minutes=self._effective_update_interval_minutes())
+
+    async def _mark_provider_frame_synced(self, provider: str, crc32: str, synced_at: str) -> None:
+        metadata = await self._read_cached_metadata(provider)
+        if metadata is None:
+            return
+        metadata["frame_synced_at"] = synced_at
+        metadata["frame_synced_crc32"] = crc32
+        metadata["frame_synced_date_label"] = metadata.get("date_label") or datetime.now(self._local_timezone()).strftime("%d %b").upper()
+        await self._write_cached_metadata(provider, metadata)
+
     def async_cancel_weather_refresh(self) -> None:
         if self._weather_refresh_unsub:
             self._weather_refresh_unsub()
@@ -411,10 +916,10 @@ class DitherloomRuntime:
         try:
             await self.async_refresh_weather_payload(reason="timer")
         except Exception as exc:
-            self.last_status = "weather_refresh_failed"
-            self.last_metadata[ATTR_LAST_ERROR] = f"Weather refresh failed: {type(exc).__name__}: {exc}"
-            self.last_metadata["weather_refresh_last_failed_at"] = now.isoformat()
-            self._create_notification("Ditherloom weather refresh failed", str(self.last_metadata[ATTR_LAST_ERROR]))
+            self.last_status = "content_refresh_failed"
+            self.last_metadata[ATTR_LAST_ERROR] = f"Content refresh failed: {type(exc).__name__}: {exc}"
+            self.last_metadata["content_refresh_last_failed_at"] = now.isoformat()
+            self._create_notification("Ditherloom content refresh failed", str(self.last_metadata[ATTR_LAST_ERROR]))
             await self.async_save()
         finally:
             self._weather_refresh_running = False
@@ -484,6 +989,8 @@ class DitherloomRuntime:
                 "wakeWindowSeconds": self._effective_wake_window_seconds(),
                 "maxJobsPerWake": options.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE),
                 "reservedSlot": options.get(CONF_TARGET_SLOT, DEFAULT_TARGET_SLOT),
+                "haSlotPool": options.get(CONF_HA_SLOT_POOL, ""),
+                "haOwnedSlots": self._ha_owned_slots(),
                 "scheduleEnabled": True,
                 "sleepAfterEmpty": True,
                 "sleepAfterJob": True,
@@ -502,13 +1009,16 @@ class DitherloomRuntime:
         topic_base = self.options.get(CONF_TOPIC_BASE) or f"ditherloom/{self.entry.data.get('library_id')}"
         now = datetime.now(timezone.utc)
         wake_window_seconds = self._effective_wake_window_seconds()
+        provider_id = str(metadata.get("provider_id") or metadata.get("selected_provider_id") or "open_meteo_weather")
+        slot = self._provider_slot_map().get(provider_id, int(self.options.get(CONF_TARGET_SLOT, DEFAULT_TARGET_SLOT)))
         job = {
-            "command_id": f"ha-weather-{now.strftime('%Y%m%d-%H%M%S')}-{metadata[ATTR_CRC32].lower()}",
+            "command_id": f"ha-{metadata.get('provider_id', 'weather')}-{now.strftime('%Y%m%d-%H%M%S')}-{metadata[ATTR_CRC32].lower()}",
             "job_type": "content_card",
             "content_id": metadata[ATTR_CONTENT_ID],
             "source": "home_assistant",
-            "template": "weather_current",
-            "slot": int(self.options.get(CONF_TARGET_SLOT, DEFAULT_TARGET_SLOT)),
+            "template": metadata.get("template_name", "weather_current"),
+            "slot": slot,
+            "ha_owned_slots": self._provider_slot_map(),
             "display": True,
             "payload_url": metadata[ATTR_PAYLOAD_URL],
             "length": metadata["packed_length"],
@@ -719,10 +1229,21 @@ def _send_command(sock_file, command: str) -> str:
 
 
 def _send_existing_gateway_job(host: str, port: int, packed: bytes, crc32: str, slot: int) -> None:
-    if len(packed) != DEVICE_PACKED_PAYLOAD_BYTES:
-        raise ValueError(f"Packed payload must be exactly {DEVICE_PACKED_PAYLOAD_BYTES} bytes, got {len(packed)}")
-    if slot < 1 or slot > DEVICE_SLOT_COUNT:
-        raise ValueError(f"Target slot must be between 1 and {DEVICE_SLOT_COUNT}, got {slot}")
+    _send_gateway_batch_jobs(host, port, [{"slot": slot, "packed": packed, "crc32": crc32}], slot)
+
+
+def _send_gateway_batch_jobs(host: str, port: int, jobs: list[dict[str, Any]], display_slot: int | None) -> None:
+    if not jobs and display_slot is None:
+        return
+    for job in jobs:
+        packed = job["packed"]
+        slot = int(job["slot"])
+        if len(packed) != DEVICE_PACKED_PAYLOAD_BYTES:
+            raise ValueError(f"Packed payload must be exactly {DEVICE_PACKED_PAYLOAD_BYTES} bytes, got {len(packed)}")
+        if slot < 1 or slot > DEVICE_SLOT_COUNT:
+            raise ValueError(f"Target slot must be between 1 and {DEVICE_SLOT_COUNT}, got {slot}")
+    if display_slot is not None and (display_slot < 1 or display_slot > DEVICE_SLOT_COUNT):
+        raise ValueError(f"Display slot must be between 1 and {DEVICE_SLOT_COUNT}, got {display_slot}")
 
     with socket.create_connection((host, port), timeout=20) as sock:
         sock.settimeout(30)
@@ -731,34 +1252,64 @@ def _send_existing_gateway_job(host: str, port: int, packed: bytes, crc32: str, 
             pong = _send_gateway_stage(sock_file, "PING", "PING")
             if not pong.startswith("OK"):
                 raise RuntimeError(f"PING failed: {pong}")
-            begin = _send_gateway_stage(sock_file, f"BEGIN {slot} {len(packed)} 0x{crc32}", "BEGIN")
-            if not begin.startswith("OK"):
-                raise RuntimeError(f"BEGIN failed: {begin}")
-            offset = 0
-            while offset < len(packed):
-                chunk = packed[offset : offset + DEVICE_WIFI_B64WRITE_CHUNK_BYTES]
-                encoded = base64.b64encode(chunk).decode("ascii")
-                command = f"B64WRITE {slot} {offset} {encoded}"
-                if len(command) > DEVICE_WIFI_COMMAND_MAX_CHARS:
-                    raise ValueError(f"B64WRITE command exceeds {DEVICE_WIFI_COMMAND_MAX_CHARS} characters")
-                response = _send_gateway_stage(sock_file, command, f"B64WRITE offset={offset}")
-                if not response.startswith("OK"):
-                    raise RuntimeError(
-                        f"B64WRITE failed at {offset}: {response} "
-                        f"slot={slot} chunk_bytes={len(chunk)} command_chars={len(command)}"
-                    )
-                offset += len(chunk)
-            end = _send_gateway_stage(sock_file, f"END {slot}", "END")
-            if not end.startswith("OK"):
-                raise RuntimeError(f"END failed: {end}")
-            display = _send_gateway_stage(sock_file, f"DISPLAY {slot}", "DISPLAY")
-            if not display.startswith("OK"):
-                raise RuntimeError(f"DISPLAY failed: {display}")
+            for job in jobs:
+                slot = int(job["slot"])
+                packed = job["packed"]
+                crc32 = str(job["crc32"])
+                _ensure_gateway_slot_is_ha(sock_file, slot)
+                _upload_gateway_payload(sock_file, slot, packed, crc32)
+            if display_slot is not None:
+                _ensure_gateway_slot_is_ha(sock_file, display_slot)
+                display = _send_gateway_stage(sock_file, f"DISPLAY {display_slot}", "DISPLAY")
+                if not display.startswith("OK"):
+                    raise RuntimeError(f"DISPLAY failed: {display}")
         except Exception:
             _best_effort_open_connection_idle(sock_file)
             raise
         else:
             _best_effort_open_connection_idle(sock_file)
+
+
+def _ensure_gateway_slot_is_ha(sock_file, slot: int) -> None:
+    marked = _send_gateway_stage(sock_file, f"SETSLOTCLASS {slot} ha", "SETSLOTCLASS")
+    if not marked.startswith("OK"):
+        raise RuntimeError(f"SETSLOTCLASS failed for slot {slot}: {marked}")
+    response = _send_gateway_stage(sock_file, f"SLOTCLASS {slot}", "SLOTCLASS")
+    if not response.startswith("OK"):
+        raise RuntimeError(f"SLOTCLASS failed for slot {slot}: {response}")
+    normalized = response.lower()
+    has_ha_class = "class=ha" in normalized or "value=3" in normalized
+    excluded_from_rotation = "rotation_selectable=0" in normalized
+    if not has_ha_class or not excluded_from_rotation:
+        raise RuntimeError(f"Slot {slot} is not confirmed as HA-owned: {response}")
+
+
+def _upload_gateway_payload(sock_file, slot: int, packed: bytes, crc32: str) -> None:
+    if len(packed) != DEVICE_PACKED_PAYLOAD_BYTES:
+        raise ValueError(f"Packed payload must be exactly {DEVICE_PACKED_PAYLOAD_BYTES} bytes, got {len(packed)}")
+    if slot < 1 or slot > DEVICE_SLOT_COUNT:
+        raise ValueError(f"Target slot must be between 1 and {DEVICE_SLOT_COUNT}, got {slot}")
+
+    begin = _send_gateway_stage(sock_file, f"BEGIN {slot} {len(packed)} 0x{crc32}", "BEGIN")
+    if not begin.startswith("OK"):
+        raise RuntimeError(f"BEGIN failed: {begin}")
+    offset = 0
+    while offset < len(packed):
+        chunk = packed[offset : offset + DEVICE_WIFI_B64WRITE_CHUNK_BYTES]
+        encoded = base64.b64encode(chunk).decode("ascii")
+        command = f"B64WRITE {slot} {offset} {encoded}"
+        if len(command) > DEVICE_WIFI_COMMAND_MAX_CHARS:
+            raise ValueError(f"B64WRITE command exceeds {DEVICE_WIFI_COMMAND_MAX_CHARS} characters")
+        response = _send_gateway_stage(sock_file, command, f"B64WRITE offset={offset}")
+        if not response.startswith("OK"):
+            raise RuntimeError(
+                f"B64WRITE failed at {offset}: {response} "
+                f"slot={slot} chunk_bytes={len(chunk)} command_chars={len(command)}"
+            )
+        offset += len(chunk)
+    end = _send_gateway_stage(sock_file, f"END {slot}", "END")
+    if not end.startswith("OK"):
+        raise RuntimeError(f"END failed: {end}")
 
 
 def _send_gateway_stage(sock_file, command: str, stage: str) -> str:
@@ -783,3 +1334,43 @@ def _positive_int(value: Any) -> int | None:
     except (TypeError, ValueError):
         return None
     return parsed if parsed > 0 else None
+
+
+def _bool_option(data: dict[str, Any], key: str, default: bool) -> bool:
+    return bool(data[key]) if key in data else default
+
+
+def _parse_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _parse_slot_pool(value: Any) -> list[int]:
+    slots: list[int] = []
+    raw = str(value or "").replace(";", ",")
+    for part in raw.split(","):
+        token = part.strip()
+        if not token:
+            continue
+        if "-" in token:
+            start_text, end_text = token.split("-", 1)
+            start = _positive_int(start_text.strip())
+            end = _positive_int(end_text.strip())
+            if start is None or end is None:
+                continue
+            low, high = sorted((start, end))
+            candidates = range(low, high + 1)
+        else:
+            slot = _positive_int(token)
+            candidates = () if slot is None else (slot,)
+        for slot in candidates:
+            if 1 <= slot <= DEVICE_SLOT_COUNT and slot not in slots:
+                slots.append(slot)
+    return slots

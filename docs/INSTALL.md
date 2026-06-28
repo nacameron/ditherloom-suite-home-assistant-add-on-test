@@ -131,6 +131,35 @@ Weather data is fetched from Open-Meteo. The optional place-name lookup uses
 Nominatim/OpenStreetMap when a map-picked location needs a display name. See
 `PRIVACY.md` for location privacy notes.
 
+The integration setup and options pages include a map picker for the shared
+weather, sunrise/sunset, and moon phase location. Manual latitude/longitude
+fields remain available as fallback and are updated from the picked map point.
+
+The integration options landing page is split into buttons for Weather,
+Sunrise / Sunset, Moon Phase, Display Rotation, and Device / Connection. Weather
+stays enabled by default for existing installs. Sunrise / Sunset and Moon Phase
+are opt-in. If two or more content pages are enabled, Home Assistant keeps each
+enabled card cached in its own HA-owned slot. If Display Rotation is enabled,
+Home Assistant uses the configured hours/minutes interval to choose which HA
+slot to display explicitly.
+
+If more than one content page is enabled, configure enough explicit Home
+Assistant-owned slots. The reserved slot is used first. Extra slots must be
+listed in **Additional Home Assistant slot pool** such as `442,443` or
+`442-444`. The integration does not guess or reuse normal gallery, memo, image,
+or system slots.
+
+Before writing any HA-rendered payload, Home Assistant marks and verifies the
+target slot through Gateway:
+
+```text
+SETSLOTCLASS <slot> ha
+SLOTCLASS <slot>
+```
+
+The expected class check is `class=ha`, `value=3`, and
+`rotation_selectable=0`.
+
 ## Dashboard
 
 A starter dashboard card is provided in:

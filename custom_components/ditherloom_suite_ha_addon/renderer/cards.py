@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
 from .palette import TEMPLATE_COLOURS
 
@@ -34,6 +34,8 @@ FONT_REGULAR_CANDIDATES = (
 )
 WEATHER_ART_DIR = Path(__file__).resolve().parents[1] / "assets" / "weather_art"
 WEATHER_TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "assets" / "weather_templates" / "safe_400x300"
+SUN_ART_DIR = Path(__file__).resolve().parents[1] / "assets" / "sun_art"
+MOON_ART_DIR = Path(__file__).resolve().parents[1] / "assets" / "moon_art"
 
 
 @dataclass(frozen=True)
@@ -53,7 +55,38 @@ class WeatherCardData:
     uv_index: str = ""
     feels_like: str = ""
     pressure: str = ""
+    attribution: str = ""
     details: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
+class SunCardData:
+    location: str = "Home"
+    date_label: str = "TODAY"
+    sunrise: str = "06:00"
+    sunset: str = "18:00"
+    civil_dawn: str = "05:30"
+    civil_dusk: str = "18:30"
+    day_length: str = "12h 00m"
+    golden_morning: str = "06:00-07:00"
+    golden_evening: str = "17:00-18:00"
+    source_entity_id: str = "ditherloom.sunrise_sunset"
+    attribution: str = "Calculated locally"
+
+
+@dataclass(frozen=True)
+class MoonCardData:
+    location: str = "Home"
+    date_label: str = "TODAY"
+    phase_name: str = "Full Moon"
+    illumination: str = "100%"
+    moon_age: str = "14.8d"
+    moonrise: str = "18:00"
+    moonset: str = "06:00"
+    next_full: str = "--"
+    next_new: str = "--"
+    source_entity_id: str = "ditherloom.moon_phase"
+    attribution: str = "Calculated locally"
 
 
 GLYPHS: dict[str, tuple[str, ...]] = {
@@ -256,6 +289,154 @@ def _weather_art_for_title(title: str, kind: str) -> Image.Image | None:
     if is_night or "clear night" in normalized:
         return _load_weather_art("clear_night")
     return _load_weather_art("sunny_day")
+
+
+def render_sun_card(data: SunCardData) -> Image.Image:
+    image = _load_sun_art("sunrise_sunset_background")
+    if image is None:
+        image = Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((0, 44, WIDTH - 1, 159), fill=_rgb("cream"))
+        draw.rectangle((0, 160, WIDTH - 1, HEIGHT - BOTTOM_BAR_HEIGHT - 1), fill=_rgb("paper"))
+    else:
+        image = image.copy()
+    draw = ImageDraw.Draw(image)
+
+    draw.rectangle((0, 0, WIDTH - 1, HEIGHT - 1), outline=_rgb("black"), width=1)
+
+    draw.rectangle((0, 0, WIDTH, 22), fill=_rgb("paper"))
+    draw.line((0, 22, WIDTH, 22), fill=_rgb("black"), width=1)
+    footer = f"SUNRISE / SUNSET  {data.location.upper()}  {data.date_label}"
+    _draw_centred_text(draw, (8, 1, WIDTH - 8, 21), footer, 15, {"text": "black"}, "text", True, 8)
+
+    _draw_sun_time_panel(draw, (16, 28, 194, 72), "RISE", data.sunrise, "bright_yellow")
+    _draw_sun_time_panel(draw, (206, 28, 384, 72), "SET", data.sunset, "gold")
+    _draw_sun_small_metric(draw, (16, 78, 132, 103), "DAWN", data.civil_dawn)
+    _draw_sun_small_metric(draw, (142, 78, 258, 103), "DAY", data.day_length)
+    _draw_sun_small_metric(draw, (268, 78, 384, 103), "DUSK", data.civil_dusk)
+    return image
+
+
+def render_moon_card(data: MoonCardData) -> Image.Image:
+    image = _load_moon_art(_moon_asset_name(data.phase_name))
+    if image is None:
+        image = _load_moon_art("moon_full_background")
+    if image is None:
+        image = Image.new("RGB", (WIDTH, HEIGHT), _rgb("paper"))
+    else:
+        image = image.copy()
+    draw = ImageDraw.Draw(image)
+
+    draw.rectangle((0, 0, WIDTH - 1, HEIGHT - 1), outline=_rgb("black"), width=1)
+    _draw_moon_time_panel(draw, (16, 190, 194, 234), "PHASE", data.phase_name.upper(), "pale_yellow")
+    _draw_moon_time_panel(draw, (206, 190, 384, 234), "LIGHT", data.illumination, "bright_yellow")
+    _draw_sun_small_metric(draw, (16, 240, 132, 265), "AGE", data.moon_age)
+    _draw_sun_small_metric(draw, (142, 240, 258, 265), "RISE", data.moonrise)
+    _draw_sun_small_metric(draw, (268, 240, 384, 265), "SET", data.moonset)
+    _draw_sun_small_metric(draw, (16, 271, 194, 296), "FULL", data.next_full)
+    _draw_sun_small_metric(draw, (206, 271, 384, 296), "NEW", data.next_new)
+
+    draw.rectangle((0, 0, WIDTH, 24), fill=_rgb("paper"))
+    draw.line((0, 24, WIDTH, 24), fill=_rgb("black"), width=1)
+    header = f"MOON PHASE  {data.location.upper()}  {data.date_label}"
+    _draw_centred_text(draw, (8, 2, WIDTH - 8, 23), header, 15, {"text": "black"}, "text", True, 8)
+    return image
+
+
+@lru_cache(maxsize=4)
+def _load_sun_art(name: str) -> Image.Image | None:
+    path = SUN_ART_DIR / f"{name}.png"
+    if not path.exists():
+        return None
+    image = Image.open(path).convert("RGB")
+    if image.size != (WIDTH, HEIGHT):
+        image = image.resize((WIDTH, HEIGHT), Image.Resampling.LANCZOS)
+    image = ImageEnhance.Color(image).enhance(1.2)
+    image = ImageEnhance.Contrast(image).enhance(1.15)
+    return image
+
+
+@lru_cache(maxsize=16)
+def _load_moon_art(name: str) -> Image.Image | None:
+    path = MOON_ART_DIR / f"{name}.png"
+    if not path.exists():
+        return None
+    image = Image.open(path).convert("RGB")
+    if image.size != (WIDTH, HEIGHT):
+        image = image.resize((WIDTH, HEIGHT), Image.Resampling.LANCZOS)
+    image = ImageEnhance.Color(image).enhance(1.2)
+    image = ImageEnhance.Contrast(image).enhance(1.15)
+    return image
+
+
+def _moon_asset_name(phase_name: str) -> str:
+    normalized = phase_name.strip().lower().replace(" ", "_")
+    mapping = {
+        "new_moon": "moon_new_background",
+        "waxing_crescent": "moon_waxing_crescent_background",
+        "first_quarter": "moon_first_quarter_background",
+        "waxing_gibbous": "moon_waxing_gibbous_background",
+        "full_moon": "moon_full_background",
+        "waning_gibbous": "moon_waning_gibbous_background",
+        "last_quarter": "moon_last_quarter_background",
+        "waning_crescent": "moon_waning_crescent_background",
+    }
+    return mapping.get(normalized, "moon_phase_background")
+
+
+def _draw_moon_time_panel(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    label: str,
+    value: str,
+    accent: str,
+) -> None:
+    x1, y1, x2, y2 = box
+    draw.rectangle(box, fill=_rgb("white"), outline=_rgb("black"), width=1)
+    draw.rectangle((x1, y1, x1 + 50, y2), fill=_rgb(accent), outline=_rgb("black"), width=1)
+    _draw_centred_text(draw, (x1 + 3, y1 + 3, x1 + 48, y2 - 3), label, 13, {"text": "black"}, "text", True, 6)
+    _draw_centred_text(draw, (x1 + 54, y1 + 3, x2 - 4, y2 - 3), value, 18, {"text": "black"}, "text", True, 8)
+
+
+def _draw_sun_arc_scene(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int]) -> None:
+    x1, y1, x2, y2 = box
+    horizon_y = y2 - 15
+    draw.rectangle(box, fill=_rgb("warm_white"))
+    for offset, name in enumerate(("pale_yellow", "cream", "peach", "pale_cream")):
+        inset = offset * 10
+        draw.arc((x1 + inset, y1 + 5 + inset, x2 - inset, y2 + 70), 190, 350, fill=_rgb(name), width=5)
+    draw.line((x1 + 8, horizon_y, x2 - 8, horizon_y), fill=_rgb("black"), width=3)
+    for x in range(x1 + 14, x2 - 20, 24):
+        draw.line((x, horizon_y + 4, x + 18, y2 - 2), fill=_rgb("tan"), width=2)
+
+    sun_x = (x1 + x2) // 2
+    sun_y = y1 + 58
+    for radius, name in ((45, "pale_yellow"), (34, "bright_yellow"), (24, "yellow"), (13, "orange")):
+        draw.ellipse((sun_x - radius, sun_y - radius, sun_x + radius, sun_y + radius), fill=_rgb(name))
+    draw.ellipse((sun_x - 45, sun_y - 45, sun_x + 45, sun_y + 45), outline=_rgb("black"), width=2)
+
+
+def _draw_sun_time_panel(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    label: str,
+    value: str,
+    accent: str,
+) -> None:
+    x1, y1, x2, y2 = box
+    draw.rectangle(box, fill=_rgb("white"), outline=_rgb("black"), width=1)
+    draw.rectangle((x1, y1, x1 + 46, y2), fill=_rgb(accent), outline=_rgb("black"), width=1)
+    _draw_centred_text(draw, (x1 + 3, y1 + 3, x1 + 44, y2 - 3), label, 16, {"text": "black"}, "text", True, 8)
+    _draw_centred_text(draw, (x1 + 50, y1 + 3, x2 - 4, y2 - 3), value, 30, {"text": "black"}, "text", True, 15)
+
+
+def _draw_sun_small_metric(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], label: str, value: str) -> None:
+    x1, y1, x2, y2 = box
+    draw.rectangle(box, fill=_rgb("warm_white"), outline=_rgb("black"), width=1)
+    draw.rectangle((x1, y1, x1 + 32, y2), fill=_rgb("pale_cream"))
+    draw.line((x1 + 32, y1, x1 + 32, y2), fill=_rgb("black"), width=1)
+    _draw_centred_text(draw, (x1 + 2, y1 + 1, x1 + 30, y2 - 1), label, 10, {"text": "black"}, "text", True, 5)
+    _draw_centred_text(draw, (x1 + 35, y1 + 1, x2 - 2, y2 - 1), value, 13, {"text": "black"}, "text", True, 6)
 
 
 def _modern_kind(condition: str, alert: str) -> str:

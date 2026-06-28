@@ -57,6 +57,10 @@ device photo testing.
 
 Location privacy notes are in [PRIVACY.md](PRIVACY.md).
 
+Future non-weather content options are planned in
+[docs/CONTENT_OPTIONS_PLAN.md](docs/CONTENT_OPTIONS_PLAN.md). Open-Meteo Weather
+is excluded from that plan because this build already includes it.
+
 ## Frame-Initiated Wi-Fi Delivery
 
 The frame owns its wake schedule. Home Assistant no longer tries to predict,
@@ -111,6 +115,9 @@ redownload the integration from there.
 
 - Renders a Ditherloom weather card inside Home Assistant.
 - Uses Open-Meteo for free/non-commercial test weather.
+- Stores Open-Meteo attribution with rendered weather metadata.
+- Lets users pick the weather/astronomy location on a Home Assistant map, with
+  manual latitude/longitude fields kept as fallback.
 - Resolves a map-picked weather location name when one is not entered manually.
 - Uses a Home Assistant map picker for weather action location, with manual
   latitude/longitude fields kept as fallback.
@@ -121,6 +128,8 @@ redownload the integration from there.
   `PING`, `BEGIN`, `B64WRITE`, `END`, `DISPLAY`, `IDLE`.
 - Adds a Home Assistant update entity that checks the latest GitHub release.
 - Supports colour or mono weather display mode.
+- Adds content option pages for Weather, Sunrise / Sunset, Moon Phase, and
+  Display Rotation. Existing installs keep Weather enabled by default.
 - Adds dashboard-friendly entities for preview, render, frame handshake status,
   and integration updates.
 

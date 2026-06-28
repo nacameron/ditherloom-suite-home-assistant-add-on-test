@@ -80,3 +80,83 @@ send_weather_card:
       selector:
         boolean:
       required: false
+render_sunrise_sunset_card:
+  fields:
+    location_name:
+      selector:
+        text:
+      required: false
+    weather_location:
+      selector:
+        location:
+      required: false
+    latitude:
+      selector:
+        text:
+      required: false
+    longitude:
+      selector:
+        text:
+      required: false
+send_sunrise_sunset_card:
+  fields:
+    location_name:
+      selector:
+        text:
+      required: false
+    weather_location:
+      selector:
+        location:
+      required: false
+    latitude:
+      selector:
+        text:
+      required: false
+    longitude:
+      selector:
+        text:
+      required: false
+    display:
+      selector:
+        boolean:
+      required: false
+render_moon_phase_card:
+  fields:
+    location_name:
+      selector:
+        text:
+      required: false
+    weather_location:
+      selector:
+        location:
+      required: false
+    latitude:
+      selector:
+        text:
+      required: false
+    longitude:
+      selector:
+        text:
+      required: false
+send_moon_phase_card:
+  fields:
+    location_name:
+      selector:
+        text:
+      required: false
+    weather_location:
+      selector:
+        location:
+      required: false
+    latitude:
+      selector:
+        text:
+      required: false
+    longitude:
+      selector:
+        text:
+      required: false
+    display:
+      selector:
+        boolean:
+      required: false
