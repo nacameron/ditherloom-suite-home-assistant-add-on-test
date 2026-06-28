@@ -74,7 +74,15 @@ class DitherloomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_FRAME_PORT, default=DEFAULT_FRAME_PORT): int,
                 vol.Optional(CONF_TOPIC_BASE): str,
                 vol.Optional(CONF_LOCATION_NAME, default="Home"): str,
-                vol.Optional(CONF_WEATHER_LOCATION, default=_default_location(self.hass.config.latitude, self.hass.config.longitude)): selector.LocationSelector(),
+                vol.Optional(
+                    CONF_WEATHER_LOCATION,
+                    default=_default_location(
+                        self.hass.config.latitude,
+                        self.hass.config.longitude,
+                        self.hass.config.latitude,
+                        self.hass.config.longitude,
+                    ),
+                ): selector.LocationSelector({"radius": True}),
                 vol.Optional(CONF_LATITUDE, default="0"): str,
                 vol.Optional(CONF_LONGITUDE, default="0"): str,
                 vol.Optional(CONF_WEATHER_ENABLED, default=True): bool,
@@ -123,8 +131,13 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_LOCATION_NAME, default=data.get(CONF_LOCATION_NAME, "Home")): str,
                 vol.Optional(
                     CONF_WEATHER_LOCATION,
-                    default=_default_location(data.get(CONF_LATITUDE), data.get(CONF_LONGITUDE)),
-                ): selector.LocationSelector(),
+                    default=_default_location(
+                        data.get(CONF_LATITUDE),
+                        data.get(CONF_LONGITUDE),
+                        self.hass.config.latitude,
+                        self.hass.config.longitude,
+                    ),
+                ): selector.LocationSelector({"radius": True}),
                 vol.Optional(CONF_LATITUDE, default=data.get(CONF_LATITUDE, "0")): str,
                 vol.Optional(CONF_LONGITUDE, default=data.get(CONF_LONGITUDE, "0")): str,
                 vol.Optional(
@@ -153,8 +166,13 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_LOCATION_NAME, default=data.get(CONF_LOCATION_NAME, "Home")): str,
                 vol.Optional(
                     CONF_WEATHER_LOCATION,
-                    default=_default_location(data.get(CONF_LATITUDE), data.get(CONF_LONGITUDE)),
-                ): selector.LocationSelector(),
+                    default=_default_location(
+                        data.get(CONF_LATITUDE),
+                        data.get(CONF_LONGITUDE),
+                        self.hass.config.latitude,
+                        self.hass.config.longitude,
+                    ),
+                ): selector.LocationSelector({"radius": True}),
                 vol.Optional(CONF_LATITUDE, default=data.get(CONF_LATITUDE, "0")): str,
                 vol.Optional(CONF_LONGITUDE, default=data.get(CONF_LONGITUDE, "0")): str,
             }
@@ -171,8 +189,13 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_LOCATION_NAME, default=data.get(CONF_LOCATION_NAME, "Home")): str,
                 vol.Optional(
                     CONF_WEATHER_LOCATION,
-                    default=_default_location(data.get(CONF_LATITUDE), data.get(CONF_LONGITUDE)),
-                ): selector.LocationSelector(),
+                    default=_default_location(
+                        data.get(CONF_LATITUDE),
+                        data.get(CONF_LONGITUDE),
+                        self.hass.config.latitude,
+                        self.hass.config.longitude,
+                    ),
+                ): selector.LocationSelector({"radius": True}),
                 vol.Optional(CONF_LATITUDE, default=data.get(CONF_LATITUDE, "0")): str,
                 vol.Optional(CONF_LONGITUDE, default=data.get(CONF_LONGITUDE, "0")): str,
             }
@@ -250,10 +273,16 @@ def _apply_picked_location(data: dict[str, Any]) -> None:
         data[CONF_LONGITUDE] = str(longitude)
 
 
-def _default_location(latitude: Any, longitude: Any) -> dict[str, float]:
+def _default_location(latitude: Any, longitude: Any, fallback_latitude: Any, fallback_longitude: Any) -> dict[str, float]:
+    lat = _float_or_zero(latitude)
+    lon = _float_or_zero(longitude)
+    if lat == 0.0 and lon == 0.0:
+        lat = _float_or_zero(fallback_latitude)
+        lon = _float_or_zero(fallback_longitude)
     return {
-        CONF_LATITUDE: _float_or_zero(latitude),
-        CONF_LONGITUDE: _float_or_zero(longitude),
+        CONF_LATITUDE: lat,
+        CONF_LONGITUDE: lon,
+        "radius": 1.0,
     }
 
 
