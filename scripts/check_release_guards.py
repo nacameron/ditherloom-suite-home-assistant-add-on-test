@@ -219,6 +219,11 @@ def check_update_platform() -> None:
         "haSlotCsv",
         "X-Home-Assistant-Token",
         "haAccessToken",
+        "import inspect",
+        "result = validator(token)",
+        "if inspect.isawaitable(result):",
+        "result = await result",
+        "return result is not None",
         "provider_slot_map",
     )
     for required in init_required:
@@ -230,12 +235,13 @@ def check_update_platform() -> None:
         "_disable_gateway_ha_rotation",
         "_harotation_on_response_ok",
         "HAROTATION off",
+        "await validator(token)",
     ):
         if forbidden in init_text:
             fail(f"runtime must not apply HA rotation from Home Assistant: {forbidden}")
 
-    if '"version": "0.1.43"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.43")
+    if '"version": "0.1.44"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.44")
 
 
 def check_public_repo_single_version() -> None:

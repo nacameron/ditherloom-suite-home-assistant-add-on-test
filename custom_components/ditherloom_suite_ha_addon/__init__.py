@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import inspect
 import json
 import shutil
 import socket
@@ -1135,7 +1136,10 @@ async def _validate_discovery_bearer_token(hass: HomeAssistant, request, body: d
     if validator is None:
         return False
     try:
-        return await validator(token) is not None
+        result = validator(token)
+        if inspect.isawaitable(result):
+            result = await result
+        return result is not None
     except Exception:
         return False
 
