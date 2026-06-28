@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from .const import (
-    CONF_HA_SLOT_POOL,
+    CONF_FRAME_HA_SLOT_CSV,
+    CONF_FRAME_HA_SLOT_POOL,
+    CONF_FRAME_RESERVED_SLOT,
     CONF_MOON_ENABLED,
     CONF_SUN_ENABLED,
     CONF_TARGET_SLOT,
@@ -42,9 +44,16 @@ def enabled_content_providers(options: dict[str, Any]) -> list[str]:
 
 
 def ha_lane_slots(options: dict[str, Any]) -> list[int]:
-    first = _slot_int(options.get(CONF_TARGET_SLOT), DEFAULT_TARGET_SLOT)
+    frame_csv = options.get(CONF_FRAME_HA_SLOT_CSV)
+    if frame_csv:
+        return parse_slot_pool(frame_csv)
+    if not _has_explicit_frame_slots(options):
+        if _enabled_count(options) > 1:
+            return []
+        return [_slot_int(options.get(CONF_TARGET_SLOT), DEFAULT_TARGET_SLOT)]
+    first = _slot_int(options.get(CONF_FRAME_RESERVED_SLOT), DEFAULT_TARGET_SLOT)
     slots = [first]
-    for slot in parse_slot_pool(options.get(CONF_HA_SLOT_POOL)):
+    for slot in parse_slot_pool(options.get(CONF_FRAME_HA_SLOT_POOL)):
         if slot not in slots:
             slots.append(slot)
     return slots
@@ -62,6 +71,18 @@ def provider_slot_map(options: dict[str, Any]) -> dict[str, int]:
 def validate_ha_lane(options: dict[str, Any]) -> HaLaneValidation:
     providers = enabled_content_providers(options)
     slots = ha_lane_slots(options)
+    if not slots:
+        return HaLaneValidation(
+            valid=False,
+            error_key="frame_ha_slots_not_synced",
+            message=(
+                "Home Assistant has not received the frame HA slot setup yet. "
+                "Connect to the Ditherloom app over Wi-Fi, configure the Home Assistant slots, "
+                "save them to the frame, then come back and set up the Home Assistant providers."
+            ),
+            enabled_count=len(providers),
+            slot_count=0,
+        )
     if len(slots) > MAX_HA_LANE_SLOTS:
         return HaLaneValidation(
             valid=False,
@@ -71,11 +92,12 @@ def validate_ha_lane(options: dict[str, Any]) -> HaLaneValidation:
             slot_count=len(slots),
         )
     if len(slots) < len(providers):
-        reserved = _slot_int(options.get(CONF_TARGET_SLOT), DEFAULT_TARGET_SLOT)
+        reserved = _slot_int(options.get(CONF_FRAME_RESERVED_SLOT, options.get(CONF_TARGET_SLOT)), DEFAULT_TARGET_SLOT)
         suggested = suggest_slot_pool(reserved, len(providers) - 1)
         message = (
-            f"You have {len(providers)} enabled content providers but only {len(slots)} HA slot configured. "
-            f"Keep only one provider enabled, or set HA Slot Pool to {suggested}."
+            f"You have {len(providers)} enabled content providers but the frame has {len(slots)} HA slot configured. "
+            "Connect to the Ditherloom app over Wi-Fi, add extra HA slots, save them to the frame, "
+            "then come back and set up the Home Assistant providers."
         )
         return HaLaneValidation(
             valid=False,
@@ -112,6 +134,10 @@ def parse_slot_pool(value: Any) -> list[int]:
     return slots
 
 
+def slot_csv(slots: list[int]) -> str:
+    return ",".join(str(slot) for slot in slots)
+
+
 def suggest_slot_pool(reserved_slot: int, extra_count: int) -> str:
     if extra_count <= 0:
         return ""
@@ -126,17 +152,6 @@ def suggest_slot_pool(reserved_slot: int, extra_count: int) -> str:
     return f"{start}-{end}"
 
 
-def ha_rotation_command(enabled: bool, seconds: int, slots: list[int]) -> str:
-    if not enabled:
-        return "HAROTATION off"
-    if not slots:
-        raise ValueError("HA rotation requires at least one HA-owned slot")
-    if len(slots) > MAX_HA_LANE_SLOTS:
-        raise ValueError(f"HA rotation supports up to {MAX_HA_LANE_SLOTS} HA-owned slots")
-    slot_csv = ",".join(str(slot) for slot in slots)
-    return f"HAROTATION on {max(60, int(seconds))} {slot_csv}"
-
-
 def _slot_int(value: Any, default: int) -> int:
     try:
         parsed = int(value)
@@ -149,3 +164,15 @@ def _slot_int(value: Any, default: int) -> int:
 
 def _bool_option(options: dict[str, Any], key: str, default: bool) -> bool:
     return bool(options[key]) if key in options else default
+
+
+def _enabled_count(options: dict[str, Any]) -> int:
+    return len(enabled_content_providers(options))
+
+
+def _has_explicit_frame_slots(options: dict[str, Any]) -> bool:
+    return bool(
+        options.get(CONF_FRAME_HA_SLOT_CSV)
+        or options.get(CONF_FRAME_RESERVED_SLOT)
+        or options.get(CONF_FRAME_HA_SLOT_POOL)
+    )

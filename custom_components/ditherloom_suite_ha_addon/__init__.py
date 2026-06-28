@@ -29,9 +29,13 @@ from .const import (
     CONF_DISPLAY_ROTATION_ENABLED,
     CONF_DISPLAY_ROTATION_HOURS,
     CONF_DISPLAY_ROTATION_MINUTES,
+    CONF_FRAME_HA_ROTATION_ENABLED,
+    CONF_FRAME_HA_ROTATION_SECONDS,
+    CONF_FRAME_HA_SLOT_CSV,
+    CONF_FRAME_HA_SLOT_POOL,
     CONF_FRAME_HOST,
     CONF_FRAME_PORT,
-    CONF_HA_SLOT_POOL,
+    CONF_FRAME_RESERVED_SLOT,
     CONF_HA_ROTATION_ENABLED,
     CONF_HA_ROTATION_SECONDS,
     CONF_LATITUDE,
@@ -72,7 +76,7 @@ from .const import (
     SERVICE_SEND_SUN,
     SERVICE_SEND_WEATHER,
 )
-from .ha_lane import enabled_content_providers, ha_lane_slots, ha_rotation_command, parse_slot_pool, provider_slot_map, validate_ha_lane
+from .ha_lane import enabled_content_providers, ha_lane_slots, parse_slot_pool, provider_slot_map, slot_csv, validate_ha_lane
 
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
@@ -316,6 +320,7 @@ class DitherloomRuntime:
         return dict(self.last_metadata)
 
     async def async_handle_frame_awake(self, data: dict[str, Any], remote_addr: str | None = None) -> dict[str, Any]:
+        await _store_frame_provided_ha_config(self.hass, self.entry, data)
         await self.async_refresh_content_payload(reason="frame_awake")
 
         now = datetime.now(timezone.utc)
@@ -341,6 +346,7 @@ class DitherloomRuntime:
             "wake_reason": data.get("wake_reason") or data.get("wakeReason"),
             "wake_window_seconds": data.get("wake_window_seconds") or data.get("wakeWindowSeconds"),
             "max_jobs_per_wake": data.get("max_jobs_per_wake") or data.get("maxJobsPerWake"),
+            "ha_config": _frame_provided_ha_config(self.options),
         }
         self.last_metadata["frame_awake_last_received_at"] = now.isoformat()
         await self.async_save()
@@ -362,9 +368,8 @@ class DitherloomRuntime:
     async def async_deliver_cached_content_to_announced_frame(self, host: str, port: int, target_slot: int) -> None:
         try:
             jobs = await self._frame_sync_jobs()
-            ha_rotation = self._ha_rotation_config()
             display_slot = self._selected_display_slot()
-            await self.hass.async_add_executor_job(_send_gateway_batch_jobs, host, port, jobs, display_slot, ha_rotation)
+            gateway_status = await self.hass.async_add_executor_job(_send_gateway_batch_jobs, host, port, jobs, display_slot, None)
             synced_at = datetime.now(timezone.utc).isoformat()
             for job in jobs:
                 await self._mark_provider_frame_synced(str(job["provider_id"]), str(job["crc32"]), synced_at)
@@ -374,7 +379,8 @@ class DitherloomRuntime:
             self.last_metadata["frame_awake_last_send_port"] = port
             self.last_metadata["frame_awake_last_target_slot"] = display_slot
             self.last_metadata["frame_awake_last_synced_providers"] = [job["provider_id"] for job in jobs]
-            self.last_metadata["ha_rotation"] = ha_rotation
+            if gateway_status.get("ha_rotation"):
+                self.last_metadata["ha_rotation"] = gateway_status["ha_rotation"]
             self.last_metadata.pop(ATTR_LAST_ERROR, None)
         except Exception as exc:
             self.last_status = "frame_awake_send_failed"
@@ -759,6 +765,20 @@ class DitherloomRuntime:
     def _ha_owned_slots(self) -> list[int]:
         return ha_lane_slots(self.options)
 
+    def _ha_slot_csv(self) -> str:
+        return slot_csv(self._ha_owned_slots())
+
+    def _reserved_ha_slot(self) -> int:
+        slots = self._ha_owned_slots()
+        return slots[0] if slots else int(self.options.get(CONF_TARGET_SLOT, DEFAULT_TARGET_SLOT))
+
+    def _ha_slot_pool_text(self) -> str:
+        options = self.options
+        if options.get(CONF_FRAME_HA_SLOT_POOL):
+            return str(options.get(CONF_FRAME_HA_SLOT_POOL))
+        slots = self._ha_owned_slots()
+        return slot_csv(slots[1:]) if len(slots) > 1 else ""
+
     def _provider_slot_map(self) -> dict[str, int]:
         return provider_slot_map(self.options)
 
@@ -766,12 +786,16 @@ class DitherloomRuntime:
         return self._provider_slot_map()[self._selected_content_provider()]
 
     def _display_rotation_enabled(self) -> bool:
-        enabled = _bool_option(self.options, CONF_HA_ROTATION_ENABLED, _bool_option(self.options, CONF_DISPLAY_ROTATION_ENABLED, False))
+        enabled = _bool_option(
+            self.options,
+            CONF_FRAME_HA_ROTATION_ENABLED,
+            _bool_option(self.options, CONF_HA_ROTATION_ENABLED, _bool_option(self.options, CONF_DISPLAY_ROTATION_ENABLED, False)),
+        )
         return enabled and len(self._enabled_content_providers()) > 1
 
     def _display_rotation_interval_minutes(self) -> int:
         opts = self.options
-        ha_seconds = _positive_int(opts.get(CONF_HA_ROTATION_SECONDS))
+        ha_seconds = _positive_int(opts.get(CONF_FRAME_HA_ROTATION_SECONDS, opts.get(CONF_HA_ROTATION_SECONDS)))
         if ha_seconds is not None:
             return max(1, (ha_seconds + 59) // 60)
         hours = _positive_int(opts.get(CONF_DISPLAY_ROTATION_HOURS))
@@ -782,23 +806,21 @@ class DitherloomRuntime:
         return total
 
     def _ha_rotation_enabled(self) -> bool:
-        return _bool_option(self.options, CONF_HA_ROTATION_ENABLED, False) and len(self._enabled_content_providers()) > 1
+        return _bool_option(
+            self.options,
+            CONF_FRAME_HA_ROTATION_ENABLED,
+            _bool_option(self.options, CONF_HA_ROTATION_ENABLED, False),
+        ) and len(self._enabled_content_providers()) > 1
 
     def _ha_rotation_seconds(self) -> int:
-        seconds = _positive_int(self.options.get(CONF_HA_ROTATION_SECONDS))
+        seconds = _positive_int(self.options.get(CONF_FRAME_HA_ROTATION_SECONDS, self.options.get(CONF_HA_ROTATION_SECONDS)))
         if seconds is not None:
             return max(60, seconds)
         legacy_minutes = self._display_rotation_interval_minutes()
         return max(60, legacy_minutes * 60)
 
     def _ha_rotation_config(self) -> dict[str, Any]:
-        if not self._ha_rotation_enabled():
-            return {"enabled": False, "seconds": self._ha_rotation_seconds(), "slots": self._ha_owned_slots()}
-        validation = validate_ha_lane(self.options)
-        if not validation.valid:
-            raise ValueError(validation.message)
-        ordered_slots = [self._provider_slot_map()[provider] for provider in self._enabled_content_providers()]
-        return {"enabled": True, "seconds": self._ha_rotation_seconds(), "slots": ordered_slots}
+        return {"enabled": self._ha_rotation_enabled(), "seconds": self._ha_rotation_seconds(), "slots": self._ha_owned_slots()}
 
     def _selected_content_provider(self) -> str:
         providers = self._enabled_content_providers()
@@ -993,6 +1015,12 @@ class DitherloomRuntime:
             "frameSleepingUrl": frame_sleeping_url,
             "frame_awake_url": frame_awake_url,
             "frame_sleeping_url": frame_sleeping_url,
+            "reservedSlot": self._reserved_ha_slot(),
+            "haSlotPool": self._ha_slot_pool_text(),
+            "haSlotCsv": self._ha_slot_csv(),
+            "haRotationEnabled": self._ha_rotation_enabled(),
+            "haRotationSeconds": self._ha_rotation_seconds(),
+            "haRotationStatus": self.last_metadata.get("ha_rotation"),
             "payloadPath": self.payload_url,
             "payloadUrl": f"{origin}{self.payload_url}",
             "previewPath": self.preview_url,
@@ -1009,9 +1037,12 @@ class DitherloomRuntime:
                 "intervalMinutes": self._effective_update_interval_minutes(),
                 "wakeWindowSeconds": self._effective_wake_window_seconds(),
                 "maxJobsPerWake": options.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE),
-                "reservedSlot": options.get(CONF_TARGET_SLOT, DEFAULT_TARGET_SLOT),
-                "haSlotPool": options.get(CONF_HA_SLOT_POOL, ""),
+                "reservedSlot": self._reserved_ha_slot(),
+                "haSlotPool": self._ha_slot_pool_text(),
+                "haSlotCsv": self._ha_slot_csv(),
                 "haOwnedSlots": self._ha_owned_slots(),
+                "haRotationEnabled": self._ha_rotation_enabled(),
+                "haRotationSeconds": self._ha_rotation_seconds(),
                 "scheduleEnabled": True,
                 "sleepAfterEmpty": True,
                 "sleepAfterJob": True,
@@ -1031,7 +1062,7 @@ class DitherloomRuntime:
         now = datetime.now(timezone.utc)
         wake_window_seconds = self._effective_wake_window_seconds()
         provider_id = str(metadata.get("provider_id") or metadata.get("selected_provider_id") or "open_meteo_weather")
-        slot = self._provider_slot_map().get(provider_id, int(self.options.get(CONF_TARGET_SLOT, DEFAULT_TARGET_SLOT)))
+        slot = self._provider_slot_map().get(provider_id, self._reserved_ha_slot())
         job = {
             "command_id": f"ha-{metadata.get('provider_id', 'weather')}-{now.strftime('%Y%m%d-%H%M%S')}-{metadata[ATTR_CRC32].lower()}",
             "job_type": "content_card",
@@ -1070,7 +1101,7 @@ class DitherloomRuntime:
         port = int(self.options.get(CONF_FRAME_PORT, DEFAULT_FRAME_PORT))
         if not host:
             raise ValueError("Frame host is not configured")
-        target_slot = int(self.options.get(CONF_TARGET_SLOT, DEFAULT_TARGET_SLOT))
+        target_slot = self._reserved_ha_slot()
         await self.async_send_to_frame_host(host, port, packed, crc32, target_slot)
 
     async def async_send_to_frame_host(self, host: str, port: int, packed: bytes, crc32: str, target_slot: int) -> None:
@@ -1089,11 +1120,15 @@ def _integration_version() -> str:
         return ""
 
 
-async def _validate_discovery_bearer_token(hass: HomeAssistant, request) -> bool:
+async def _validate_discovery_bearer_token(hass: HomeAssistant, request, body: dict[str, Any] | None = None) -> bool:
     auth_header = str(request.headers.get("Authorization", "")).strip()
-    if not auth_header.lower().startswith("bearer "):
-        return False
-    token = auth_header[7:].strip()
+    token = ""
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header[7:].strip()
+    if not token:
+        token = str(request.headers.get("X-Home-Assistant-Token", "")).strip()
+    if not token and body:
+        token = str(body.get("haAccessToken") or body.get("accessToken") or "").strip()
     if not token:
         return False
     validator = getattr(getattr(hass, "auth", None), "async_validate_access_token", None)
@@ -1132,7 +1167,7 @@ class DitherloomDiscoveryView(HomeAssistantView):
         return await self._handle(request, body)
 
     async def _handle(self, request, body: dict[str, Any]):
-        if not await _validate_discovery_bearer_token(self.hass, request):
+        if not await _validate_discovery_bearer_token(self.hass, request, body):
             return self.json(
                 {
                     "accepted": False,
@@ -1183,7 +1218,11 @@ class DitherloomDiscoveryView(HomeAssistantView):
             )
 
         origin = f"{request.scheme}://{request.host}"
-        return self.json(runtimes[0].app_discovery_payload(origin))
+        runtime = runtimes[0]
+        await _store_frame_provided_ha_config(self.hass, runtime.entry, body)
+        runtime.last_metadata["frame_ha_config"] = _frame_provided_ha_config(runtime.options)
+        await runtime.async_save()
+        return self.json(runtime.app_discovery_payload(origin))
 
 
 class DitherloomPayloadView(HomeAssistantView):
@@ -1205,6 +1244,45 @@ class DitherloomPayloadView(HomeAssistantView):
                 "Cache-Control": "no-store",
             },
         )
+
+
+async def _store_frame_provided_ha_config(hass: HomeAssistant, entry: ConfigEntry, body: dict[str, Any]) -> None:
+    updates: dict[str, Any] = {}
+    if "reservedSlot" in body:
+        reserved = _positive_int(body.get("reservedSlot"))
+        if reserved is not None:
+            updates[CONF_FRAME_RESERVED_SLOT] = reserved
+    if "haSlotPool" in body:
+        updates[CONF_FRAME_HA_SLOT_POOL] = str(body.get("haSlotPool") or "").strip()
+    if "haSlotCsv" in body:
+        updates[CONF_FRAME_HA_SLOT_CSV] = slot_csv(parse_slot_pool(body.get("haSlotCsv")))
+    elif updates.get(CONF_FRAME_RESERVED_SLOT) is not None:
+        slots = [updates[CONF_FRAME_RESERVED_SLOT]]
+        for slot in parse_slot_pool(updates.get(CONF_FRAME_HA_SLOT_POOL, "")):
+            if slot not in slots:
+                slots.append(slot)
+        updates[CONF_FRAME_HA_SLOT_CSV] = slot_csv(slots)
+    if "haRotationEnabled" in body:
+        updates[CONF_FRAME_HA_ROTATION_ENABLED] = bool(body.get("haRotationEnabled"))
+    if "haRotationSeconds" in body:
+        seconds = _positive_int(body.get("haRotationSeconds"))
+        if seconds is not None:
+            updates[CONF_FRAME_HA_ROTATION_SECONDS] = max(60, seconds)
+    if not updates:
+        return
+    options = {**entry.options, **updates}
+    hass.config_entries.async_update_entry(entry, options=options)
+
+
+def _frame_provided_ha_config(options: dict[str, Any]) -> dict[str, Any]:
+    slots = ha_lane_slots(options)
+    return {
+        "reservedSlot": slots[0] if slots else None,
+        "haSlotPool": str(options.get(CONF_FRAME_HA_SLOT_POOL) or slot_csv(slots[1:])),
+        "haSlotCsv": slot_csv(slots),
+        "haRotationEnabled": _bool_option(options, CONF_FRAME_HA_ROTATION_ENABLED, False),
+        "haRotationSeconds": _positive_int(options.get(CONF_FRAME_HA_ROTATION_SECONDS)) or DEFAULT_HA_ROTATION_SECONDS,
+    }
 
 
 class DitherloomPreviewView(HomeAssistantView):
@@ -1303,9 +1381,9 @@ def _send_gateway_batch_jobs(
     jobs: list[dict[str, Any]],
     display_slot: int | None,
     ha_rotation: dict[str, Any] | None,
-) -> None:
+) -> dict[str, Any]:
     if not jobs and display_slot is None and not ha_rotation:
-        return
+        return {}
     for job in jobs:
         packed = job["packed"]
         slot = int(job["slot"])
@@ -1315,33 +1393,21 @@ def _send_gateway_batch_jobs(
             raise ValueError(f"Target slot must be between 1 and {DEVICE_SLOT_COUNT}, got {slot}")
     if display_slot is not None and (display_slot < 1 or display_slot > DEVICE_SLOT_COUNT):
         raise ValueError(f"Display slot must be between 1 and {DEVICE_SLOT_COUNT}, got {display_slot}")
-    ha_rotation_enabled = bool(ha_rotation and ha_rotation.get("enabled"))
-    ha_rotation_slots = [int(slot) for slot in (ha_rotation or {}).get("slots", [])]
-    for slot in ha_rotation_slots:
-        if slot < 1 or slot > DEVICE_SLOT_COUNT:
-            raise ValueError(f"HA rotation slot must be between 1 and {DEVICE_SLOT_COUNT}, got {slot}")
-
     with socket.create_connection((host, port), timeout=20) as sock:
         sock.settimeout(30)
         sock_file = sock.makefile("rwb")
+        gateway_status: dict[str, Any] = {}
         try:
             pong = _send_gateway_stage(sock_file, "PING", "PING")
             if not pong.startswith("OK"):
                 raise RuntimeError(f"PING failed: {pong}")
+            gateway_status["ha_rotation"] = _query_gateway_ha_rotation(sock_file)
             for job in jobs:
                 slot = int(job["slot"])
                 packed = job["packed"]
                 crc32 = str(job["crc32"])
                 _ensure_gateway_slot_is_ha(sock_file, slot)
                 _upload_gateway_payload(sock_file, slot, packed, crc32)
-            if ha_rotation_enabled:
-                _set_gateway_ha_rotation(
-                    sock_file,
-                    int((ha_rotation or {}).get("seconds") or DEFAULT_HA_ROTATION_SECONDS),
-                    ha_rotation_slots,
-                )
-            elif ha_rotation is not None:
-                _disable_gateway_ha_rotation(sock_file)
             if display_slot is not None:
                 _ensure_gateway_slot_is_ha(sock_file, display_slot)
                 display = _send_gateway_stage(sock_file, f"DISPLAY {display_slot}", "DISPLAY")
@@ -1352,6 +1418,7 @@ def _send_gateway_batch_jobs(
             raise
         else:
             _best_effort_open_connection_idle(sock_file)
+        return gateway_status
 
 
 def _ensure_gateway_slot_is_ha(sock_file, slot: int) -> None:
@@ -1368,36 +1435,29 @@ def _ensure_gateway_slot_is_ha(sock_file, slot: int) -> None:
         raise RuntimeError(f"Slot {slot} is not confirmed as HA-owned: {response}")
 
 
-def _set_gateway_ha_rotation(sock_file, seconds: int, slots: list[int]) -> None:
-    if not slots:
-        raise RuntimeError("HA rotation requires at least one HA-owned slot")
-    for slot in slots:
-        _ensure_gateway_slot_is_ha(sock_file, slot)
-    command = ha_rotation_command(True, seconds, slots)
-    response = _send_gateway_stage(sock_file, command, "HAROTATION")
-    if not _harotation_on_response_ok(response, seconds, slots):
-        raise RuntimeError(f"HAROTATION failed or firmware does not support HA-only rotation: {response}")
+def _query_gateway_ha_rotation(sock_file) -> dict[str, Any]:
+    response = _send_gateway_stage(sock_file, "HAROTATION", "HAROTATION")
+    parsed = _parse_harotation_response(response)
+    if parsed:
+        return parsed
+    return {"raw": response, "reachable": True}
 
 
-def _disable_gateway_ha_rotation(sock_file) -> None:
-    response = _send_gateway_stage(sock_file, ha_rotation_command(False, DEFAULT_HA_ROTATION_SECONDS, []), "HAROTATION")
-    if not response.startswith("OK") and "unknown" not in response.lower():
-        raise RuntimeError(f"HAROTATION off failed: {response}")
-
-
-def _harotation_on_response_ok(response: str, seconds: int, slots: list[int]) -> bool:
+def _parse_harotation_response(response: str) -> dict[str, Any]:
     normalized = response.strip()
     if not normalized.startswith("OK HAROTATION"):
-        return False
-    slot_csv = ",".join(str(slot) for slot in slots)
-    required = (
-        "enabled=1",
-        f"seconds={max(60, int(seconds))}",
-        f"count={len(slots)}",
-        f"slots={slot_csv}",
-        "normal_rotation=off",
-    )
-    return all(token in normalized for token in required)
+        return {}
+    parsed: dict[str, Any] = {"raw": normalized, "reachable": True}
+    for part in normalized.split()[2:]:
+        if "=" not in part:
+            continue
+        key, value = part.split("=", 1)
+        parsed[key] = value
+    parsed["enabled"] = str(parsed.get("enabled", "0")) == "1"
+    parsed["seconds"] = _positive_int(parsed.get("seconds")) or 0
+    parsed["slots"] = parse_slot_pool(parsed.get("slots", ""))
+    parsed["normal_rotation"] = parsed.get("normal_rotation")
+    return parsed
 
 
 def _upload_gateway_payload(sock_file, slot: int, packed: bytes, crc32: str) -> None:

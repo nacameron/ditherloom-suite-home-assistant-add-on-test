@@ -11,13 +11,7 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_FRAME_HOST,
     CONF_FRAME_PORT,
-    CONF_HA_SLOT_POOL,
     CONF_DISPLAY_MODE,
-    CONF_DISPLAY_ROTATION_ENABLED,
-    CONF_DISPLAY_ROTATION_HOURS,
-    CONF_DISPLAY_ROTATION_MINUTES,
-    CONF_HA_ROTATION_ENABLED,
-    CONF_HA_ROTATION_SECONDS,
     CONF_LATITUDE,
     CONF_LIBRARY_ID,
     CONF_LOCATION_NAME,
@@ -26,7 +20,6 @@ from .const import (
     CONF_MOON_ENABLED,
     CONF_SUN_ENABLED,
     CONF_TOPIC_BASE,
-    CONF_TARGET_SLOT,
     CONF_TEMPERATURE_UNIT,
     CONF_UPDATE_INTERVAL_MINUTES,
     CONF_WAKE_WINDOW_MINUTES,
@@ -34,11 +27,7 @@ from .const import (
     CONF_WIND_SPEED_UNIT,
     DEFAULT_FRAME_PORT,
     DEFAULT_DISPLAY_MODE,
-    DEFAULT_DISPLAY_ROTATION_HOURS,
-    DEFAULT_DISPLAY_ROTATION_MINUTES,
-    DEFAULT_HA_ROTATION_SECONDS,
     DEFAULT_MAX_JOBS_PER_WAKE,
-    DEFAULT_TARGET_SLOT,
     DEFAULT_TEMPERATURE_UNIT,
     DEFAULT_UPDATE_INTERVAL_MINUTES,
     DEFAULT_WAKE_WINDOW_MINUTES,
@@ -81,14 +70,9 @@ class DitherloomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_WEATHER_ENABLED, default=True): bool,
                 vol.Optional(CONF_SUN_ENABLED, default=False): bool,
                 vol.Optional(CONF_MOON_ENABLED, default=False): bool,
-                vol.Optional(CONF_DISPLAY_ROTATION_ENABLED, default=False): bool,
-                vol.Optional(CONF_DISPLAY_ROTATION_HOURS, default=DEFAULT_DISPLAY_ROTATION_HOURS): int,
-                vol.Optional(CONF_DISPLAY_ROTATION_MINUTES, default=DEFAULT_DISPLAY_ROTATION_MINUTES): int,
                 vol.Optional(CONF_UPDATE_INTERVAL_MINUTES, default=DEFAULT_UPDATE_INTERVAL_MINUTES): int,
                 vol.Optional(CONF_WAKE_WINDOW_MINUTES, default=DEFAULT_WAKE_WINDOW_MINUTES): int,
                 vol.Optional(CONF_MAX_JOBS_PER_WAKE, default=DEFAULT_MAX_JOBS_PER_WAKE): int,
-                vol.Optional(CONF_TARGET_SLOT, default=DEFAULT_TARGET_SLOT): int,
-                vol.Optional(CONF_HA_SLOT_POOL, default=""): str,
                 vol.Optional(CONF_DISPLAY_MODE, default=DEFAULT_DISPLAY_MODE): vol.In([DISPLAY_MODE_COLOUR, DISPLAY_MODE_MONO]),
                 vol.Optional(CONF_TEMPERATURE_UNIT, default=DEFAULT_TEMPERATURE_UNIT): vol.In(
                     [TEMPERATURE_UNIT_CELSIUS, TEMPERATURE_UNIT_FAHRENHEIT]
@@ -132,7 +116,7 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         return self.async_show_menu(
             step_id="init",
-            menu_options=["weather", "sun", "moon", "rotation", "device"],
+            menu_options=["weather", "sun", "moon", "device"],
         )
 
     async def async_step_weather(self, user_input: dict[str, Any] | None = None):
@@ -216,31 +200,6 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
             return self._save_options_or_show("moon", user_input, schema)
         return self.async_show_form(step_id="moon", data_schema=schema)
 
-    async def async_step_rotation(self, user_input: dict[str, Any] | None = None):
-        data = self._data()
-        schema = vol.Schema(
-            {
-                vol.Optional(
-                    CONF_HA_ROTATION_ENABLED,
-                    default=_bool_option(
-                        data,
-                        CONF_HA_ROTATION_ENABLED,
-                        _bool_option(data, CONF_DISPLAY_ROTATION_ENABLED, False),
-                    ),
-                ): bool,
-                vol.Optional(
-                    CONF_HA_ROTATION_SECONDS,
-                    default=data.get(
-                        CONF_HA_ROTATION_SECONDS,
-                        _legacy_rotation_seconds(data),
-                    ),
-                ): vol.All(int, vol.Range(min=60, max=86400)),
-            }
-        )
-        if user_input is not None:
-            return self._save_options_or_show("rotation", user_input, schema)
-        return self.async_show_form(step_id="rotation", data_schema=schema)
-
     async def async_step_device(self, user_input: dict[str, Any] | None = None):
         data = {**self._entry.data, **self._entry.options}
         schema = vol.Schema(
@@ -260,8 +219,6 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                     CONF_MAX_JOBS_PER_WAKE,
                     default=data.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE),
                 ): int,
-                vol.Optional(CONF_TARGET_SLOT, default=data.get(CONF_TARGET_SLOT, DEFAULT_TARGET_SLOT)): int,
-                vol.Optional(CONF_HA_SLOT_POOL, default=data.get(CONF_HA_SLOT_POOL, "")): str,
             }
         )
         if user_input is not None:
@@ -329,13 +286,3 @@ def _float_or_zero(value: Any) -> float:
 
 def _bool_option(data: dict[str, Any], key: str, default: bool) -> bool:
     return bool(data[key]) if key in data else default
-
-
-def _legacy_rotation_seconds(data: dict[str, Any]) -> int:
-    try:
-        hours = int(data.get(CONF_DISPLAY_ROTATION_HOURS, DEFAULT_DISPLAY_ROTATION_HOURS) or 0)
-        minutes = int(data.get(CONF_DISPLAY_ROTATION_MINUTES, DEFAULT_DISPLAY_ROTATION_MINUTES) or 0)
-    except (TypeError, ValueError):
-        return DEFAULT_HA_ROTATION_SECONDS
-    seconds = ((hours * 60) + minutes) * 60
-    return seconds if seconds >= 60 else DEFAULT_HA_ROTATION_SECONDS

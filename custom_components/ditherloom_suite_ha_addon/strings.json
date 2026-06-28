@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Set up Ditherloom",
-        "description": "Configure the Ditherloom frame and its repeating Home Assistant update wake window. Each enabled Home Assistant content provider needs one explicit HA slot. {ha_lane_error}",
+        "description": "Configure the Ditherloom frame and its repeating Home Assistant update wake window. Home Assistant reads HA slots from the Ditherloom app/frame setup. If you enable more than Weather, first connect to the Ditherloom app over Wi-Fi, configure the Home Assistant slots, save them to the frame, then come back here. {ha_lane_error}",
         "data": {
           "library_id": "Library ID",
           "frame_host": "Frame Wi-Fi host or IP",
@@ -17,14 +17,9 @@
           "weather_enabled": "Enable Weather",
           "sunrise_sunset_enabled": "Enable Sunrise / Sunset",
           "moon_phase_enabled": "Enable Moon Phase",
-          "display_rotation_enabled": "Enable display rotation",
-          "display_rotation_hours": "Rotation hours",
-          "display_rotation_minutes": "Rotation minutes",
           "update_interval_minutes": "Repeating update interval minutes",
           "wake_window_minutes": "Wake window minutes",
           "max_jobs_per_wake": "Maximum jobs per wake",
-          "target_slot": "Reserved Home Assistant content slot",
-          "ha_slot_pool": "Additional Home Assistant slot pool",
           "display_mode": "Weather display mode",
           "temperature_unit": "Temperature unit",
           "wind_speed_unit": "Wind speed unit"
@@ -40,13 +35,12 @@
           "weather": "Weather",
           "sun": "Sunrise / Sunset",
           "moon": "Moon Phase",
-          "rotation": "Display Rotation",
           "device": "Device / Connection"
         }
       },
       "weather": {
         "title": "Weather",
-        "description": "Each enabled Home Assistant content provider needs one explicit HA slot.",
+        "description": "Each enabled Home Assistant content provider needs one explicit HA slot from the Ditherloom app/frame setup.",
         "data": {
           "weather_enabled": "Enable Weather",
           "location_name": "Weather location name",
@@ -60,7 +54,7 @@
       },
       "sun": {
         "title": "Sunrise / Sunset",
-        "description": "Each enabled Home Assistant content provider needs one explicit HA slot.",
+        "description": "Each enabled Home Assistant content provider needs one explicit HA slot from the Ditherloom app/frame setup.",
         "data": {
           "sunrise_sunset_enabled": "Enable Sunrise / Sunset",
           "location_name": "Location name",
@@ -71,7 +65,7 @@
       },
       "moon": {
         "title": "Moon Phase",
-        "description": "Each enabled Home Assistant content provider needs one explicit HA slot.",
+        "description": "Each enabled Home Assistant content provider needs one explicit HA slot from the Ditherloom app/frame setup.",
         "data": {
           "moon_phase_enabled": "Enable Moon Phase",
           "location_name": "Location name",
@@ -80,32 +74,23 @@
           "longitude": "Longitude"
         }
       },
-      "rotation": {
-        "title": "HA Rotation",
-        "description": "HA rotation uses only HA-owned slots through the dedicated HAROTATION Gateway command. It does not use normal frame image rotation.",
-        "data": {
-          "ha_rotation_enabled": "Enable HA-only rotation",
-          "ha_rotation_seconds": "HA rotation seconds"
-        }
-      },
       "device": {
         "title": "Device / Connection",
-        "description": "The Reserved HA slot is always the first HA slot. HA Slot Pool supplies the remaining HA lane slots. Examples: 443-444 or 443,444. Extra HA slots are marked as HA-owned and excluded from normal frame rotation. {ha_lane_error}",
+        "description": "Frame host and wake timing are configured here. HA slots and HA-only rotation are owned by Ditherloom Suite and the frame firmware. To change slots, connect to Ditherloom Suite over Wi-Fi, configure the Home Assistant slots, save them to the frame, then sync Home Assistant again. {ha_lane_error}",
         "data": {
           "frame_host": "Frame Wi-Fi host or IP",
           "frame_port": "Frame Gateway port",
           "topic_base": "Optional MQTT topic base",
           "update_interval_minutes": "Repeating update interval minutes",
           "wake_window_minutes": "Wake window minutes",
-          "max_jobs_per_wake": "Maximum jobs per wake",
-          "target_slot": "Reserved Home Assistant content slot",
-          "ha_slot_pool": "Additional Home Assistant slot pool"
+          "max_jobs_per_wake": "Maximum jobs per wake"
         }
       }
     }
   },
   "error": {
     "not_enough_ha_slots": "Not enough explicit HA slots are configured.",
+    "frame_ha_slots_not_synced": "Home Assistant has not received the frame HA slot setup yet.",
     "too_many_ha_slots": "Home Assistant supports up to 8 explicit HA slots.",
     "ha_lane_invalid": "Home Assistant slot lane configuration is invalid."
   }

@@ -128,8 +128,10 @@ redownload the integration from there.
   `PING`, `BEGIN`, `B64WRITE`, `END`, `DISPLAY`, `IDLE`.
 - Adds a Home Assistant update entity that checks the latest GitHub release.
 - Supports colour or mono weather display mode.
-- Adds content option pages for Weather, Sunrise / Sunset, Moon Phase, and
-  Display Rotation. Existing installs keep Weather enabled by default.
+- Adds content option pages for Weather, Sunrise / Sunset, and Moon Phase.
+  Existing installs keep Weather enabled by default.
+- Reports frame/app-owned HA slots and HA-only rotation state instead of letting
+  Home Assistant independently edit those frame settings.
 - Adds dashboard-friendly entities for preview, render, frame handshake status,
   and integration updates.
 

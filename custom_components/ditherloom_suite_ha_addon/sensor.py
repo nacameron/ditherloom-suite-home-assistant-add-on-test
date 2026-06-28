@@ -89,6 +89,8 @@ class DitherloomFrameScheduleSensor(DitherloomSensorBase):
             "selected_provider_id": metadata.get("selected_provider_id") or metadata.get("provider_id"),
             "display_rotation_enabled": metadata.get("display_rotation_enabled"),
             "display_rotation_interval_minutes": metadata.get("display_rotation_interval_minutes"),
+            "frame_ha_config": metadata.get("frame_ha_config") or (metadata.get("frame_awake") or {}).get("ha_config"),
+            "ha_rotation": metadata.get("ha_rotation"),
             "frame_awake_last_received_at": metadata.get("frame_awake_last_received_at"),
             "frame_awake_last_success_at": metadata.get("frame_awake_last_success_at"),
             "frame_sleeping_last_received_at": metadata.get("frame_sleeping_last_received_at"),

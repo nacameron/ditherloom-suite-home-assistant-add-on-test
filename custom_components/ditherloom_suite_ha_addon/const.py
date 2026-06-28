@@ -25,6 +25,11 @@ CONF_DISPLAY_ROTATION_HOURS = "display_rotation_hours"
 CONF_DISPLAY_ROTATION_MINUTES = "display_rotation_minutes"
 CONF_HA_ROTATION_ENABLED = "ha_rotation_enabled"
 CONF_HA_ROTATION_SECONDS = "ha_rotation_seconds"
+CONF_FRAME_RESERVED_SLOT = "frame_reserved_slot"
+CONF_FRAME_HA_SLOT_POOL = "frame_ha_slot_pool"
+CONF_FRAME_HA_SLOT_CSV = "frame_ha_slot_csv"
+CONF_FRAME_HA_ROTATION_ENABLED = "frame_ha_rotation_enabled"
+CONF_FRAME_HA_ROTATION_SECONDS = "frame_ha_rotation_seconds"
 
 DEFAULT_FRAME_PORT = 5757
 DEFAULT_UPDATE_INTERVAL_MINUTES = 60

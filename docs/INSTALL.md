@@ -136,17 +136,19 @@ weather, sunrise/sunset, and moon phase location. Manual latitude/longitude
 fields remain available as fallback and are updated from the picked map point.
 
 The integration options landing page is split into buttons for Weather,
-Sunrise / Sunset, Moon Phase, Display Rotation, and Device / Connection. Weather
-stays enabled by default for existing installs. Sunrise / Sunset and Moon Phase
-are opt-in. If two or more content pages are enabled, Home Assistant keeps each
-enabled card cached in its own HA-owned slot. If Display Rotation is enabled,
-Home Assistant uses the configured hours/minutes interval to choose which HA
-slot to display explicitly.
+Sunrise / Sunset, Moon Phase, and Device / Connection. Weather stays enabled by
+default for existing installs. Sunrise / Sunset and Moon Phase are opt-in.
 
-If more than one content page is enabled, configure enough explicit Home
-Assistant-owned slots. The reserved slot is used first. Extra slots must be
-listed in **Additional Home Assistant slot pool** such as `442,443` or
-`442-444`. The integration does not guess or reuse normal gallery, memo, image,
+Home Assistant no longer owns the HA slot pool or HA-only rotation settings.
+Those are configured in Ditherloom Suite while the frame is reachable over
+Wi-Fi, then saved to the frame. The app syncs the frame-provided reserved slot,
+extra HA slots, slot CSV, and HA rotation status back to Home Assistant through
+the discovery/register endpoint.
+
+If more than one content page is enabled and Home Assistant has not received
+enough frame HA slots, return to Ditherloom Suite, connect to the frame over
+Wi-Fi, add the extra HA slots, save them to the frame, then come back to Home
+Assistant. The integration does not guess or reuse normal gallery, memo, image,
 or system slots.
 
 Before writing any HA-rendered payload, Home Assistant marks and verifies the

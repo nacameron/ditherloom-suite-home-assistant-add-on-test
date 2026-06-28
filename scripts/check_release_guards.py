@@ -213,19 +213,29 @@ def check_update_platform() -> None:
 
     init_required = (
         "HAROTATION",
-        "ha_rotation_command",
-        "_ha_rotation_config",
-        "_set_gateway_ha_rotation",
-        "_harotation_on_response_ok",
-        "normal_rotation=off",
+        "_query_gateway_ha_rotation",
+        "_parse_harotation_response",
+        "frame_ha_config",
+        "haSlotCsv",
+        "X-Home-Assistant-Token",
+        "haAccessToken",
         "provider_slot_map",
     )
     for required in init_required:
         if required not in init_text:
             fail(f"runtime missing HA lane/rotation route/text: {required}")
 
-    if '"version": "0.1.42"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.42")
+    for forbidden in (
+        "_set_gateway_ha_rotation",
+        "_disable_gateway_ha_rotation",
+        "_harotation_on_response_ok",
+        "HAROTATION off",
+    ):
+        if forbidden in init_text:
+            fail(f"runtime must not apply HA rotation from Home Assistant: {forbidden}")
+
+    if '"version": "0.1.43"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.43")
 
 
 def check_public_repo_single_version() -> None:
@@ -480,6 +490,8 @@ def check_frame_awake_handshake() -> None:
         '"discovery_requires_auth": True',
         '"frame_awake_url": frame_awake_url',
         '"frame_sleeping_url": frame_sleeping_url',
+        '"haSlotCsv": self._ha_slot_csv()',
+        "_store_frame_provided_ha_config",
         "app_discovery_payload",
         '"frameAwakePath": self.frame_awake_url',
         '"frameSleepingPath": self.frame_sleeping_url',
