@@ -224,8 +224,8 @@ def check_update_platform() -> None:
         if required not in init_text:
             fail(f"runtime missing HA lane/rotation route/text: {required}")
 
-    if '"version": "0.1.41"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.41")
+    if '"version": "0.1.42"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.42")
 
 
 def check_public_repo_single_version() -> None:
@@ -469,6 +469,17 @@ def check_frame_awake_handshake() -> None:
         "DitherloomFrameSleepingView(coordinator)",
         "DitherloomDiscoveryView(hass)",
         'url = "/api/ditherloom/discovery"',
+        '"/api/ditherloom/register-frame"',
+        '"/api/ditherloom/discover-frame"',
+        "async_validate_access_token",
+        '"accepted": False',
+        '"error": "unauthorized"',
+        '"error": "not_configured"',
+        '"entry_id": self.entry.entry_id',
+        '"ha_url": origin',
+        '"discovery_requires_auth": True',
+        '"frame_awake_url": frame_awake_url',
+        '"frame_sleeping_url": frame_sleeping_url',
         "app_discovery_payload",
         '"frameAwakePath": self.frame_awake_url',
         '"frameSleepingPath": self.frame_sleeping_url',

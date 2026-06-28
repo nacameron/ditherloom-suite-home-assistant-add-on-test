@@ -77,6 +77,7 @@ from .ha_lane import enabled_content_providers, ha_lane_slots, ha_rotation_comma
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
+DISCOVERY_AUTH_MESSAGE = "Provide a Home Assistant Long-Lived Access Token."
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -970,18 +971,28 @@ class DitherloomRuntime:
         origin = origin.rstrip("/")
         options = self.options
         callback_base_path = f"/api/ditherloom/{self.entry.entry_id}"
+        frame_awake_url = f"{origin}{self.frame_awake_url}"
+        frame_sleeping_url = f"{origin}{self.frame_sleeping_url}"
         return {
+            "accepted": True,
             "integrationInstalled": True,
             "integrationDomain": DOMAIN,
+            "integration_domain": DOMAIN,
             "integrationName": "Ditherloom Suite Home Assistant Add On",
             "entryId": self.entry.entry_id,
+            "entry_id": self.entry.entry_id,
             "libraryId": self.entry.data.get("library_id"),
             "haUrl": origin,
+            "ha_url": origin,
+            "discovery_requires_auth": True,
+            "version": _integration_version(),
             "callbackBasePath": callback_base_path,
             "frameAwakePath": self.frame_awake_url,
             "frameSleepingPath": self.frame_sleeping_url,
-            "frameAwakeUrl": f"{origin}{self.frame_awake_url}",
-            "frameSleepingUrl": f"{origin}{self.frame_sleeping_url}",
+            "frameAwakeUrl": frame_awake_url,
+            "frameSleepingUrl": frame_sleeping_url,
+            "frame_awake_url": frame_awake_url,
+            "frame_sleeping_url": frame_sleeping_url,
             "payloadPath": self.payload_url,
             "payloadUrl": f"{origin}{self.payload_url}",
             "previewPath": self.preview_url,
@@ -1070,9 +1081,37 @@ class DitherloomRuntime:
         await self.hass.async_add_executor_job(_send_existing_gateway_job, host, port, packed, crc32, target_slot)
 
 
+def _integration_version() -> str:
+    manifest_path = Path(__file__).with_name("manifest.json")
+    try:
+        return str(json.loads(manifest_path.read_text(encoding="utf-8")).get("version") or "")
+    except Exception:
+        return ""
+
+
+async def _validate_discovery_bearer_token(hass: HomeAssistant, request) -> bool:
+    auth_header = str(request.headers.get("Authorization", "")).strip()
+    if not auth_header.lower().startswith("bearer "):
+        return False
+    token = auth_header[7:].strip()
+    if not token:
+        return False
+    validator = getattr(getattr(hass, "auth", None), "async_validate_access_token", None)
+    if validator is None:
+        return False
+    try:
+        return await validator(token) is not None
+    except Exception:
+        return False
+
+
 class DitherloomDiscoveryView(HomeAssistantView):
-    requires_auth = True
+    requires_auth = False
     url = "/api/ditherloom/discovery"
+    extra_urls = [
+        "/api/ditherloom/register-frame",
+        "/api/ditherloom/discover-frame",
+    ]
     name = f"api:{DOMAIN}:discovery"
 
     def __init__(self, hass: HomeAssistant) -> None:
@@ -1093,6 +1132,15 @@ class DitherloomDiscoveryView(HomeAssistantView):
         return await self._handle(request, body)
 
     async def _handle(self, request, body: dict[str, Any]):
+        if not await _validate_discovery_bearer_token(self.hass, request):
+            return self.json(
+                {
+                    "accepted": False,
+                    "error": "unauthorized",
+                    "message": DISCOVERY_AUTH_MESSAGE,
+                },
+                status_code=401,
+            )
         runtimes = list(self.hass.data.get(DOMAIN, {}).values())
         library_id = str(body.get("library_id") or body.get("libraryId") or request.query.get("library_id") or "").strip()
         if library_id:
@@ -1104,21 +1152,28 @@ class DitherloomDiscoveryView(HomeAssistantView):
         if not runtimes:
             return self.json(
                 {
-                    "integrationInstalled": False,
+                    "accepted": False,
+                    "integrationInstalled": True,
                     "integrationDomain": DOMAIN,
-                    "error": "No configured Ditherloom integration entry matched the request",
+                    "integration_domain": DOMAIN,
+                    "error": "not_configured",
+                    "message": "Ditherloom integration is installed but no config entry is available.",
                 },
                 status_code=404,
             )
         if len(runtimes) > 1:
             return self.json(
                 {
+                    "accepted": False,
                     "integrationInstalled": True,
                     "integrationDomain": DOMAIN,
-                    "error": "Multiple Ditherloom integration entries are configured; include library_id",
+                    "integration_domain": DOMAIN,
+                    "error": "multiple_entries",
+                    "message": "Multiple Ditherloom integration entries are configured; include library_id.",
                     "entries": [
                         {
                             "entryId": runtime.entry.entry_id,
+                            "entry_id": runtime.entry.entry_id,
                             "libraryId": runtime.entry.data.get("library_id"),
                         }
                         for runtime in runtimes
