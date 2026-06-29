@@ -27,6 +27,9 @@ def test_moon_provider_builds_expected_daily_fields():
     assert data.illumination.endswith("%")
     assert data.moon_age.endswith("d")
     assert data.source_entity_id == "ditherloom.moon_phase"
+    assert data.primary_label in {"MOONRISE", "MOONSET"}
+    assert data.secondary_prefix in {"sets", "rose"}
+    assert data.secondary_value
 
 
 def test_moon_card_renders_full_background_layout():
@@ -46,6 +49,7 @@ def test_moon_card_renders_full_background_layout():
 
     assert image.size == (WIDTH, HEIGHT)
     assert len(set(image.getdata())) > 30
+    assert image.getpixel((18, 174)) != image.getpixel((200, 140))
 
 
 def test_moon_card_packs_to_device_payload_length():

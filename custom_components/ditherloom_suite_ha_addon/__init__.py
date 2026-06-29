@@ -464,6 +464,9 @@ class DitherloomRuntime:
             "displayed_slot": data.get("displayed_slot") or data.get("displayedSlot"),
             "next_wake_seconds": data.get("next_wake_seconds") or data.get("nextWakeSeconds"),
         }
+        next_wake_seconds = _positive_int(data.get("next_wake_seconds") or data.get("nextWakeSeconds"))
+        if next_wake_seconds is not None:
+            self.last_metadata["frame_next_wake_at"] = (now + timedelta(seconds=next_wake_seconds)).isoformat()
         self.last_metadata["frame_sleeping_last_received_at"] = now.isoformat()
         await self.async_save()
         return {"accepted": True, "message": "sleep recorded"}
@@ -628,6 +631,7 @@ class DitherloomRuntime:
             "frame_awake_last_received_at",
             "frame_awake_last_success_at",
             "frame_sleeping_last_received_at",
+            "frame_next_wake_at",
         ):
             preserved = self.last_metadata.get(preserved_key)
             if preserved:
@@ -669,7 +673,14 @@ class DitherloomRuntime:
             longitude = str(data.get(CONF_LONGITUDE) or opts.get(CONF_LONGITUDE) or "0")
             location = str(data.get(CONF_LOCATION_NAME) or data.get("location") or opts.get(CONF_LOCATION_NAME) or "Home")
 
-        provider_data = build_sun_provider_data(latitude, longitude, location, self.hass.config.time_zone)
+        render_target = self._time_sensitive_render_target(data)
+        provider_data = build_sun_provider_data(
+            latitude,
+            longitude,
+            location,
+            self.hass.config.time_zone,
+            current_datetime=render_target,
+        )
         card_data = SunCardData(**provider_data.__dict__)
         image = render_sun_card(card_data)
         artifact = render_to_artifact(image, "sunrise_sunset", [card_data.source_entity_id])
@@ -683,6 +694,7 @@ class DitherloomRuntime:
         metadata[ATTR_PAYLOAD_URL] = self.payload_url
         metadata[ATTR_PREVIEW_URL] = self.preview_url
         metadata["rendered_at"] = datetime.now(timezone.utc).isoformat()
+        metadata["render_target_at"] = render_target.isoformat()
         metadata["provider_id"] = "sunrise_sunset"
         metadata["provider_name"] = "Sunrise / Sunset"
         metadata["source"] = "local_solar_calculation"
@@ -696,6 +708,10 @@ class DitherloomRuntime:
         metadata["day_length"] = card_data.day_length
         metadata["golden_morning"] = card_data.golden_morning
         metadata["golden_evening"] = card_data.golden_evening
+        metadata["primary_label"] = card_data.primary_label
+        metadata["primary_value"] = card_data.primary_value
+        metadata["secondary_prefix"] = card_data.secondary_prefix
+        metadata["secondary_value"] = card_data.secondary_value
         metadata["update_interval_minutes"] = self._effective_update_interval_minutes()
         metadata["wake_window_seconds"] = self._effective_wake_window_seconds()
         metadata["wake_window_minutes"] = self._effective_wake_window_minutes()
@@ -706,6 +722,7 @@ class DitherloomRuntime:
             "frame_awake_last_received_at",
             "frame_awake_last_success_at",
             "frame_sleeping_last_received_at",
+            "frame_next_wake_at",
         ):
             preserved = self.last_metadata.get(preserved_key)
             if preserved:
@@ -747,7 +764,14 @@ class DitherloomRuntime:
             longitude = str(data.get(CONF_LONGITUDE) or opts.get(CONF_LONGITUDE) or "0")
             location = str(data.get(CONF_LOCATION_NAME) or data.get("location") or opts.get(CONF_LOCATION_NAME) or "Home")
 
-        provider_data = build_moon_provider_data(latitude, longitude, location, self.hass.config.time_zone)
+        render_target = self._time_sensitive_render_target(data)
+        provider_data = build_moon_provider_data(
+            latitude,
+            longitude,
+            location,
+            self.hass.config.time_zone,
+            current_datetime=render_target,
+        )
         card_data = MoonCardData(**provider_data.__dict__)
         image = render_moon_card(card_data)
         artifact = render_to_artifact(image, "moon_phase", [card_data.source_entity_id])
@@ -761,6 +785,7 @@ class DitherloomRuntime:
         metadata[ATTR_PAYLOAD_URL] = self.payload_url
         metadata[ATTR_PREVIEW_URL] = self.preview_url
         metadata["rendered_at"] = datetime.now(timezone.utc).isoformat()
+        metadata["render_target_at"] = render_target.isoformat()
         metadata["provider_id"] = "moon_phase"
         metadata["provider_name"] = "Moon Phase"
         metadata["source"] = "local_moon_calculation"
@@ -774,6 +799,10 @@ class DitherloomRuntime:
         metadata["moonset"] = card_data.moonset
         metadata["next_full"] = card_data.next_full
         metadata["next_new"] = card_data.next_new
+        metadata["primary_label"] = card_data.primary_label
+        metadata["primary_value"] = card_data.primary_value
+        metadata["secondary_prefix"] = card_data.secondary_prefix
+        metadata["secondary_value"] = card_data.secondary_value
         metadata["update_interval_minutes"] = self._effective_update_interval_minutes()
         metadata["wake_window_seconds"] = self._effective_wake_window_seconds()
         metadata["wake_window_minutes"] = self._effective_wake_window_minutes()
@@ -784,6 +813,7 @@ class DitherloomRuntime:
             "frame_awake_last_received_at",
             "frame_awake_last_success_at",
             "frame_sleeping_last_received_at",
+            "frame_next_wake_at",
         ):
             preserved = self.last_metadata.get(preserved_key)
             if preserved:
@@ -880,6 +910,16 @@ class DitherloomRuntime:
     def _ha_rotation_config(self) -> dict[str, Any]:
         return {"enabled": self._ha_rotation_enabled(), "seconds": self._ha_rotation_seconds(), "slots": self._ha_owned_slots()}
 
+    def _time_sensitive_render_target(self, data: dict[str, Any] | None = None) -> datetime:
+        explicit = _parse_datetime((data or {}).get("render_target_at") or (data or {}).get("renderTargetAt"))
+        if explicit is not None:
+            return explicit.astimezone(self._local_timezone())
+        next_wake = _parse_datetime(self.last_metadata.get("frame_next_wake_at"))
+        now_utc = datetime.now(timezone.utc)
+        if next_wake is not None and next_wake.astimezone(timezone.utc) > now_utc:
+            return next_wake.astimezone(self._local_timezone())
+        return now_utc.astimezone(self._local_timezone())
+
     def _selected_content_provider(self) -> str:
         providers = self._enabled_content_providers()
         if not self._display_rotation_enabled():
@@ -927,7 +967,20 @@ class DitherloomRuntime:
 
     def _cached_content_is_fresh(self, provider: str, metadata: dict[str, Any]) -> bool:
         if provider in {"sunrise_sunset", "moon_phase"}:
-            return metadata.get("date_label") == datetime.now(self._local_timezone()).strftime("%d %b").upper()
+            target = self._time_sensitive_render_target()
+            if metadata.get("date_label") != target.strftime("%d %b").upper():
+                return False
+            rendered_at = _parse_datetime(metadata.get("rendered_at"))
+            if rendered_at is None:
+                return False
+            target_at = _parse_datetime(metadata.get("render_target_at"))
+            next_wake = _parse_datetime(self.last_metadata.get("frame_next_wake_at"))
+            if next_wake is not None and next_wake.astimezone(timezone.utc) > datetime.now(timezone.utc):
+                if target_at is None:
+                    return False
+                return abs((target_at.astimezone(timezone.utc) - next_wake.astimezone(timezone.utc)).total_seconds()) < 60
+            age = datetime.now(timezone.utc) - rendered_at.astimezone(timezone.utc)
+            return age < timedelta(minutes=self._time_sensitive_cache_minutes())
         rendered_at = _parse_datetime(metadata.get("rendered_at"))
         if rendered_at is None:
             return False
@@ -970,8 +1023,9 @@ class DitherloomRuntime:
         if metadata.get("frame_synced_crc32") != metadata.get(ATTR_CRC32):
             return True
         if provider in {"sunrise_sunset", "moon_phase"}:
-            today = datetime.now(self._local_timezone()).strftime("%d %b").upper()
-            return metadata.get("frame_synced_date_label") != today
+            if metadata.get("frame_synced_date_label") != metadata.get("date_label"):
+                return True
+            return metadata.get("frame_synced_render_target_at") != metadata.get("render_target_at")
         synced_at = _parse_datetime(metadata.get("frame_synced_at"))
         if synced_at is None:
             return True
@@ -985,7 +1039,12 @@ class DitherloomRuntime:
         metadata["frame_synced_at"] = synced_at
         metadata["frame_synced_crc32"] = crc32
         metadata["frame_synced_date_label"] = metadata.get("date_label") or datetime.now(self._local_timezone()).strftime("%d %b").upper()
+        if provider in {"sunrise_sunset", "moon_phase"}:
+            metadata["frame_synced_render_target_at"] = metadata.get("render_target_at")
         await self._write_cached_metadata(provider, metadata)
+
+    def _time_sensitive_cache_minutes(self) -> int:
+        return max(1, min(self._effective_update_interval_minutes(), max(1, self._ha_rotation_seconds() // 60)))
 
     def async_cancel_weather_refresh(self) -> None:
         if self._weather_refresh_unsub:
@@ -1461,11 +1520,6 @@ def _send_gateway_batch_jobs(
     for slot in ha_rotation_slots:
         if slot < 1 or slot > DEVICE_SLOT_COUNT:
             raise ValueError(f"HA rotation slot must be between 1 and {DEVICE_SLOT_COUNT}, got {slot}")
-    if ha_rotation_enabled:
-        job_slots = {int(job["slot"]) for job in jobs}
-        missing_slots = [slot for slot in ha_rotation_slots if slot not in job_slots]
-        if missing_slots:
-            raise ValueError(f"HA rotation slots have no uploaded provider payload: {slot_csv(missing_slots)}")
     with socket.create_connection((host, port), timeout=20) as sock:
         sock.settimeout(30)
         sock_file = sock.makefile("rwb")

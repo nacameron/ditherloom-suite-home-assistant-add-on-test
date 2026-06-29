@@ -19,6 +19,10 @@ class SunProviderData:
     day_length: str
     golden_morning: str
     golden_evening: str
+    primary_label: str
+    primary_value: str
+    secondary_prefix: str
+    secondary_value: str
     source_entity_id: str = "ditherloom.sunrise_sunset"
     attribution: str = "Sun times calculated locally from configured Home Assistant location."
 
@@ -54,6 +58,7 @@ def build_sun_provider_data(
         golden_morning = "--"
         golden_evening = "--"
     scene_id, scene_name = _choose_sun_scene(scene_time, astronomical_dawn, civil_dawn, sunrise, sunset, civil_dusk, astronomical_dusk)
+    primary_label, primary_value, secondary_prefix, secondary_value = _next_sun_event_display(scene_time, target, lat, lon, tz, sunrise, sunset)
 
     return SunProviderData(
         location=location.strip() or "Home",
@@ -67,6 +72,10 @@ def build_sun_provider_data(
         day_length=day_length,
         golden_morning=golden_morning,
         golden_evening=golden_evening,
+        primary_label=primary_label,
+        primary_value=primary_value,
+        secondary_prefix=secondary_prefix,
+        secondary_value=secondary_value,
     )
 
 
@@ -166,6 +175,41 @@ def _format_time(value: datetime | None) -> str:
     if value is None:
         return "--"
     return value.strftime("%H:%M")
+
+
+def _next_sun_event_display(
+    now: datetime,
+    target: date,
+    latitude: float,
+    longitude: float,
+    tz: tzinfo,
+    sunrise: datetime | None,
+    sunset: datetime | None,
+) -> tuple[str, str, str, str]:
+    events: list[tuple[str, datetime]] = []
+    if sunrise and sunrise >= now:
+        events.append(("NEXT SUNRISE", sunrise))
+    if sunset and sunset >= now:
+        events.append(("NEXT SUNSET", sunset))
+    next_day = target + timedelta(days=1)
+    next_sunrise = _solar_event(next_day, latitude, longitude, tz, 90.833, sunrise=True)
+    next_sunset = _solar_event(next_day, latitude, longitude, tz, 90.833, sunrise=False)
+    if next_sunrise:
+        events.append(("NEXT SUNRISE", next_sunrise))
+    if next_sunset:
+        events.append(("NEXT SUNSET", next_sunset))
+    if not events:
+        return "SUN", "--", "in", "--"
+    label, event_time = min(events, key=lambda item: item[1])
+    return label, _format_time(event_time), "in", _format_compact_countdown(event_time - now)
+
+
+def _format_compact_countdown(value: timedelta) -> str:
+    minutes = max(0, int(round(value.total_seconds() / 60.0)))
+    if minutes < 60:
+        return f"{minutes}m"
+    hours, mins = divmod(minutes, 60)
+    return f"{hours}h {mins:02d}m"
 
 
 def _format_duration(value: timedelta) -> str:

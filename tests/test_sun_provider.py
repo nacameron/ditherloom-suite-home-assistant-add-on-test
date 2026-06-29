@@ -26,6 +26,9 @@ def test_sun_provider_builds_expected_daily_fields():
     assert ":" in data.sunset
     assert "h" in data.day_length
     assert data.source_entity_id == "ditherloom.sunrise_sunset"
+    assert data.primary_label in {"NEXT SUNRISE", "NEXT SUNSET"}
+    assert data.secondary_prefix == "in"
+    assert data.secondary_value
 
 
 def test_sun_card_renders_full_background_layout():
@@ -45,6 +48,7 @@ def test_sun_card_renders_full_background_layout():
 
     assert image.size == (WIDTH, HEIGHT)
     assert len(set(image.getdata())) > 30
+    assert image.getpixel((18, 174)) != image.getpixel((200, 140))
 
 
 def test_sun_card_accepts_provider_payload():

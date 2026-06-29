@@ -247,7 +247,6 @@ def check_update_platform() -> None:
         "_upload_gateway_payload(sock_file, slot, packed, crc32)",
         "_ensure_gateway_slot_is_ha(sock_file, slot)",
         'command = f"HAROTATION on',
-        "HA rotation slots have no uploaded provider payload",
         "frame_ha_config",
         "haSlotCsv",
         "X-Home-Assistant-Token",
@@ -268,12 +267,14 @@ def check_update_platform() -> None:
         "HAROTATION off",
         "await validator(token)",
         '"ROTATION ',
+        "missing_slots = [slot for slot in ha_rotation_slots if slot not in job_slots]",
+        "HA rotation slots have no uploaded provider payload",
     ):
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.50"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.50")
+    if '"version": "0.1.51"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.51")
 
 
 def check_public_repo_single_version() -> None:

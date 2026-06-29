@@ -21,6 +21,10 @@ class MoonProviderData:
     moonset: str
     next_full: str
     next_new: str
+    primary_label: str
+    primary_value: str
+    secondary_prefix: str
+    secondary_value: str
     source_entity_id: str = "ditherloom.moon_phase"
     attribution: str = "Moon phase calculated locally from configured Home Assistant location."
 
@@ -31,11 +35,13 @@ def build_moon_provider_data(
     location: str,
     timezone_name: str | None,
     target_date: date | None = None,
+    current_datetime: datetime | None = None,
 ) -> MoonProviderData:
     lat = _bounded_float(latitude, -90.0, 90.0, "latitude")
     lon = _bounded_float(longitude, -180.0, 180.0, "longitude")
     tz = _load_timezone(timezone_name)
-    target = target_date or datetime.now(tz).date()
+    now = current_datetime.astimezone(tz) if current_datetime else datetime.now(tz)
+    target = target_date or now.date()
     local_noon = datetime.combine(target, time(12, 0), tzinfo=tz)
     age = _moon_age_days(local_noon.astimezone(timezone.utc))
     phase_fraction = age / SYNODIC_MONTH_DAYS
@@ -43,6 +49,7 @@ def build_moon_provider_data(
     phase_name = _phase_name(age)
     moonrise = _approx_moonrise(target, tz, age)
     moonset = moonrise + timedelta(hours=12, minutes=25)
+    primary_label, primary_value, secondary_prefix, secondary_value = _next_moon_event_display(now, target, tz, age)
 
     return MoonProviderData(
         location=location.strip() or "Home",
@@ -54,6 +61,10 @@ def build_moon_provider_data(
         moonset=_format_time(moonset),
         next_full=_format_date(_next_phase_date(local_noon, age, SYNODIC_MONTH_DAYS / 2.0)),
         next_new=_format_date(_next_phase_date(local_noon, age, SYNODIC_MONTH_DAYS)),
+        primary_label=primary_label,
+        primary_value=primary_value,
+        secondary_prefix=secondary_prefix,
+        secondary_value=secondary_value,
     )
 
 
@@ -118,3 +129,21 @@ def _format_time(value: datetime) -> str:
 
 def _format_date(value: date) -> str:
     return value.strftime("%d %b").upper()
+
+
+def _next_moon_event_display(now: datetime, target: date, tz: tzinfo, age: float) -> tuple[str, str, str, str]:
+    events: list[tuple[str, datetime, str, datetime]] = []
+    for offset in range(0, 3):
+        event_date = target + timedelta(days=offset)
+        event_age = (age + offset) % SYNODIC_MONTH_DAYS
+        rise = _approx_moonrise(event_date, tz, event_age)
+        moonset = rise + timedelta(hours=12, minutes=25)
+        if rise >= now:
+            events.append(("MOONRISE", rise, "sets", moonset))
+        if moonset >= now:
+            events.append(("MOONSET", moonset, "rose", rise))
+    if not events:
+        rise = _approx_moonrise(target + timedelta(days=1), tz, (age + 1) % SYNODIC_MONTH_DAYS)
+        return "MOONRISE", _format_time(rise), "sets", _format_time(rise + timedelta(hours=12, minutes=25))
+    label, event_time, secondary_prefix, secondary_time = min(events, key=lambda item: item[1])
+    return label, _format_time(event_time), secondary_prefix, _format_time(secondary_time)

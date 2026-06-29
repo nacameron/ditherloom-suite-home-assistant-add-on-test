@@ -32,6 +32,17 @@ def test_harotation_verifies_slots_before_enabling():
 def test_harotation_does_not_auto_claim_implicit_slots():
     source = _source()
 
-    assert "missing_slots = [slot for slot in ha_rotation_slots if slot not in job_slots]" in source
-    assert "HA rotation slots have no uploaded provider payload" in source
+    assert "missing_slots = [slot for slot in ha_rotation_slots if slot not in job_slots]" not in source
+    assert "HA rotation slots have no uploaded provider payload" not in source
     assert "free" not in source[source.index("def _send_gateway_batch_jobs") : source.index("def _ensure_gateway_slot_is_ha")]
+
+
+def test_harotation_can_apply_to_explicit_slots_without_fresh_upload_jobs():
+    source = _source()
+    batch_index = source.index("def _send_gateway_batch_jobs")
+    rotation_index = source.index("_set_gateway_ha_rotation(sock_file", batch_index)
+    helper_index = source.index("def _set_gateway_ha_rotation")
+    mark_index = source.index("_ensure_gateway_slot_is_ha(sock_file, slot)", helper_index)
+
+    assert batch_index < rotation_index < helper_index
+    assert mark_index > helper_index

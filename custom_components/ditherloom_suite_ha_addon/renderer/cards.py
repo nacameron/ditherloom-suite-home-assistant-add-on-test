@@ -28,9 +28,15 @@ FONT_CANDIDATES = (
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 )
 FONT_REGULAR_CANDIDATES = (
+    "C:/Windows/Fonts/segoeui.ttf",
     "C:/Windows/Fonts/arial.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+)
+FONT_UI_BOLD_CANDIDATES = (
+    "C:/Windows/Fonts/segoeuib.ttf",
+    "C:/Windows/Fonts/arialbd.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 )
 WEATHER_ART_DIR = Path(__file__).resolve().parents[1] / "assets" / "weather_art"
 WEATHER_TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "assets" / "weather_templates" / "safe_400x300"
@@ -72,6 +78,10 @@ class SunCardData:
     day_length: str = "12h 00m"
     golden_morning: str = "06:00-07:00"
     golden_evening: str = "17:00-18:00"
+    primary_label: str = "NEXT SUNRISE"
+    primary_value: str = "06:00"
+    secondary_prefix: str = "in"
+    secondary_value: str = "--"
     source_entity_id: str = "ditherloom.sunrise_sunset"
     attribution: str = "Calculated locally"
 
@@ -87,6 +97,10 @@ class MoonCardData:
     moonset: str = "06:00"
     next_full: str = "--"
     next_new: str = "--"
+    primary_label: str = "MOONRISE"
+    primary_value: str = "18:00"
+    secondary_prefix: str = "sets"
+    secondary_value: str = "06:00"
     source_entity_id: str = "ditherloom.moon_phase"
     attribution: str = "Calculated locally"
 
@@ -149,6 +163,16 @@ def _load_font(size: int, bold: bool = True) -> ImageFont.ImageFont:
         except OSError:
             continue
     return ImageFont.load_default()
+
+
+def _load_ui_font(size: int, bold: bool = False) -> ImageFont.ImageFont:
+    candidates = FONT_UI_BOLD_CANDIDATES if bold else FONT_REGULAR_CANDIDATES
+    for path in candidates:
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            continue
+    return _load_font(size, bold=bold)
 
 
 def _fit_font(text: str, max_width: int, max_height: int, start_size: int, min_size: int = 8, bold: bool = True) -> ImageFont.ImageFont:
@@ -305,19 +329,19 @@ def render_sun_card(data: SunCardData) -> Image.Image:
     else:
         image = image.copy()
     draw = ImageDraw.Draw(image)
-
-    draw.rectangle((0, 0, WIDTH - 1, HEIGHT - 1), outline=_rgb("black"), width=1)
-
-    draw.rectangle((0, 0, WIDTH, 22), fill=_rgb("paper"))
-    draw.line((0, 22, WIDTH, 22), fill=_rgb("black"), width=1)
-    footer = f"{data.scene_name.upper()}  {data.location.upper()}  {data.date_label}"
-    _draw_centred_text(draw, (8, 1, WIDTH - 8, 21), footer, 15, {"text": "black"}, "text", True, 8)
-
-    _draw_sun_time_panel(draw, (16, 28, 194, 72), "RISE", data.sunrise, "bright_yellow")
-    _draw_sun_time_panel(draw, (206, 28, 384, 72), "SET", data.sunset, "gold")
-    _draw_sun_small_metric(draw, (16, 78, 132, 103), "DAWN", data.civil_dawn)
-    _draw_sun_small_metric(draw, (142, 78, 258, 103), "DAY", data.day_length)
-    _draw_sun_small_metric(draw, (268, 78, 384, 103), "DUSK", data.civil_dusk)
+    _draw_luxe_top_identity(draw, data.scene_name.upper(), f"{data.location.upper()}  {data.date_label}")
+    _draw_luxe_main_panel(
+        draw,
+        data.primary_label,
+        data.primary_value,
+        data.secondary_prefix,
+        data.secondary_value,
+    )
+    if "sunrise" in data.primary_label.lower():
+        tiles = (("CIVIL DAWN", data.civil_dawn), ("GOLDEN HR", _first_range_time(data.golden_morning)), ("DAYLIGHT", data.day_length))
+    else:
+        tiles = (("DAYLIGHT", data.day_length), ("GOLDEN HR", _first_range_time(data.golden_evening)), ("CIVIL DUSK", data.civil_dusk))
+    _draw_luxe_tile_row(draw, tiles)
     return image
 
 
@@ -330,21 +354,83 @@ def render_moon_card(data: MoonCardData) -> Image.Image:
     else:
         image = image.copy()
     draw = ImageDraw.Draw(image)
-
-    draw.rectangle((0, 0, WIDTH - 1, HEIGHT - 1), outline=_rgb("black"), width=1)
-    _draw_moon_time_panel(draw, (16, 190, 194, 234), "PHASE", data.phase_name.upper(), "pale_yellow")
-    _draw_moon_time_panel(draw, (206, 190, 384, 234), "LIGHT", data.illumination, "bright_yellow")
-    _draw_sun_small_metric(draw, (16, 240, 132, 265), "AGE", data.moon_age)
-    _draw_sun_small_metric(draw, (142, 240, 258, 265), "RISE", data.moonrise)
-    _draw_sun_small_metric(draw, (268, 240, 384, 265), "SET", data.moonset)
-    _draw_sun_small_metric(draw, (16, 271, 194, 296), "FULL", data.next_full)
-    _draw_sun_small_metric(draw, (206, 271, 384, 296), "NEW", data.next_new)
-
-    draw.rectangle((0, 0, WIDTH, 24), fill=_rgb("paper"))
-    draw.line((0, 24, WIDTH, 24), fill=_rgb("black"), width=1)
-    header = f"MOON PHASE  {data.location.upper()}  {data.date_label}"
-    _draw_centred_text(draw, (8, 2, WIDTH - 8, 23), header, 15, {"text": "black"}, "text", True, 8)
+    _draw_luxe_top_identity(draw, "MOON PHASE", f"{data.phase_name}  {data.date_label}")
+    _draw_luxe_main_panel(
+        draw,
+        data.primary_label,
+        data.primary_value,
+        data.secondary_prefix,
+        data.secondary_value,
+    )
+    phase_short = data.phase_name.replace(" Moon", "").replace(" Quarter", " Qtr")
+    _draw_luxe_tile_row(draw, (("PHASE", phase_short), ("ILLUM.", data.illumination), ("NEXT FULL", data.next_full)))
     return image
+
+
+def _first_range_time(value: str) -> str:
+    return value.split("-", 1)[0].strip() if "-" in value else value
+
+
+def _draw_luxe_top_identity(draw: ImageDraw.ImageDraw, title: str, state_label: str) -> None:
+    panel_fill = _rgb("pale_cream")
+    panel_rule = _rgb("tan")
+    accent = _rgb("gold")
+    text = _rgb("black")
+    secondary = _rgb("charcoal")
+    draw.rounded_rectangle((12, 10, 388, 46), radius=8, fill=panel_fill, outline=panel_rule, width=1)
+    draw.line((22, 45, 378, 45), fill=accent, width=1)
+    title_font = _fit_ui_font(title, 190, 17, bold=True)
+    state_font = _fit_ui_font(state_label, 150, 11, bold=False)
+    draw.text((24, 15), title, fill=text, font=title_font)
+    draw.text((24, 31), state_label, fill=secondary, font=state_font)
+    brand = "DITHERLOOM"
+    brand_font = _load_ui_font(8, bold=True)
+    left, top, right, bottom = brand_font.getbbox(brand)
+    draw.text((374 - (right - left), 22), brand, fill=_rgb("brown"), font=brand_font)
+
+
+def _draw_luxe_main_panel(
+    draw: ImageDraw.ImageDraw,
+    primary_label: str,
+    primary_value: str,
+    secondary_prefix: str,
+    secondary_value: str,
+) -> None:
+    draw.rounded_rectangle((18, 174, 382, 246), radius=10, fill=_rgb("pale_cream"), outline=_rgb("tan"), width=1)
+    draw.rounded_rectangle((18, 174, 382, 179), radius=5, fill=_rgb("gold"))
+    label_font = _load_ui_font(11, bold=True)
+    value_font = _fit_ui_font(primary_value, 198, 34, bold=True, min_size=24)
+    prefix_font = _load_ui_font(10)
+    secondary_font = _fit_ui_font(secondary_value, 120, 24, bold=True, min_size=16)
+    draw.text((31, 188), primary_label, fill=_rgb("brown"), font=label_font)
+    draw.text((30, 206), primary_value, fill=_rgb("black"), font=value_font)
+    draw.line((226, 191, 226, 232), fill=_rgb("tan"), width=1)
+    draw.text((250, 191), secondary_prefix, fill=_rgb("charcoal"), font=prefix_font)
+    draw.text((247, 212), secondary_value, fill=_rgb("black"), font=secondary_font)
+
+
+def _draw_luxe_tile_row(draw: ImageDraw.ImageDraw, tiles: tuple[tuple[str, str], tuple[str, str], tuple[str, str]]) -> None:
+    for box, (label, value) in zip(((18, 252, 136, 290), (141, 252, 259, 290), (264, 252, 382, 290)), tiles):
+        _draw_luxe_tile(draw, box, label, value)
+
+
+def _draw_luxe_tile(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], label: str, value: str) -> None:
+    x1, y1, x2, y2 = box
+    draw.rounded_rectangle(box, radius=7, fill=_rgb("cream"), outline=_rgb("tan"), width=1)
+    label_font = _fit_ui_font(label, x2 - x1 - 12, 8, bold=True, min_size=6)
+    value_font = _fit_ui_font(value, x2 - x1 - 12, 15, bold=True, min_size=10)
+    draw.text((x1 + 9, y1 + 6), label, fill=_rgb("brown"), font=label_font)
+    draw.text((x1 + 9, y1 + 20), value, fill=_rgb("black"), font=value_font)
+
+
+def _fit_ui_font(text: str, max_width: int, size: int, bold: bool = False, min_size: int = 8) -> ImageFont.ImageFont:
+    value = str(text)
+    for font_size in range(size, min_size - 1, -1):
+        font = _load_ui_font(font_size, bold=bold)
+        left, top, right, bottom = font.getbbox(value)
+        if right - left <= max_width:
+            return font
+    return _load_ui_font(min_size, bold=bold)
 
 
 @lru_cache(maxsize=4)
