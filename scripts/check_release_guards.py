@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import ast
 import json
+import os
 import struct
 import subprocess
 import sys
@@ -183,6 +184,8 @@ def check_update_platform() -> None:
     init_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py"
     icon_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "icon.png"
     logo_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "logo.png"
+    brand_icon_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "brand" / "icon.png"
+    brand_logo_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "brand" / "logo.png"
     update_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "update.py"
     manifest_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "manifest.json"
 
@@ -192,6 +195,10 @@ def check_update_platform() -> None:
         fail("Home Assistant integration icon.png is missing")
     if not logo_path.exists() or logo_path.stat().st_size <= 0:
         fail("Home Assistant integration logo.png is missing")
+    if not brand_icon_path.exists() or brand_icon_path.stat().st_size <= 0:
+        fail("Home Assistant integration brand/icon.png is missing")
+    if not brand_logo_path.exists() or brand_logo_path.stat().st_size <= 0:
+        fail("Home Assistant integration brand/logo.png is missing")
 
     init_text = init_path.read_text(encoding="utf-8")
     update_text = update_path.read_text(encoding="utf-8")
@@ -251,11 +258,15 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.46"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.46")
+    if '"version": "0.1.47"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.47")
 
 
 def check_public_repo_single_version() -> None:
+    github_ref = os.environ.get("GITHUB_REF", "")
+    if os.environ.get("GITHUB_ACTIONS") == "true" and not github_ref.startswith("refs/tags/v"):
+        return
+
     manifest_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     expected_tag = f"v{manifest['version']}"

@@ -16,6 +16,7 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
@@ -84,6 +85,13 @@ PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
 DISCOVERY_AUTH_MESSAGE = "Provide a Home Assistant Long-Lived Access Token."
+STALE_FRONTEND_ENTITY_NAMES = {"Synchronise Wi-Fi " + "wake window"}
+STALE_FRONTEND_ENTITY_UNIQUE_ID_SUFFIXES = {
+    "sync_wifi_wake_window",
+    "synchronise_wifi_wake_window",
+    "synchronize_wifi_wake_window",
+    "sync_wake_window",
+}
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -97,6 +105,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_load()
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     await coordinator.async_start()
+    _async_remove_stale_frontend_entities(hass, entry)
 
     hass.http.register_view(DitherloomPayloadView(coordinator))
     hass.http.register_view(DitherloomPreviewView(coordinator))
@@ -130,6 +139,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+def _async_remove_stale_frontend_entities(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    registry = er.async_get(hass)
+    expected_unique_ids = {
+        f"{entry.entry_id}_{suffix}" for suffix in STALE_FRONTEND_ENTITY_UNIQUE_ID_SUFFIXES
+    }
+    for entity_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if entity_entry.domain != "button":
+            continue
+        if entity_entry.unique_id in expected_unique_ids:
+            registry.async_remove(entity_entry.entity_id)
+            continue
+        if entity_entry.original_name in STALE_FRONTEND_ENTITY_NAMES or entity_entry.name in STALE_FRONTEND_ENTITY_NAMES:
+            registry.async_remove(entity_entry.entity_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
