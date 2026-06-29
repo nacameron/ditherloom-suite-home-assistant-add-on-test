@@ -273,8 +273,8 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.51"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.51")
+    if '"version": "0.1.52"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.52")
 
 
 def check_public_repo_single_version() -> None:
@@ -401,11 +401,12 @@ def check_weather_renderer_options() -> None:
             "COLOUR_MODE_MONO = \"mono\"",
             "TOP_BAR_HEIGHT = 38",
             "BOTTOM_BAR_HEIGHT = 38",
-            "WEATHER_TEMPLATE_DIR",
-            "safe_400x300",
-            "_load_weather_template",
+            "WEATHER_ART_DIR",
             "_template_slug_for_data",
-            "_render_template_weather_card",
+            "_render_luxe_weather_card",
+            "_paste_luxe_weather_art",
+            "CURRENT TEMPERATURE",
+            "UV INDEX",
             "bushfire_risk_day",
             "extreme_heat_day",
             "extreme_cold_day",
@@ -442,6 +443,17 @@ def check_weather_renderer_options() -> None:
         for required in required_values:
             if required not in text:
                 fail(f"weather renderer option route missing required text in {path.name}: {required}")
+    cards_text = cards_path.read_text(encoding="utf-8")
+    for forbidden in (
+        "WEATHER_TEMPLATE_DIR",
+        "_load_weather_template",
+        "_render_template_weather_card",
+        "_render_modern_weather_card_legacy",
+        "weather_templates",
+        "safe_400x300",
+    ):
+        if forbidden in cards_text:
+            fail(f"weather renderer still contains old template path: {forbidden}")
 
 
 def _png_dimensions(path: Path) -> tuple[int, int]:
@@ -452,11 +464,12 @@ def _png_dimensions(path: Path) -> tuple[int, int]:
     return struct.unpack(">II", header[16:24])
 
 
-def check_weather_template_assets() -> None:
-    template_root = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "assets" / "weather_templates"
-    safe_root = template_root / "safe_400x300"
-    manifest_path = template_root / "manifest.json"
-    required_templates = (
+def check_weather_art_assets() -> None:
+    art_root = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "assets" / "weather_art"
+    old_template_root = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "assets" / "weather_templates"
+    if old_template_root.exists():
+        fail("old weather template assets are still packaged")
+    required_art = (
         "sunny_day",
         "partly_cloudy_day",
         "cloudy_day",
@@ -475,18 +488,30 @@ def check_weather_template_assets() -> None:
         "high_wind_day",
         "bushfire_risk_day",
     )
-    if not manifest_path.exists():
-        fail("weather template manifest is missing")
-    manifest_text = manifest_path.read_text(encoding="utf-8")
-    for required in ("400", "300", "Ditherloom 30 safe colours", "copyright Neil Cameron"):
-        if required not in manifest_text:
-            fail(f"weather template manifest missing required text: {required}")
-    for slug in required_templates:
-        path = safe_root / f"{slug}_template_30safe_400x300.png"
+    for slug in required_art:
+        path = art_root / f"{slug}.png"
         if not path.exists():
-            fail(f"weather template asset missing: {slug}")
-        if _png_dimensions(path) != (400, 300):
-            fail(f"weather template asset has wrong size: {slug}")
+            fail(f"weather art asset missing: {slug}")
+        width, height = _png_dimensions(path)
+        if width < 400 or height < 300:
+            fail(f"weather art asset is too small: {slug}")
+
+
+def check_current_sun_moon_art_assets() -> None:
+    assets_root = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "assets"
+    forbidden = (
+        assets_root / "sun_art" / "sunrise_sunset_background.png",
+        assets_root / "sun_art" / "sunrise_sunset_central.png",
+        assets_root / "moon_art" / "moon_phase_background.png",
+    )
+    for path in forbidden:
+        if path.exists():
+            fail(f"old sun/moon artwork asset is still packaged: {path.name}")
+    cards_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "renderer" / "cards.py"
+    cards_text = cards_path.read_text(encoding="utf-8")
+    for forbidden_text in ("sunrise_sunset_background", "sunrise_sunset_central", "moon_phase_background"):
+        if forbidden_text in cards_text:
+            fail(f"old sun/moon artwork reference remains: {forbidden_text}")
 
 
 def check_weather_packer_photo_path() -> None:
@@ -674,7 +699,8 @@ def main() -> None:
     check_update_platform()
     check_public_repo_single_version()
     check_weather_renderer_options()
-    check_weather_template_assets()
+    check_weather_art_assets()
+    check_current_sun_moon_art_assets()
     check_weather_packer_photo_path()
     check_frame_awake_handshake()
     check_dashboard_surface()

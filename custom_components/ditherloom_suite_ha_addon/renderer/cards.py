@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageEnhance, ImageFont
 
 from .palette import TEMPLATE_COLOURS
 
@@ -39,7 +39,6 @@ FONT_UI_BOLD_CANDIDATES = (
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 )
 WEATHER_ART_DIR = Path(__file__).resolve().parents[1] / "assets" / "weather_art"
-WEATHER_TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "assets" / "weather_templates" / "safe_400x300"
 SUN_ART_DIR = Path(__file__).resolve().parents[1] / "assets" / "sun_art"
 MOON_ART_DIR = Path(__file__).resolve().parents[1] / "assets" / "moon_art"
 
@@ -320,14 +319,8 @@ def _weather_art_for_title(title: str, kind: str) -> Image.Image | None:
 def render_sun_card(data: SunCardData) -> Image.Image:
     image = _load_sun_art(f"sun_{data.scene_id}_background")
     if image is None:
-        image = _load_sun_art("sunrise_sunset_background")
-    if image is None:
-        image = Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
-        draw = ImageDraw.Draw(image)
-        draw.rectangle((0, 44, WIDTH - 1, 159), fill=_rgb("cream"))
-        draw.rectangle((0, 160, WIDTH - 1, HEIGHT - BOTTOM_BAR_HEIGHT - 1), fill=_rgb("paper"))
-    else:
-        image = image.copy()
+        raise FileNotFoundError("sun card artwork is missing")
+    image = image.copy()
     draw = ImageDraw.Draw(image)
     _draw_luxe_top_identity(draw, data.scene_name.upper(), f"{data.location.upper()}  {data.date_label}")
     _draw_luxe_main_panel(
@@ -350,9 +343,8 @@ def render_moon_card(data: MoonCardData) -> Image.Image:
     if image is None:
         image = _load_moon_art("moon_full_background")
     if image is None:
-        image = Image.new("RGB", (WIDTH, HEIGHT), _rgb("paper"))
-    else:
-        image = image.copy()
+        raise FileNotFoundError("moon card artwork is missing")
+    image = image.copy()
     draw = ImageDraw.Draw(image)
     _draw_luxe_top_identity(draw, "MOON PHASE", f"{data.phase_name}  {data.date_label}")
     _draw_luxe_main_panel(
@@ -423,6 +415,37 @@ def _draw_luxe_tile(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], l
     draw.text((x1 + 9, y1 + 20), value, fill=_rgb("black"), font=value_font)
 
 
+def _draw_luxe_text_left(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    text: str,
+    size: int,
+    bold: bool,
+    fill: tuple[int, int, int],
+    min_size: int = 7,
+) -> None:
+    x1, y1, x2, y2 = box
+    font = _fit_font(str(text), x2 - x1, y2 - y1, size, min_size=min_size, bold=bold)
+    left, top, right, bottom = font.getbbox(str(text))
+    draw.text((x1 - left, y1 - top), str(text), fill=fill, font=font)
+
+
+def _draw_luxe_text_right(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    text: str,
+    size: int,
+    bold: bool,
+    fill: tuple[int, int, int],
+    min_size: int = 7,
+) -> None:
+    x1, y1, x2, y2 = box
+    value = str(text)
+    font = _fit_font(value, x2 - x1, y2 - y1, size, min_size=min_size, bold=bold)
+    left, top, right, bottom = font.getbbox(value)
+    draw.text((x2 - (right - left) - left, y1 - top), value, fill=fill, font=font)
+
+
 def _fit_ui_font(text: str, max_width: int, size: int, bold: bool = False, min_size: int = 8) -> ImageFont.ImageFont:
     value = str(text)
     for font_size in range(size, min_size - 1, -1):
@@ -471,7 +494,7 @@ def _moon_asset_name(phase_name: str) -> str:
         "last_quarter": "moon_last_quarter_background",
         "waning_crescent": "moon_waning_crescent_background",
     }
-    return mapping.get(normalized, "moon_phase_background")
+    return mapping.get(normalized, "moon_full_background")
 
 
 def _draw_moon_time_panel(
@@ -520,27 +543,6 @@ def _draw_sun_time_panel(
     _draw_centred_text(draw, (x1 + 50, y1 + 3, x2 - 4, y2 - 3), value, 30, {"text": "black"}, "text", True, 15)
 
 
-def _draw_sun_small_metric(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], label: str, value: str) -> None:
-    x1, y1, x2, y2 = box
-    draw.rectangle(box, fill=_rgb("warm_white"), outline=_rgb("black"), width=1)
-    draw.rectangle((x1, y1, x1 + 32, y2), fill=_rgb("pale_cream"))
-    draw.line((x1 + 32, y1, x1 + 32, y2), fill=_rgb("black"), width=1)
-    _draw_centred_text(draw, (x1 + 2, y1 + 1, x1 + 30, y2 - 1), label, 10, {"text": "black"}, "text", True, 5)
-    _draw_centred_text(draw, (x1 + 35, y1 + 1, x2 - 2, y2 - 1), value, 13, {"text": "black"}, "text", True, 6)
-
-
-def _modern_kind(condition: str, alert: str) -> str:
-    return _condition_kind(condition, alert)
-
-
-@lru_cache(maxsize=32)
-def _load_weather_template(slug: str) -> Image.Image | None:
-    path = WEATHER_TEMPLATE_DIR / f"{slug}_template_30safe_400x300.png"
-    if not path.exists():
-        return None
-    return Image.open(path).convert("RGB")
-
-
 def _has_any(text: str, *needles: str) -> bool:
     return any(needle in text for needle in needles)
 
@@ -576,217 +578,68 @@ def _template_slug_for_data(data: WeatherCardData) -> str:
     return "sunny_day"
 
 
-def _draw_template_value(
-    draw: ImageDraw.ImageDraw,
-    box: tuple[int, int, int, int],
-    value: str,
-    start_size: int = 22,
-    min_size: int = 11,
-) -> None:
-    colours = {"text": "black"}
-    _draw_centred_text(draw, box, value, start_size, colours, "text", True, min_size)
-
-
-def _fit_tight_bitmap_scale(text: str, max_width: int, max_height: int, size: int, min_size: int) -> int:
-    current = max(1, int(round(size / GLYPH_ROWS)))
-    min_scale = max(1, int(round(min_size / GLYPH_ROWS)))
-    while current >= min_scale:
-        width, height = _bitmap_size(text, current, spacing=0)
-        if width <= max_width and height <= max_height:
-            return current
-        current -= 1
-    return min_scale
-
-
-def _draw_tight_centred_text(
-    draw: ImageDraw.ImageDraw,
-    box: tuple[int, int, int, int],
-    text: object,
-    size: int,
-    fill: tuple[int, int, int],
-    min_size: int = 10,
-) -> None:
-    x1, y1, x2, y2 = box
-    normalized = _normalize_text(text)
-    scale = _fit_tight_bitmap_scale(normalized, x2 - x1 - 2, y2 - y1 - 2, _scaled(size), min_size)
-    width, height = _bitmap_size(normalized, scale, spacing=0)
-    x = int(x1 + (x2 - x1 - width) / 2)
-    y = int(y1 + (y2 - y1 - height) / 2)
-    cursor = x
-    for char in normalized:
-        glyph = _glyph(char)
-        for row, bits in enumerate(glyph):
-            for col, bit in enumerate(bits):
-                if bit == "1":
-                    px = cursor + col * scale
-                    py = y + row * scale
-                    cx1 = max(px, x1)
-                    cy1 = max(py, y1)
-                    cx2 = min(px + scale - 1, x2 - 1)
-                    cy2 = min(py + scale - 1, y2 - 1)
-                    if cx1 <= cx2 and cy1 <= cy2:
-                        draw.rectangle((cx1, cy1, cx2, cy2), fill=fill)
-        cursor += GLYPH_COLS * scale
-
-
-def _draw_template_metric(
-    draw: ImageDraw.ImageDraw,
-    box: tuple[int, int, int, int],
-    label: str,
-    value: str,
-    accent: str,
-) -> None:
-    x1, y1, x2, y2 = box
-    label_width = 27
-    draw.rectangle(box, fill=_rgb("white"), outline=_rgb("black"), width=1)
-    draw.rectangle((x1, y1, x1 + label_width, y2), fill=_rgb(accent), outline=_rgb("black"), width=1)
-    draw.line((x1 + label_width, y1, x1 + label_width, y2), fill=_rgb("black"), width=1)
-    _draw_tight_centred_text(draw, (x1 + 2, y1 + 2, x1 + label_width - 1, y2 - 2), label[:2].upper(), 21, _rgb("black"), 12)
-    compact_value = value
-    if label.upper() == "WI":
-        compact_value = value.replace("km/h", "KM/H").replace("mph", "MPH")
-    start_size = 21 if label.upper() in {"PR", "WI"} else 23
-    min_size = 12 if label.upper() in {"PR", "WI"} else 13
-    _draw_tight_centred_text(draw, (x1 + label_width + 2, y1 + 2, x2 - 3, y2 - 2), compact_value, start_size, _rgb("black"), min_size)
-
-
-def _render_template_weather_card(data: WeatherCardData) -> Image.Image | None:
-    slug = _template_slug_for_data(data)
-    template = _load_weather_template(slug)
-    if template is None:
-        template = _load_weather_template("sunny_day")
-    if template is None:
-        return None
-
-    image = template.copy()
-    draw = ImageDraw.Draw(image)
-    text_colours = {
-        "text": "black",
-        "top_text": "black",
-        "bottom_text": "black",
-        "inverse_text": "bright_yellow",
-    }
-
-    title = (data.alert.strip() or data.condition.strip() or "Weather").upper()
-    _draw_centred_text(draw, (8, 0, WIDTH - 8, TOP_BAR_HEIGHT), title, 28, text_colours, "top_text", True, 14)
-    _draw_centred_text(
-        draw,
-        (8, HEIGHT - BOTTOM_BAR_HEIGHT, WIDTH - 8, HEIGHT),
-        (data.location or "Weather location").upper(),
-        25,
-        text_colours,
-        "bottom_text",
-        True,
-        12,
-    )
-
-    left_metrics = (
-        ("UV", _detail_value(data, ("UV", "uv_index"), data.uv_index), (4, 50, 110, 84), "pale_yellow"),
-        ("RA", _detail_value(data, ("Rain",), data.rain), (4, 99, 110, 133), "rose"),
-        ("PR", data.pressure or "--", (4, 148, 110, 182), "peach"),
-    )
-    right_metrics = (
-        ("HI", f"{data.high}{data.unit}", (290, 50, 396, 84), "pale_yellow"),
-        ("LO", f"{data.low}{data.unit}", (290, 99, 396, 133), "pale_yellow"),
-        ("HU", _detail_value(data, ("Hum", "Humidity"), data.humidity), (290, 148, 396, 182), "pale_yellow"),
-        ("WI", _detail_value(data, ("Wind",), data.wind), (290, 197, 396, 231), "tan"),
-    )
-    for label, value, box, accent in left_metrics + right_metrics:
-        _draw_template_metric(draw, box, label, value, accent)
-
-    draw.rectangle((129, 170, 271, 236), fill=_rgb("black"), outline=_rgb("black"), width=1)
-    _draw_centred_text(
-        draw,
-        (131, 170, 269, 236),
-        f"{data.temperature}{data.unit}",
-        52,
-        text_colours,
-        "inverse_text",
-        True,
-        30,
-    )
-    feels_like = f"Feels Like {data.feels_like}" if data.feels_like else "Feels Like --"
-    draw.rectangle((96, 238, 304, 260), fill=_rgb("white"), outline=_rgb("black"), width=1)
-    _draw_centred_text(draw, (98, 239, 302, 259), feels_like, 18, text_colours, "text", True, 10)
-    return image
-
-
-def _modern_bar_steps(kind: str, alert: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    normalized = alert.lower()
-    if "storm" in normalized or "hail" in normalized or kind == "storm":
-        return ("rose", "warm_red", "red"), ("rose", "warm_red", "red")
-    if "rain" in normalized or kind == "rain":
-        return ("rose", "blush", "peach"), ("rose", "warm_red", "peach")
-    if "cloud" in normalized or kind == "cloud":
-        return ("warm_white", "pale_cream", "parchment"), ("warm_white", "parchment", "tan")
-    return ("bright_yellow", "pale_yellow", "peach", "warm_red"), ("bright_yellow", "gold", "peach", "red")
-
-
-def _draw_modern_metric(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], label: str, value: str, accent: str) -> None:
-    x1, y1, x2, y2 = box
-    label_w = max(24, int((x2 - x1) * 0.34))
-    draw.rectangle(box, fill=_rgb("warm_white"), outline=_rgb("black"), width=1)
-    _draw_safe_gradient(draw, (x1, y1, x1 + label_w, y2), ("pale_yellow", accent))
-    draw.line((x1 + label_w, y1, x1 + label_w, y2), fill=_rgb("black"), width=1)
-    _draw_font_text(draw, (x1 + 2, y1, x1 + label_w - 1, y2), label.upper()[:2], _rgb("black"), 19, 11, True)
-    _draw_font_text(draw, (x1 + label_w + 3, y1, x2 - 3, y2), value, _rgb("black"), 19, 10, True)
-
-
 def render_modern_weather_card(data: WeatherCardData, colour_mode: str = COLOUR_MODE_COLOUR) -> Image.Image:
     if _is_mono(colour_mode):
         return render_weather_card(data, colour_mode=colour_mode)
 
-    template_card = _render_template_weather_card(data)
-    if template_card is not None:
-        return template_card
+    return _render_luxe_weather_card(data)
 
-    kind = _modern_kind(data.condition, data.alert)
-    colours = _colours(kind, colour_mode)
-    title = (data.alert or data.condition or "Weather").upper()
+
+def _render_luxe_weather_card(data: WeatherCardData) -> Image.Image:
     image = Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
     draw = ImageDraw.Draw(image)
+    _paste_luxe_weather_art(image, _template_slug_for_data(data))
 
-    top_steps, bottom_steps = _modern_bar_steps(kind, data.alert or data.condition)
-    _draw_safe_gradient(draw, (0, 0, WIDTH - 1, TOP_BAR_HEIGHT), top_steps)
-    _draw_safe_gradient(draw, (0, HEIGHT - BOTTOM_BAR_HEIGHT, WIDTH - 1, HEIGHT - 1), bottom_steps)
-    draw.rectangle((0, 0, WIDTH - 1, HEIGHT - 1), outline=_rgb("black"), width=1)
-    draw.line((0, TOP_BAR_HEIGHT, WIDTH, TOP_BAR_HEIGHT), fill=_rgb("black"), width=1)
-    draw.line((0, HEIGHT - BOTTOM_BAR_HEIGHT, WIDTH, HEIGHT - BOTTOM_BAR_HEIGHT), fill=_rgb("black"), width=1)
-    _draw_font_text(draw, (8, 2, WIDTH - 8, TOP_BAR_HEIGHT - 2), title, _rgb("black"), 30, 16, True)
-    _draw_font_text(draw, (8, HEIGHT - BOTTOM_BAR_HEIGHT + 2, WIDTH - 8, HEIGHT - 3), (data.location or "Weather location").upper(), _rgb("black"), 27, 14, True)
+    draw.rounded_rectangle((12, 12, 388, 46), radius=7, fill=_rgb("warm_white"), outline=_rgb("tan"), width=1)
+    _draw_luxe_text_left(draw, (24, 18, 270, 40), (data.location or "Weather").upper(), 21, True, _rgb("black"), 12)
+    _draw_luxe_text_right(draw, (304, 24, 358, 38), data.updated or "Now", 10, True, _rgb("brown"), 8)
 
-    body = Image.new("RGB", (WIDTH, HEIGHT - TOP_BAR_HEIGHT - BOTTOM_BAR_HEIGHT - 2), _rgb("warm_white"))
-    body_draw = ImageDraw.Draw(body)
-    _draw_safe_gradient(body_draw, (0, 0, WIDTH - 1, body.height - 1), ("warm_white", "cream", "warm_white"), vertical=True)
-    body = body.filter(ImageFilter.GaussianBlur(0.25))
-    image.paste(body, (0, TOP_BAR_HEIGHT + 1))
-    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((18, 176, 382, 247), radius=9, fill=_rgb("warm_white"), outline=_rgb("tan"), width=1)
+    draw.rounded_rectangle((18, 176, 382, 181), radius=4, fill=_rgb("gold"))
+    _draw_luxe_text_left(draw, (31, 196, 154, 208), "CURRENT TEMPERATURE", 10, True, _rgb("brown"), 7)
 
-    art_box = (96, 46, 304, 184)
-    _draw_photo_weather_art(draw, art_box, kind, title, colours)
+    temperature = _weather_temperature_text(data.temperature, data.unit)
+    _draw_luxe_text_left(draw, (30, 216, 142, 244), temperature, 30, True, _rgb("black"), 20)
+    uv_value = _detail_value(data, ("UV", "uv_index"), data.uv_index) or "--"
+    _draw_luxe_text_left(draw, (164, 198, 214, 209), "UV INDEX", 8, True, _rgb("brown"), 6)
+    _draw_luxe_text_right(draw, (151, 216, 214, 244), uv_value, 24, True, _rgb("black"), 14)
 
-    left_metrics = (
-        ("UV", _detail_value(data, ("UV", "uv_index"), data.uv_index), "pale_yellow"),
-        ("RA", _detail_value(data, ("Rain",), data.rain), "peach"),
-        ("PR", data.pressure or "--", "orange"),
-    )
-    right_metrics = (
-        ("HI", f"{data.high}{data.unit}", "pale_yellow"),
-        ("LO", f"{data.low}{data.unit}", "pale_yellow"),
-        ("HU", _detail_value(data, ("Hum", "Humidity"), data.humidity), "pale_yellow"),
-        ("WI", _detail_value(data, ("Wind",), data.wind), "pale_yellow"),
-    )
-    for y, (label, value, accent) in zip((50, 100, 150), left_metrics):
-        _draw_modern_metric(draw, (12, y, 84, y + 32), label, value, accent)
-    for y, (label, value, accent) in zip((50, 96, 142, 188), right_metrics):
-        _draw_modern_metric(draw, (316, y, 388, y + 32), label, value, accent)
+    draw.line((227, 192, 227, 234), fill=_rgb("tan"), width=1)
+    condition = data.alert.strip() or data.condition.strip() or "Weather"
+    _draw_luxe_text_left(draw, (250, 196, 374, 212), condition, 14, True, _rgb("black"), 9)
+    feels_like = f"Feels {data.feels_like}" if data.feels_like else "Feels --"
+    _draw_luxe_text_left(draw, (250, 214, 374, 227), feels_like, 10, False, _rgb("charcoal"), 7)
+    high_low = f"H {_weather_temperature_text(data.high, data.unit)} / L {_weather_temperature_text(data.low, data.unit)}"
+    _draw_luxe_text_left(draw, (250, 232, 374, 244), high_low, 10, True, _rgb("brown"), 7)
 
-    temp_box = (130, 176, 270, 242)
-    draw.rectangle(temp_box, fill=_rgb("black"))
-    _draw_font_text(draw, temp_box, f"{data.temperature}{data.unit}", _rgb("bright_yellow"), 61, 30, True)
-    feels_like = f"Feels Like {data.feels_like}" if data.feels_like else "Feels Like --"
-    _draw_font_text(draw, (92, 238, 308, HEIGHT - BOTTOM_BAR_HEIGHT - 2), feels_like, _rgb("black"), 19, 11, True)
+    _draw_luxe_weather_tile(draw, (18, 253, 136, 291), "HUMIDITY", _detail_value(data, ("Hum", "Humidity"), data.humidity) or "--")
+    _draw_luxe_weather_tile(draw, (141, 253, 259, 291), "WIND", _detail_value(data, ("Wind",), data.wind) or "--")
+    _draw_luxe_weather_tile(draw, (264, 253, 382, 291), "RAIN", _detail_value(data, ("Rain",), data.rain) or "--")
     return image
+
+
+def _paste_luxe_weather_art(image: Image.Image, slug: str) -> None:
+    artwork = _load_weather_art(slug) or _load_weather_art("sunny_day")
+    if artwork is None:
+        return
+    art = artwork.convert("RGBA")
+    art.thumbnail((184, 128), Image.Resampling.LANCZOS)
+    image.paste(art.convert("RGB"), ((WIDTH - art.width) // 2, 48 + (120 - art.height) // 2), art if art.mode == "RGBA" else None)
+
+
+def _draw_luxe_weather_tile(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], label: str, value: str) -> None:
+    x1, y1, x2, y2 = box
+    draw.rounded_rectangle(box, radius=7, fill=_rgb("pale_cream"), outline=_rgb("tan"), width=1)
+    _draw_luxe_text_left(draw, (x1 + 9, y1 + 6, x2 - 8, y1 + 16), label, 8, True, _rgb("brown"), 6)
+    _draw_luxe_text_left(draw, (x1 + 9, y1 + 20, x2 - 8, y2 - 3), value, 15, True, _rgb("black"), 10)
+
+
+def _weather_temperature_text(value: str, unit: str) -> str:
+    text = str(value).strip() or "--"
+    if text == "--" or "°" in text:
+        return text
+    suffix = str(unit).strip() or "C"
+    return f"{text}°{suffix}"
 
 
 def _normalize_text(text: object) -> str:
