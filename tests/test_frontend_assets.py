@@ -39,6 +39,9 @@ def test_sync_wifi_button_is_not_created_and_stale_entity_is_removed():
     assert "sync_wifi_wake_window" in init_source
     assert "send_weather_to_frame" in init_source
     assert "frame_schedule_status" in init_source
+    assert "list(registry.entities.values())" in init_source
+    assert "entity_entry.domain != \"button\"" not in init_source
+    assert "_is_stale_frontend_entity" in init_source
     assert "registry.async_remove(entity_entry.entity_id)" in init_source
 
 

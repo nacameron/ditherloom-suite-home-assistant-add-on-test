@@ -98,6 +98,14 @@ STALE_FRONTEND_ENTITY_UNIQUE_ID_SUFFIXES = {
     "send_weather_to_frame",
     "frame_schedule_status",
 }
+STALE_FRONTEND_ENTITY_ID_SUFFIXES = {
+    "sync_wifi_wake_window",
+    "synchronise_wifi_wake_window",
+    "synchronize_wifi_wake_window",
+    "sync_wake_window",
+    "send_weather_to_frame",
+    "frame_schedule_status",
+}
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -152,14 +160,31 @@ def _async_remove_stale_frontend_entities(hass: HomeAssistant, entry: ConfigEntr
     expected_unique_ids = {
         f"{entry.entry_id}_{suffix}" for suffix in STALE_FRONTEND_ENTITY_UNIQUE_ID_SUFFIXES
     }
-    for entity_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
-        if entity_entry.domain != "button":
+    for entity_entry in list(registry.entities.values()):
+        if not _is_ditherloom_registry_entry(entity_entry, entry):
             continue
-        if entity_entry.unique_id in expected_unique_ids:
+        if _is_stale_frontend_entity(entity_entry, expected_unique_ids):
             registry.async_remove(entity_entry.entity_id)
-            continue
-        if entity_entry.original_name in STALE_FRONTEND_ENTITY_NAMES or entity_entry.name in STALE_FRONTEND_ENTITY_NAMES:
-            registry.async_remove(entity_entry.entity_id)
+
+
+def _is_ditherloom_registry_entry(entity_entry: Any, entry: ConfigEntry) -> bool:
+    if getattr(entity_entry, "config_entry_id", None) == entry.entry_id:
+        return True
+    if getattr(entity_entry, "platform", None) == DOMAIN:
+        return True
+    return "ditherloom" in str(getattr(entity_entry, "entity_id", "")).lower()
+
+
+def _is_stale_frontend_entity(entity_entry: Any, expected_unique_ids: set[str]) -> bool:
+    if getattr(entity_entry, "unique_id", None) in expected_unique_ids:
+        return True
+    entity_id = str(getattr(entity_entry, "entity_id", "")).lower()
+    unique_id = str(getattr(entity_entry, "unique_id", "")).lower()
+    if any(entity_id.endswith(f".{suffix}") or entity_id.endswith(f"_{suffix}") for suffix in STALE_FRONTEND_ENTITY_ID_SUFFIXES):
+        return True
+    if any(unique_id.endswith(suffix) for suffix in STALE_FRONTEND_ENTITY_UNIQUE_ID_SUFFIXES):
+        return True
+    return getattr(entity_entry, "original_name", None) in STALE_FRONTEND_ENTITY_NAMES or getattr(entity_entry, "name", None) in STALE_FRONTEND_ENTITY_NAMES
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
