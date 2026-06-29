@@ -88,6 +88,7 @@ DISCOVERY_AUTH_MESSAGE = "Provide a Home Assistant Long-Lived Access Token."
 STALE_FRONTEND_ENTITY_NAMES = {
     "Synchronise Wi-Fi " + "wake window",
     "Send weather " + "to frame",
+    "Frame schedule " + "status",
 }
 STALE_FRONTEND_ENTITY_UNIQUE_ID_SUFFIXES = {
     "sync_wifi_wake_window",
@@ -95,6 +96,7 @@ STALE_FRONTEND_ENTITY_UNIQUE_ID_SUFFIXES = {
     "synchronize_wifi_wake_window",
     "sync_wake_window",
     "send_weather_to_frame",
+    "frame_schedule_status",
 }
 
 
