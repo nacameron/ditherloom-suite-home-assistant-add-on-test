@@ -85,12 +85,16 @@ PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
 DISCOVERY_AUTH_MESSAGE = "Provide a Home Assistant Long-Lived Access Token."
-STALE_FRONTEND_ENTITY_NAMES = {"Synchronise Wi-Fi " + "wake window"}
+STALE_FRONTEND_ENTITY_NAMES = {
+    "Synchronise Wi-Fi " + "wake window",
+    "Send weather " + "to frame",
+}
 STALE_FRONTEND_ENTITY_UNIQUE_ID_SUFFIXES = {
     "sync_wifi_wake_window",
     "synchronise_wifi_wake_window",
     "synchronize_wifi_wake_window",
     "sync_wake_window",
+    "send_weather_to_frame",
 }
 
 

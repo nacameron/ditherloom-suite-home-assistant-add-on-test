@@ -186,6 +186,16 @@ def check_update_platform() -> None:
     logo_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "logo.png"
     brand_icon_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "brand" / "icon.png"
     brand_logo_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "brand" / "logo.png"
+    brand_paths = (
+        "icon.png",
+        "icon@2x.png",
+        "dark_icon.png",
+        "dark_icon@2x.png",
+        "logo.png",
+        "logo@2x.png",
+        "dark_logo.png",
+        "dark_logo@2x.png",
+    )
     update_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "update.py"
     manifest_path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "manifest.json"
 
@@ -199,6 +209,10 @@ def check_update_platform() -> None:
         fail("Home Assistant integration brand/icon.png is missing")
     if not brand_logo_path.exists() or brand_logo_path.stat().st_size <= 0:
         fail("Home Assistant integration brand/logo.png is missing")
+    for name in brand_paths:
+        path = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "brand" / name
+        if not path.exists() or path.stat().st_size <= 0:
+            fail(f"Home Assistant integration brand/{name} is missing")
 
     init_text = init_path.read_text(encoding="utf-8")
     update_text = update_path.read_text(encoding="utf-8")
@@ -258,8 +272,8 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.47"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.47")
+    if '"version": "0.1.48"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.48")
 
 
 def check_public_repo_single_version() -> None:

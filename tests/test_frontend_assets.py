@@ -8,7 +8,18 @@ BUTTON = COMPONENT / "button.py"
 
 
 def test_home_assistant_brand_assets_are_packaged():
-    for name in ("icon.png", "logo.png", "brand/icon.png", "brand/logo.png"):
+    for name in (
+        "icon.png",
+        "logo.png",
+        "brand/icon.png",
+        "brand/icon@2x.png",
+        "brand/dark_icon.png",
+        "brand/dark_icon@2x.png",
+        "brand/logo.png",
+        "brand/logo@2x.png",
+        "brand/dark_logo.png",
+        "brand/dark_logo@2x.png",
+    ):
         path = COMPONENT / name
         assert path.exists()
         assert path.stat().st_size > 0
@@ -20,6 +31,9 @@ def test_sync_wifi_button_is_not_created_and_stale_entity_is_removed():
 
     assert "Synchronise Wi-Fi wake window" not in button_source
     assert "Synchronise Wi-Fi wake window" not in init_source
+    assert "Send weather to frame" not in button_source
+    assert "Send weather to frame" not in init_source
     assert "STALE_FRONTEND_ENTITY_NAMES" in init_source
     assert "sync_wifi_wake_window" in init_source
+    assert "send_weather_to_frame" in init_source
     assert "registry.async_remove(entity_entry.entity_id)" in init_source
