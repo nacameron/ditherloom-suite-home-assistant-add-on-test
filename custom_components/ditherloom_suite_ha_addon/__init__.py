@@ -36,6 +36,7 @@ from .const import (
     CONF_FRAME_HA_SLOT_CSV,
     CONF_FRAME_HA_SLOT_POOL,
     CONF_FRAME_HOST,
+    CONF_FRAME_INTERVAL_MINUTES,
     CONF_FRAME_PORT,
     CONF_FRAME_RESERVED_SLOT,
     CONF_HA_ROTATION_ENABLED,
@@ -834,7 +835,14 @@ class DitherloomRuntime:
         return metadata
 
     def _effective_update_interval_minutes(self) -> int:
-        return _positive_int(self.options.get(CONF_UPDATE_INTERVAL_MINUTES)) or DEFAULT_UPDATE_INTERVAL_MINUTES
+        return (
+            _positive_int(self.options.get(CONF_FRAME_INTERVAL_MINUTES))
+            or _positive_int(self.options.get(CONF_UPDATE_INTERVAL_MINUTES))
+            or DEFAULT_UPDATE_INTERVAL_MINUTES
+        )
+
+    def _frame_interval_minutes(self) -> int | None:
+        return _positive_int(self.options.get(CONF_FRAME_INTERVAL_MINUTES))
 
     def _effective_wake_window_seconds(self) -> int:
         opts = self.options
@@ -859,6 +867,13 @@ class DitherloomRuntime:
     def _reserved_ha_slot(self) -> int:
         slots = self._ha_owned_slots()
         return slots[0] if slots else int(self.options.get(CONF_TARGET_SLOT, DEFAULT_TARGET_SLOT))
+
+    def _configured_reserved_slot(self) -> int:
+        return (
+            _positive_int(self.options.get(CONF_FRAME_RESERVED_SLOT))
+            or _positive_int(self.options.get(CONF_TARGET_SLOT))
+            or DEFAULT_TARGET_SLOT
+        )
 
     def _ha_slot_pool_text(self) -> str:
         options = self.options
@@ -1132,9 +1147,11 @@ class DitherloomRuntime:
             "frameSleepingUrl": frame_sleeping_url,
             "frame_awake_url": frame_awake_url,
             "frame_sleeping_url": frame_sleeping_url,
-            "reservedSlot": self._reserved_ha_slot(),
+            "reservedSlot": self._configured_reserved_slot(),
             "haSlotPool": self._ha_slot_pool_text(),
             "haSlotCsv": self._ha_slot_csv(),
+            "intervalMinutes": self._frame_interval_minutes(),
+            "wakeWindowSeconds": self._effective_wake_window_seconds(),
             "haRotationEnabled": self._ha_rotation_enabled(),
             "haRotationSeconds": self._ha_rotation_seconds(),
             "haRotationStatus": self.last_metadata.get("ha_rotation"),
@@ -1151,10 +1168,10 @@ class DitherloomRuntime:
                 "callbackBasePath": callback_base_path,
                 "frameAwakePath": self.frame_awake_url,
                 "frameSleepingPath": self.frame_sleeping_url,
-                "intervalMinutes": self._effective_update_interval_minutes(),
+                "intervalMinutes": self._frame_interval_minutes(),
                 "wakeWindowSeconds": self._effective_wake_window_seconds(),
                 "maxJobsPerWake": options.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE),
-                "reservedSlot": self._reserved_ha_slot(),
+                "reservedSlot": self._configured_reserved_slot(),
                 "haSlotPool": self._ha_slot_pool_text(),
                 "haSlotCsv": self._ha_slot_csv(),
                 "haOwnedSlots": self._ha_owned_slots(),
@@ -1375,19 +1392,27 @@ async def _store_frame_provided_ha_config(hass: HomeAssistant, entry: ConfigEntr
     if "haSlotPool" in body:
         updates[CONF_FRAME_HA_SLOT_POOL] = str(body.get("haSlotPool") or "").strip()
     if "haSlotCsv" in body:
-        updates[CONF_FRAME_HA_SLOT_CSV] = slot_csv(parse_slot_pool(body.get("haSlotCsv")))
+        updates[CONF_FRAME_HA_SLOT_CSV] = slot_csv(sorted(parse_slot_pool(body.get("haSlotCsv"))))
     elif updates.get(CONF_FRAME_RESERVED_SLOT) is not None:
         slots = [updates[CONF_FRAME_RESERVED_SLOT]]
         for slot in parse_slot_pool(updates.get(CONF_FRAME_HA_SLOT_POOL, "")):
             if slot not in slots:
                 slots.append(slot)
-        updates[CONF_FRAME_HA_SLOT_CSV] = slot_csv(slots)
+        updates[CONF_FRAME_HA_SLOT_CSV] = slot_csv(sorted(slots))
     if "haRotationEnabled" in body:
         updates[CONF_FRAME_HA_ROTATION_ENABLED] = bool(body.get("haRotationEnabled"))
     if "haRotationSeconds" in body:
         seconds = _positive_int(body.get("haRotationSeconds"))
         if seconds is not None:
-            updates[CONF_FRAME_HA_ROTATION_SECONDS] = max(60, seconds)
+            updates[CONF_FRAME_HA_ROTATION_SECONDS] = seconds
+    if "intervalMinutes" in body:
+        interval_minutes = _positive_int(body.get("intervalMinutes"))
+        if interval_minutes is not None:
+            updates[CONF_FRAME_INTERVAL_MINUTES] = interval_minutes
+    if "wakeWindowSeconds" in body:
+        wake_window_seconds = _positive_int(body.get("wakeWindowSeconds"))
+        if wake_window_seconds is not None:
+            updates[CONF_WAKE_WINDOW_SECONDS] = wake_window_seconds
     if not updates:
         return
     options = {**entry.options, **updates}
@@ -1396,12 +1421,15 @@ async def _store_frame_provided_ha_config(hass: HomeAssistant, entry: ConfigEntr
 
 def _frame_provided_ha_config(options: dict[str, Any]) -> dict[str, Any]:
     slots = ha_lane_slots(options)
+    reserved = _positive_int(options.get(CONF_FRAME_RESERVED_SLOT))
     return {
-        "reservedSlot": slots[0] if slots else None,
+        "reservedSlot": reserved if reserved is not None else (slots[0] if slots else None),
         "haSlotPool": str(options.get(CONF_FRAME_HA_SLOT_POOL) or slot_csv(slots[1:])),
         "haSlotCsv": slot_csv(slots),
+        "intervalMinutes": _positive_int(options.get(CONF_FRAME_INTERVAL_MINUTES)),
         "haRotationEnabled": _bool_option(options, CONF_FRAME_HA_ROTATION_ENABLED, False),
         "haRotationSeconds": _positive_int(options.get(CONF_FRAME_HA_ROTATION_SECONDS)) or DEFAULT_HA_ROTATION_SECONDS,
+        "wakeWindowSeconds": _positive_int(options.get(CONF_WAKE_WINDOW_SECONDS)),
     }
 
 

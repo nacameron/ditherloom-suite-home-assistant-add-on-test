@@ -46,7 +46,7 @@ def enabled_content_providers(options: dict[str, Any]) -> list[str]:
 def ha_lane_slots(options: dict[str, Any]) -> list[int]:
     frame_csv = options.get(CONF_FRAME_HA_SLOT_CSV)
     if frame_csv:
-        return parse_slot_pool(frame_csv)
+        return sorted(parse_slot_pool(frame_csv))
     if not _has_explicit_frame_slots(options):
         if _enabled_count(options) > 1:
             return []
@@ -56,7 +56,7 @@ def ha_lane_slots(options: dict[str, Any]) -> list[int]:
     for slot in parse_slot_pool(options.get(CONF_FRAME_HA_SLOT_POOL)):
         if slot not in slots:
             slots.append(slot)
-    return slots
+    return sorted(slots)
 
 
 def provider_slot_map(options: dict[str, Any]) -> dict[str, int]:

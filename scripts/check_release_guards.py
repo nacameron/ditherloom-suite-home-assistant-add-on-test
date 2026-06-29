@@ -257,6 +257,13 @@ def check_update_platform() -> None:
         "result = await result",
         "return result is not None",
         "provider_slot_map",
+        "CONF_FRAME_INTERVAL_MINUTES",
+        '"intervalMinutes": self._frame_interval_minutes()',
+        '"wakeWindowSeconds": self._effective_wake_window_seconds()',
+        "updates[CONF_FRAME_INTERVAL_MINUTES] = interval_minutes",
+        "updates[CONF_FRAME_HA_ROTATION_SECONDS] = seconds",
+        "updates[CONF_WAKE_WINDOW_SECONDS] = wake_window_seconds",
+        "sorted(parse_slot_pool(body.get(\"haSlotCsv\")))",
     )
     for required in init_required:
         if required not in init_text:
@@ -273,8 +280,8 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.52"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.52")
+    if '"version": "0.1.53"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.53")
 
 
 def check_public_repo_single_version() -> None:

@@ -86,10 +86,15 @@ def test_slot_validation_passes_with_three_providers_and_frame_pool_range():
             CONF_MOON_ENABLED: True,
         }
     ) == {
-        "open_meteo_weather": 445,
-        "sunrise_sunset": 443,
-        "moon_phase": 444,
+        "open_meteo_weather": 443,
+        "sunrise_sunset": 444,
+        "moon_phase": 445,
     }
+
+
+def test_ha_lane_slots_are_sorted_in_ascending_physical_order():
+    assert ha_lane_slots({CONF_FRAME_RESERVED_SLOT: 445, CONF_FRAME_HA_SLOT_POOL: "443-444"}) == [443, 444, 445]
+    assert ha_lane_slots({CONF_FRAME_HA_SLOT_CSV: "445,443,444"}) == [443, 444, 445]
 
 
 def test_slot_pool_parsing_supports_commas_and_ranges():

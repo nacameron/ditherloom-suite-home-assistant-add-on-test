@@ -83,21 +83,28 @@ class DitherloomFrameScheduleSensor(DitherloomSensorBase):
         metadata = self._coordinator.last_metadata
         frame_ha_config = metadata.get("frame_ha_config") or (metadata.get("frame_awake") or {}).get("ha_config") or {}
         frame_awake = metadata.get("frame_awake") or {}
+        frame_interval_minutes = frame_ha_config.get("intervalMinutes")
+        frame_ha_rotation_seconds = frame_ha_config.get("haRotationSeconds")
+        frame_wake_window_seconds = frame_awake.get("wake_window_seconds") or frame_ha_config.get("wakeWindowSeconds")
         return {
             "weather_refresh_next_at": metadata.get("weather_refresh_next_at"),
             "weather_refresh_interval_minutes": metadata.get("weather_refresh_interval_minutes"),
             "weather_refresh_last_success_at": metadata.get("weather_refresh_last_success_at"),
             "content_refresh_last_success_at": metadata.get("content_refresh_last_success_at"),
+            "frame_content_update_interval_minutes": frame_interval_minutes,
+            "frame_ha_rotation_interval_seconds": frame_ha_rotation_seconds,
+            "frame_wake_safety_cap_seconds": frame_wake_window_seconds,
             "selected_provider_id": metadata.get("selected_provider_id") or metadata.get("provider_id"),
             "display_rotation_enabled": metadata.get("display_rotation_enabled"),
             "display_rotation_interval_minutes": metadata.get("display_rotation_interval_minutes"),
             "frame_ha_config": frame_ha_config,
             "frame_schedule_enabled": frame_ha_config.get("scheduleEnabled", True) if frame_ha_config else None,
-            "frame_wake_window_seconds": frame_awake.get("wake_window_seconds") or frame_ha_config.get("wakeWindowSeconds"),
+            "frame_interval_minutes": frame_interval_minutes,
+            "frame_wake_window_seconds": frame_wake_window_seconds,
             "frame_max_jobs_per_wake": frame_awake.get("max_jobs_per_wake") or frame_ha_config.get("maxJobsPerWake"),
             "frame_ha_slot_csv": frame_ha_config.get("haSlotCsv"),
             "frame_ha_rotation_enabled": frame_ha_config.get("haRotationEnabled"),
-            "frame_ha_rotation_seconds": frame_ha_config.get("haRotationSeconds"),
+            "frame_ha_rotation_seconds": frame_ha_rotation_seconds,
             "ha_rotation": metadata.get("ha_rotation"),
             "frame_awake_last_received_at": metadata.get("frame_awake_last_received_at"),
             "frame_awake_last_success_at": metadata.get("frame_awake_last_success_at"),
