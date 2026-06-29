@@ -91,6 +91,20 @@ STALE_FRONTEND_ENTITY_NAMES = {
     "Send weather " + "to frame",
     "Frame schedule " + "status",
 }
+PRESERVED_RUNTIME_METADATA_KEYS = (
+    "frame_awake",
+    "frame_sleeping",
+    "frame_awake_last_received_at",
+    "frame_awake_last_success_at",
+    "frame_sleeping_last_received_at",
+    "frame_next_wake_at",
+    "frame_content_last_delivered_at",
+    "frame_content_last_delivered_count",
+    "frame_content_last_delivered_slots",
+    "frame_content_last_delivered_crc32",
+    "frame_content_last_delivered_content_ids",
+    "frame_awake_last_delivered_jobs",
+)
 STALE_FRONTEND_ENTITY_UNIQUE_ID_SUFFIXES = {
     "sync_wifi_wake_window",
     "synchronise_wifi_wake_window",
@@ -432,12 +446,29 @@ class DitherloomRuntime:
             synced_at = datetime.now(timezone.utc).isoformat()
             for job in jobs:
                 await self._mark_provider_frame_synced(str(job["provider_id"]), str(job["crc32"]), synced_at)
+            delivered_jobs = [
+                {
+                    "synced_at": synced_at,
+                    "provider_id": job.get("provider_id"),
+                    "slot": job.get("slot"),
+                    "crc32": job.get("crc32"),
+                    "content_id": job.get("content_id"),
+                    "date_label": job.get("date_label"),
+                }
+                for job in jobs
+            ]
             self.last_status = "frame_awake_sent"
             self.last_metadata["frame_awake_last_success_at"] = synced_at
             self.last_metadata["frame_awake_last_send_host"] = host
             self.last_metadata["frame_awake_last_send_port"] = port
             self.last_metadata["frame_awake_last_target_slot"] = display_slot
             self.last_metadata["frame_awake_last_synced_providers"] = [job["provider_id"] for job in jobs]
+            self.last_metadata["frame_content_last_delivered_at"] = synced_at
+            self.last_metadata["frame_content_last_delivered_count"] = len(delivered_jobs)
+            self.last_metadata["frame_content_last_delivered_slots"] = [job["slot"] for job in delivered_jobs]
+            self.last_metadata["frame_content_last_delivered_crc32"] = [job["crc32"] for job in delivered_jobs]
+            self.last_metadata["frame_content_last_delivered_content_ids"] = [job["content_id"] for job in delivered_jobs]
+            self.last_metadata["frame_awake_last_delivered_jobs"] = delivered_jobs
             if gateway_status.get("ha_rotation"):
                 self.last_metadata["ha_rotation"] = gateway_status["ha_rotation"]
             self.last_metadata.pop(ATTR_LAST_ERROR, None)
@@ -626,17 +657,13 @@ class DitherloomRuntime:
         metadata["provider_name"] = "Open-Meteo Weather"
         metadata["source"] = "https://open-meteo.com/"
         metadata["attribution"] = card_data.attribution or "Weather data by Open-Meteo.com."
-        for preserved_key in (
-            "frame_awake",
-            "frame_sleeping",
-            "frame_awake_last_received_at",
-            "frame_awake_last_success_at",
-            "frame_sleeping_last_received_at",
-            "frame_next_wake_at",
-        ):
-            preserved = self.last_metadata.get(preserved_key)
-            if preserved:
-                metadata[preserved_key] = preserved
+        metadata["content_rendered_at"] = metadata["rendered_at"]
+        metadata["content_rendered_provider_id"] = metadata["provider_id"]
+        metadata["content_rendered_content_id"] = metadata.get(ATTR_CONTENT_ID)
+        metadata["content_rendered_crc32"] = metadata.get(ATTR_CRC32)
+        for preserved_key in PRESERVED_RUNTIME_METADATA_KEYS:
+            if preserved_key in self.last_metadata:
+                metadata[preserved_key] = self.last_metadata[preserved_key]
 
         self.last_status = "rendered"
         self.last_metadata = metadata
@@ -717,17 +744,13 @@ class DitherloomRuntime:
         metadata["wake_window_seconds"] = self._effective_wake_window_seconds()
         metadata["wake_window_minutes"] = self._effective_wake_window_minutes()
         metadata["max_jobs_per_wake"] = opts.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE)
-        for preserved_key in (
-            "frame_awake",
-            "frame_sleeping",
-            "frame_awake_last_received_at",
-            "frame_awake_last_success_at",
-            "frame_sleeping_last_received_at",
-            "frame_next_wake_at",
-        ):
-            preserved = self.last_metadata.get(preserved_key)
-            if preserved:
-                metadata[preserved_key] = preserved
+        metadata["content_rendered_at"] = metadata["rendered_at"]
+        metadata["content_rendered_provider_id"] = metadata["provider_id"]
+        metadata["content_rendered_content_id"] = metadata.get(ATTR_CONTENT_ID)
+        metadata["content_rendered_crc32"] = metadata.get(ATTR_CRC32)
+        for preserved_key in PRESERVED_RUNTIME_METADATA_KEYS:
+            if preserved_key in self.last_metadata:
+                metadata[preserved_key] = self.last_metadata[preserved_key]
 
         self.last_status = "rendered"
         self.last_metadata = metadata
@@ -808,17 +831,13 @@ class DitherloomRuntime:
         metadata["wake_window_seconds"] = self._effective_wake_window_seconds()
         metadata["wake_window_minutes"] = self._effective_wake_window_minutes()
         metadata["max_jobs_per_wake"] = opts.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE)
-        for preserved_key in (
-            "frame_awake",
-            "frame_sleeping",
-            "frame_awake_last_received_at",
-            "frame_awake_last_success_at",
-            "frame_sleeping_last_received_at",
-            "frame_next_wake_at",
-        ):
-            preserved = self.last_metadata.get(preserved_key)
-            if preserved:
-                metadata[preserved_key] = preserved
+        metadata["content_rendered_at"] = metadata["rendered_at"]
+        metadata["content_rendered_provider_id"] = metadata["provider_id"]
+        metadata["content_rendered_content_id"] = metadata.get(ATTR_CONTENT_ID)
+        metadata["content_rendered_crc32"] = metadata.get(ATTR_CRC32)
+        for preserved_key in PRESERVED_RUNTIME_METADATA_KEYS:
+            if preserved_key in self.last_metadata:
+                metadata[preserved_key] = self.last_metadata[preserved_key]
 
         self.last_status = "rendered"
         self.last_metadata = metadata

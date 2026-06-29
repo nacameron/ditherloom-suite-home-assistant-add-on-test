@@ -53,3 +53,13 @@ def test_handshake_sensor_exposes_frame_schedule_config():
     assert '"frame_max_jobs_per_wake"' in sensor_source
     assert '"frame_ha_slot_csv"' in sensor_source
     assert '"frame_ha_rotation_enabled"' in sensor_source
+    assert '"content_rendered_at"' in sensor_source
+    assert '"content_rendered_provider_id"' in sensor_source
+    assert '"content_rendered_content_id"' in sensor_source
+    assert '"content_rendered_crc32"' in sensor_source
+    assert '"frame_content_last_delivered_at"' in sensor_source
+    assert '"frame_content_last_delivered_count"' in sensor_source
+    assert '"frame_content_last_delivered_slots"' in sensor_source
+    assert '"frame_content_last_delivered_crc32"' in sensor_source
+    assert '"frame_content_last_delivered_content_ids"' in sensor_source
+    assert '"frame_awake_last_delivered_jobs"' in sensor_source
