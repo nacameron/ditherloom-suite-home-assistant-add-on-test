@@ -17,7 +17,7 @@ from ..const import (
     DEVICE_SOURCE_METADATA_HEADER_BYTES,
     DEVICE_SOURCE_METADATA_PAYLOAD_BYTES,
 )
-from .palette import PACKET_RGB, RGB_TO_TEMPLATE_NAME, TEMPLATE_COLOURS, ordered_code
+from .palette import CODE_BLACK, CODE_RED, CODE_WHITE, CODE_YELLOW, PACKET_RGB, RGB_TO_TEMPLATE_NAME, TEMPLATE_COLOURS, ordered_code
 
 WIDTH = DEVICE_FRAME_WIDTH
 HEIGHT = DEVICE_FRAME_HEIGHT
@@ -32,6 +32,9 @@ ATKINSON_KERNEL = (
     (1, 1, 1 / 8),
     (0, 2, 1 / 8),
 )
+TEMPLATE_RECIPE_MATCH_DISTANCE_SQUARED = 0
+TEMPLATE_EXACT_BLACK_WHITE_ERROR = 18
+TEMPLATE_EXACT_COLOUR_ERROR = 24
 
 
 @dataclass(frozen=True)
@@ -60,19 +63,9 @@ def image_to_codes(image: Image.Image) -> List[int]:
     for y in range(HEIGHT):
         for x in range(WIDTH):
             rgb = source_pixels[x, y]
-            template_name = RGB_TO_TEMPLATE_NAME.get(rgb)
-            if template_name:
-                colour = TEMPLATE_COLOURS[template_name]
-                if colour.recipe is not None:
-                    codes[y * WIDTH + x] = ordered_code(colour.recipe, x, y)
-                    continue
-                if template_name == "red":
-                    codes[y * WIDTH + x] = 3
-                    continue
-                if template_name == "white":
-                    codes[y * WIDTH + x] = 1
-                    continue
-                codes[y * WIDTH + x] = 0
+            template_code = _template_safe_palette_code(rgb, x, y)
+            if template_code is not None:
+                codes[y * WIDTH + x] = template_code
                 continue
 
             r, g, b = pixels[y][x]
@@ -80,6 +73,75 @@ def image_to_codes(image: Image.Image) -> List[int]:
             codes[y * WIDTH + x] = code
             diffuse_photo_error(pixels, x, y, (r - nr, g - ng, b - nb))
     return codes
+
+
+def _template_safe_palette_code(rgb: tuple[int, int, int], x: int, y: int) -> int | None:
+    template_name = RGB_TO_TEMPLATE_NAME.get(rgb)
+    if template_name in {"black", "red", "yellow", "bright_yellow", "white"}:
+        return _template_colour_code(TEMPLATE_COLOURS[template_name].rgb, x, y)
+    return None
+
+
+def _template_colour_code(rgb: tuple[int, int, int], x: int, y: int) -> int:
+    colour_name = RGB_TO_TEMPLATE_NAME.get(rgb)
+    if colour_name is None:
+        return _template_exact_code(rgb) or closest_panel_code_and_rgb(*rgb)[0]
+    if colour_name == "black":
+        return CODE_BLACK
+    if colour_name == "red":
+        return CODE_RED
+    if colour_name in {"yellow", "bright_yellow"}:
+        return CODE_YELLOW
+    if colour_name == "white":
+        return CODE_WHITE
+    colour = TEMPLATE_COLOURS[colour_name]
+    if colour.recipe is not None:
+        return ordered_code(colour.recipe, x, y)
+    return CODE_BLACK
+
+
+def _template_safe_colour_recipe(rgb: tuple[int, int, int]) -> tuple[int, int, int] | None:
+    r, g, b = rgb
+    best_rgb: tuple[int, int, int] | None = None
+    best_distance = TEMPLATE_RECIPE_MATCH_DISTANCE_SQUARED + 1
+    for colour in TEMPLATE_COLOURS.values():
+        cr, cg, cb = colour.rgb
+        distance = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2
+        if distance < best_distance:
+            best_distance = distance
+            best_rgb = colour.rgb
+    if best_rgb is not None and best_distance <= TEMPLATE_RECIPE_MATCH_DISTANCE_SQUARED:
+        return best_rgb
+    return None
+
+
+def _template_native_panel_code(r: int, g: int, b: int) -> int | None:
+    high = max(r, g, b)
+    low = min(r, g, b)
+    if high <= 70:
+        return CODE_BLACK
+    if low >= 224 and high - low <= 50:
+        return CODE_WHITE
+    if r >= 200 and g <= 76 and b <= 76:
+        return CODE_RED
+    if r >= 200 and g >= 176 and b <= 84 and abs(r - g) <= 82:
+        return CODE_YELLOW
+    return None
+
+
+def _template_exact_code(rgb: tuple[int, int, int]) -> int | None:
+    r, g, b = rgb
+    best_code = CODE_BLACK
+    best_error = float("inf")
+    for code, (pr, pg, pb) in PACKET_RGB.items():
+        error = ((r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2) ** 0.5
+        if error < best_error:
+            best_error = error
+            best_code = code
+    threshold = TEMPLATE_EXACT_BLACK_WHITE_ERROR if best_code in {CODE_BLACK, CODE_WHITE} else TEMPLATE_EXACT_COLOUR_ERROR
+    if best_error <= threshold:
+        return best_code
+    return None
 
 
 def closest_panel_code_and_rgb(r: float, g: float, b: float) -> tuple[int, int, int, int]:

@@ -81,17 +81,25 @@ BAYER_8X8 = (
 
 
 def ordered_code(recipe: Recipe, x: int, y: int) -> int:
-    threshold = (BAYER_8X8[y % 8][x % 8] + 0.5) / 64.0
     red, yellow, white, black = recipe
-    if threshold < red:
-        return CODE_RED
-    if threshold < red + yellow:
-        return CODE_YELLOW
-    if threshold < red + yellow + white:
-        return CODE_WHITE
-    if threshold < red + yellow + white + black:
-        return CODE_BLACK
-    return CODE_WHITE
+    total = max(0.0001, red + yellow + white + black)
+    weights = (
+        (CODE_RED, max(0.0, red) / total),
+        (CODE_YELLOW, max(0.0, yellow) / total),
+        (CODE_WHITE, max(0.0, white) / total),
+        (CODE_BLACK, max(0.0, black) / total),
+    )
+    threshold = BAYER_8X8[y % 8][x % 8] / 63.0
+    cumulative = 0.0
+    fallback = weights[-1][0]
+    for code, weight in weights:
+        if weight <= 0.0:
+            continue
+        fallback = code
+        cumulative += weight
+        if threshold < cumulative:
+            return code
+    return fallback
 
 
 def nearest_panel_code(rgb: RGB) -> int:
@@ -111,4 +119,3 @@ def nearest_panel_code(rgb: RGB) -> int:
 
 def codes_to_preview_rgb(codes: Iterable[int]) -> list[RGB]:
     return [PREVIEW_RGB[int(code)] for code in codes]
-
