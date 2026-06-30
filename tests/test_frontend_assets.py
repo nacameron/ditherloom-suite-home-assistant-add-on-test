@@ -68,8 +68,10 @@ def test_handshake_sensor_exposes_frame_schedule_config():
     assert '"frame_awake_last_delivered_jobs"' in sensor_source
     assert '"frame_awake_last_delivery_summary"' in sensor_source
     assert '"frame_awake_last_failed_at"' in sensor_source
+    assert "from homeassistant.util import dt as dt_util" in sensor_source
     assert "_state_time_label" in sensor_source
-    assert 'return f"frame awake {_state_time_label(awake_at)}"' in sensor_source
+    assert "dt_util.as_local(value)" in sensor_source
+    assert 'return f"frame awake {_state_time_label(awake_at, self.hass)}"' in sensor_source
     assert 'return f"delivered {count} job' in sensor_source
     assert "Sent {count} job" in sensor_source
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -8,6 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 
@@ -82,19 +83,19 @@ class DitherloomFrameScheduleSensor(DitherloomSensorBase):
         sleeping_at = _parse_iso_datetime(metadata.get("frame_sleeping_last_received_at"))
         latest = max((item for item in (failed_at, delivered_at, awake_at, sleeping_at) if item is not None), default=None)
         if failed_at is not None and failed_at == latest:
-            return f"delivery failed {_state_time_label(failed_at)}"
+            return f"delivery failed {_state_time_label(failed_at, self.hass)}"
         if delivered_at is not None and delivered_at == latest:
             count = _delivered_job_count(metadata)
-            return f"delivered {count} job{'s' if count != 1 else ''} {_state_time_label(delivered_at)}"
+            return f"delivered {count} job{'s' if count != 1 else ''} {_state_time_label(delivered_at, self.hass)}"
         if sleeping_at is not None and sleeping_at == latest and delivered_at is not None:
             count = _delivered_job_count(metadata)
-            return f"delivered {count} job{'s' if count != 1 else ''} {_state_time_label(delivered_at)}"
+            return f"delivered {count} job{'s' if count != 1 else ''} {_state_time_label(delivered_at, self.hass)}"
         if awake_at is not None and awake_at == latest:
-            return f"frame awake {_state_time_label(awake_at)}"
+            return f"frame awake {_state_time_label(awake_at, self.hass)}"
         if metadata.get("content_refresh_last_success_at") or metadata.get("weather_refresh_last_success_at") or metadata.get("rendered_at"):
             rendered_at = _parse_iso_datetime(metadata.get("content_rendered_at") or metadata.get("rendered_at"))
             if rendered_at is not None:
-                return f"content ready {_state_time_label(rendered_at)}"
+                return f"content ready {_state_time_label(rendered_at, self.hass)}"
             return "content ready"
         return "waiting for content"
 
@@ -161,8 +162,10 @@ def _parse_iso_datetime(value) -> datetime | None:
         return None
 
 
-def _state_time_label(value: datetime) -> str:
-    return value.strftime("%H:%M:%S")
+def _state_time_label(value: datetime, hass: HomeAssistant | None = None) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return dt_util.as_local(value).strftime("%H:%M:%S")
 
 
 def _delivered_job_count(metadata: dict) -> int:
