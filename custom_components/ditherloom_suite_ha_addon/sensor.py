@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -68,13 +70,23 @@ class DitherloomFrameScheduleSensor(DitherloomSensorBase):
     @property
     def native_value(self):
         metadata = self._coordinator.last_metadata
-        if self._coordinator.last_status == "frame_awake_send_failed":
-            return "delivery failed"
-        if metadata.get("frame_awake_last_success_at"):
-            return "delivered"
-        if metadata.get("frame_awake_last_received_at"):
-            return "frame awake"
+        failed_at = _parse_iso_datetime(metadata.get("frame_awake_last_failed_at"))
+        delivered_at = _parse_iso_datetime(metadata.get("frame_awake_last_success_at"))
+        awake_at = _parse_iso_datetime(metadata.get("frame_awake_last_received_at"))
+        sleeping_at = _parse_iso_datetime(metadata.get("frame_sleeping_last_received_at"))
+        latest = max((item for item in (failed_at, delivered_at, awake_at, sleeping_at) if item is not None), default=None)
+        if failed_at is not None and failed_at == latest:
+            return f"delivery failed {_state_time_label(failed_at)}"
+        if delivered_at is not None and delivered_at == latest:
+            return f"delivered {_state_time_label(delivered_at)}"
+        if sleeping_at is not None and sleeping_at == latest and delivered_at is not None:
+            return f"delivered {_state_time_label(delivered_at)}"
+        if awake_at is not None and awake_at == latest:
+            return f"frame awake {_state_time_label(awake_at)}"
         if metadata.get("content_refresh_last_success_at") or metadata.get("weather_refresh_last_success_at") or metadata.get("rendered_at"):
+            rendered_at = _parse_iso_datetime(metadata.get("content_rendered_at") or metadata.get("rendered_at"))
+            if rendered_at is not None:
+                return f"content ready {_state_time_label(rendered_at)}"
             return "content ready"
         return "waiting for content"
 
@@ -123,3 +135,16 @@ class DitherloomFrameScheduleSensor(DitherloomSensorBase):
             "frame_sleeping": metadata.get("frame_sleeping"),
             "last_error": metadata.get("last_error"),
         }
+
+
+def _parse_iso_datetime(value) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _state_time_label(value: datetime) -> str:
+    return value.strftime("%H:%M:%S")

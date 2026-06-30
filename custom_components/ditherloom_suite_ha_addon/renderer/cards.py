@@ -334,9 +334,9 @@ def render_sun_card(data: SunCardData) -> Image.Image:
         data.secondary_value,
     )
     if "sunrise" in data.primary_label.lower():
-        tiles = (("CIVIL DAWN", data.civil_dawn), ("GOLDEN HR", _golden_hour_tile(data.golden_morning, data.sunrise)), ("DAYLIGHT", data.day_length))
+        tiles = (("DAWN", data.civil_dawn), ("GOLDEN HR", _golden_hour_tile(data.golden_morning, data.sunrise)), ("DAYLIGHT", data.day_length))
     else:
-        tiles = (("DAYLIGHT", data.day_length), ("GOLDEN HR", _golden_hour_tile(data.golden_evening, data.sunset)), ("CIVIL DUSK", data.civil_dusk))
+        tiles = (("DAYLIGHT", data.day_length), ("GOLDEN HR", _golden_hour_tile(data.golden_evening, data.sunset)), ("DUSK", data.civil_dusk))
     _draw_luxe_tile_row(draw, tiles)
     return image
 
@@ -403,15 +403,11 @@ def _draw_luxe_main_panel(
 ) -> None:
     draw.rounded_rectangle((18, 174, 382, 246), radius=10, fill=_rgb("pale_cream"), outline=_rgb("yellow"), width=1)
     draw.rounded_rectangle((18, 174, 382, 179), radius=5, fill=_rgb("yellow"))
-    label_font = _fit_ui_font(primary_label, 190, 16, bold=True, min_size=11, max_height=15)
-    value_font = _fit_ui_font(primary_value, 202, 47, bold=True, min_size=33, max_height=38)
-    prefix_font = _fit_ui_font(secondary_prefix, 124, 16, bold=True, min_size=11, max_height=15)
-    secondary_font = _fit_ui_font(secondary_value, 126, 34, bold=True, min_size=22, max_height=31)
-    _draw_solid_palette_text(draw, (30, 184), primary_label, label_font, _rgb("red"))
-    _draw_solid_palette_text(draw, (29, 201), primary_value, value_font, _rgb("black"))
     draw.line((226, 191, 226, 232), fill=_rgb("yellow"), width=1)
-    _draw_solid_palette_text(draw, (248, 186), secondary_prefix, prefix_font, _rgb("black"))
-    _draw_solid_palette_text(draw, (246, 207), secondary_value, secondary_font, _rgb("black"))
+    _draw_luxe_text_left(draw, (30, 184, 216, 201), primary_label, 16, True, _rgb("red"), 11)
+    _draw_luxe_text_left(draw, (29, 201, 214, 241), primary_value, 45, True, _rgb("black"), 28)
+    _draw_luxe_text_left(draw, (248, 186, 365, 203), secondary_prefix, 16, True, _rgb("black"), 11)
+    _draw_luxe_text_left(draw, (246, 208, 368, 241), secondary_value, 32, True, _rgb("black"), 18)
 
 
 def _draw_luxe_tile_row(draw: ImageDraw.ImageDraw, tiles: tuple[tuple[str, str], tuple[str, str], tuple[str, str]]) -> None:
@@ -422,10 +418,8 @@ def _draw_luxe_tile_row(draw: ImageDraw.ImageDraw, tiles: tuple[tuple[str, str],
 def _draw_luxe_tile(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], label: str, value: str) -> None:
     x1, y1, x2, y2 = box
     draw.rounded_rectangle(box, radius=7, fill=_rgb("cream"), outline=_rgb("yellow"), width=1)
-    label_font = _fit_ui_font(label, x2 - x1 - 12, 14, bold=True, min_size=9, max_height=13)
-    value_font = _fit_ui_font(value, x2 - x1 - 12, 23, bold=True, min_size=15, max_height=20)
-    _draw_solid_palette_text(draw, (x1 + 9, y1 + 3), label, label_font, _rgb("red"))
-    _draw_solid_palette_text(draw, (x1 + 9, y1 + 17), value, value_font, _rgb("black"))
+    _draw_luxe_text_left(draw, (x1 + 9, y1 + 4, x2 - 8, y1 + 16), label, 13, True, _rgb("red"), 8)
+    _draw_luxe_text_left(draw, (x1 + 9, y1 + 18, x2 - 8, y2 - 8), value, 18, True, _rgb("black"), 11)
 
 
 def _draw_luxe_text_left(
@@ -674,8 +668,8 @@ def _paste_luxe_weather_art(image: Image.Image, slug: str) -> None:
 def _draw_luxe_weather_tile(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], label: str, value: str) -> None:
     x1, y1, x2, y2 = box
     draw.rounded_rectangle(box, radius=7, fill=_rgb("pale_cream"), outline=_rgb("yellow"), width=1)
-    _draw_luxe_text_left(draw, (x1 + 9, y1 + 3, x2 - 8, y1 + 20), label, 15, True, _rgb("red"), 9)
-    _draw_luxe_text_left(draw, (x1 + 9, y1 + 17, x2 - 8, y2 - 1), value, 26, True, _rgb("black"), 16)
+    _draw_luxe_text_left(draw, (x1 + 9, y1 + 4, x2 - 8, y1 + 18), label, 14, True, _rgb("red"), 9)
+    _draw_luxe_text_left(draw, (x1 + 9, y1 + 18, x2 - 8, y2 - 7), value, 23, True, _rgb("black"), 14)
 
 
 def _weather_temperature_text(value: str, unit: str) -> str:
