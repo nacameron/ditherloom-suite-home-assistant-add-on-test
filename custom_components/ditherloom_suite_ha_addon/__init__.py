@@ -85,6 +85,7 @@ from .ha_lane import enabled_content_providers, ha_lane_slots, parse_slot_pool, 
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
+CARD_RENDERER_VERSION = "luxe-0.1.60"
 DISCOVERY_AUTH_MESSAGE = "Provide a Home Assistant Long-Lived Access Token."
 STALE_FRONTEND_ENTITY_NAMES = {
     "Synchronise Wi-Fi " + "wake window",
@@ -655,6 +656,7 @@ class DitherloomRuntime:
         metadata["wind_speed_unit"] = wind_speed_unit
         metadata["provider_id"] = "open_meteo_weather"
         metadata["provider_name"] = "Open-Meteo Weather"
+        metadata["card_renderer_version"] = CARD_RENDERER_VERSION
         metadata["source"] = "https://open-meteo.com/"
         metadata["attribution"] = card_data.attribution or "Weather data by Open-Meteo.com."
         metadata["content_rendered_at"] = metadata["rendered_at"]
@@ -725,6 +727,7 @@ class DitherloomRuntime:
         metadata["render_target_at"] = render_target.isoformat()
         metadata["provider_id"] = "sunrise_sunset"
         metadata["provider_name"] = "Sunrise / Sunset"
+        metadata["card_renderer_version"] = CARD_RENDERER_VERSION
         metadata["source"] = "local_solar_calculation"
         metadata["attribution"] = card_data.attribution
         metadata["location"] = card_data.location
@@ -812,6 +815,7 @@ class DitherloomRuntime:
         metadata["render_target_at"] = render_target.isoformat()
         metadata["provider_id"] = "moon_phase"
         metadata["provider_name"] = "Moon Phase"
+        metadata["card_renderer_version"] = CARD_RENDERER_VERSION
         metadata["source"] = "local_moon_calculation"
         metadata["attribution"] = card_data.attribution
         metadata["location"] = card_data.location
@@ -1000,6 +1004,8 @@ class DitherloomRuntime:
         return payload if isinstance(payload, dict) else None
 
     def _cached_content_is_fresh(self, provider: str, metadata: dict[str, Any]) -> bool:
+        if metadata.get("card_renderer_version") != CARD_RENDERER_VERSION:
+            return False
         if provider in {"sunrise_sunset", "moon_phase"}:
             target = self._time_sensitive_render_target()
             if metadata.get("date_label") != target.strftime("%d %b").upper():

@@ -11,6 +11,12 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 
+PROVIDER_DISPLAY_NAMES = {
+    "open_meteo_weather": "Open-Meteo Weather",
+    "sunrise_sunset": "Sunrise / Sunset",
+    "moon_phase": "Moon Phase",
+}
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id]
@@ -78,9 +84,11 @@ class DitherloomFrameScheduleSensor(DitherloomSensorBase):
         if failed_at is not None and failed_at == latest:
             return f"delivery failed {_state_time_label(failed_at)}"
         if delivered_at is not None and delivered_at == latest:
-            return f"delivered {_state_time_label(delivered_at)}"
+            count = _delivered_job_count(metadata)
+            return f"delivered {count} job{'s' if count != 1 else ''} {_state_time_label(delivered_at)}"
         if sleeping_at is not None and sleeping_at == latest and delivered_at is not None:
-            return f"delivered {_state_time_label(delivered_at)}"
+            count = _delivered_job_count(metadata)
+            return f"delivered {count} job{'s' if count != 1 else ''} {_state_time_label(delivered_at)}"
         if awake_at is not None and awake_at == latest:
             return f"frame awake {_state_time_label(awake_at)}"
         if metadata.get("content_refresh_last_success_at") or metadata.get("weather_refresh_last_success_at") or metadata.get("rendered_at"):
@@ -98,6 +106,9 @@ class DitherloomFrameScheduleSensor(DitherloomSensorBase):
         frame_interval_minutes = frame_ha_config.get("intervalMinutes")
         frame_ha_rotation_seconds = frame_ha_config.get("haRotationSeconds")
         frame_wake_window_seconds = frame_awake.get("wake_window_seconds") or frame_ha_config.get("wakeWindowSeconds")
+        delivered_provider_ids = _delivered_provider_ids(metadata)
+        delivered_provider_names = [_provider_display_name(provider_id) for provider_id in delivered_provider_ids]
+        delivered_summary = _delivered_summary(metadata, delivered_provider_names)
         return {
             "weather_refresh_next_at": metadata.get("weather_refresh_next_at"),
             "weather_refresh_interval_minutes": metadata.get("weather_refresh_interval_minutes"),
@@ -112,7 +123,11 @@ class DitherloomFrameScheduleSensor(DitherloomSensorBase):
             "frame_content_last_delivered_slots": metadata.get("frame_content_last_delivered_slots"),
             "frame_content_last_delivered_crc32": metadata.get("frame_content_last_delivered_crc32"),
             "frame_content_last_delivered_content_ids": metadata.get("frame_content_last_delivered_content_ids"),
+            "frame_content_last_delivered_provider_ids": delivered_provider_ids,
+            "frame_content_last_delivered_provider_names": delivered_provider_names,
+            "frame_content_last_delivered_summary": delivered_summary,
             "frame_awake_last_delivered_jobs": metadata.get("frame_awake_last_delivered_jobs"),
+            "frame_awake_last_delivery_summary": delivered_summary,
             "frame_content_update_interval_minutes": frame_interval_minutes,
             "frame_ha_rotation_interval_seconds": frame_ha_rotation_seconds,
             "frame_wake_safety_cap_seconds": frame_wake_window_seconds,
@@ -148,3 +163,37 @@ def _parse_iso_datetime(value) -> datetime | None:
 
 def _state_time_label(value: datetime) -> str:
     return value.strftime("%H:%M:%S")
+
+
+def _delivered_job_count(metadata: dict) -> int:
+    count = metadata.get("frame_content_last_delivered_count")
+    if isinstance(count, int):
+        return count
+    jobs = metadata.get("frame_awake_last_delivered_jobs")
+    if isinstance(jobs, list):
+        return len(jobs)
+    return 0
+
+
+def _delivered_provider_ids(metadata: dict) -> list[str]:
+    jobs = metadata.get("frame_awake_last_delivered_jobs")
+    if not isinstance(jobs, list):
+        return []
+    provider_ids: list[str] = []
+    for job in jobs:
+        if isinstance(job, dict) and job.get("provider_id"):
+            provider_ids.append(str(job["provider_id"]))
+    return provider_ids
+
+
+def _provider_display_name(provider_id: str) -> str:
+    return PROVIDER_DISPLAY_NAMES.get(provider_id, provider_id.replace("_", " ").title())
+
+
+def _delivered_summary(metadata: dict, provider_names: list[str]) -> str | None:
+    count = _delivered_job_count(metadata)
+    if count <= 0:
+        return None
+    if provider_names:
+        return f"Sent {count} job{'s' if count != 1 else ''}: {', '.join(provider_names)}"
+    return f"Sent {count} job{'s' if count != 1 else ''}"
