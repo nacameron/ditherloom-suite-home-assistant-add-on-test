@@ -86,7 +86,7 @@ from .ha_lane import enabled_content_providers, ha_lane_slots, parse_slot_pool, 
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
-CARD_RENDERER_VERSION = "luxe-0.1.62"
+CARD_RENDERER_VERSION = "luxe-0.1.63"
 DISCOVERY_AUTH_MESSAGE = "Provide a Home Assistant Long-Lived Access Token."
 STALE_FRONTEND_ENTITY_NAMES = {
     "Synchronise Wi-Fi " + "wake window",
@@ -538,9 +538,10 @@ class DitherloomRuntime:
 
     async def async_refresh_content_payload(self, reason: str = "timer") -> dict[str, Any]:
         refreshed: list[str] = []
+        force_prerender = reason in {"startup", "timer"}
         for provider in self._enabled_content_providers():
             metadata = await self._read_cached_metadata(provider)
-            if metadata is None or not self._cached_content_is_fresh(provider, metadata):
+            if force_prerender or metadata is None or not self._cached_content_is_fresh(provider, metadata):
                 await self.async_render_provider_to_cache(provider)
                 refreshed.append(provider)
         selected = self._selected_content_provider()
@@ -1128,7 +1129,7 @@ class DitherloomRuntime:
         await self._write_cached_metadata(provider, metadata)
 
     def _time_sensitive_cache_minutes(self) -> int:
-        return max(1, min(self._effective_update_interval_minutes(), max(1, self._ha_rotation_seconds() // 60)))
+        return max(1, self._effective_update_interval_minutes() + self._effective_wake_window_minutes())
 
     def async_cancel_weather_refresh(self) -> None:
         if self._weather_refresh_unsub:
