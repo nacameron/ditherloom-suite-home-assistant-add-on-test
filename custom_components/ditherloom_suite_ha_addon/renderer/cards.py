@@ -625,26 +625,26 @@ def _render_luxe_weather_card(data: WeatherCardData) -> Image.Image:
     _paste_luxe_weather_art(image, _template_slug_for_data(data))
 
     draw.rounded_rectangle((12, 12, 388, 46), radius=7, fill=_rgb("warm_white"), outline=_rgb("yellow"), width=1)
-    _draw_luxe_text_left(draw, (24, 18, 270, 40), (data.location or "Weather").upper(), 21, True, _rgb("black"), 12)
-    _draw_luxe_text_right(draw, (284, 20, 374, 41), data.updated or "Now", 15, True, _rgb("red"), 10)
+    _draw_luxe_text_left(draw, (23, 16, 272, 42), (data.location or "Weather").upper(), 25, True, _rgb("black"), 16)
+    _draw_luxe_text_right(draw, (282, 18, 376, 42), data.updated or "Now", 18, True, _rgb("red"), 12)
 
     draw.rounded_rectangle((18, 176, 382, 247), radius=9, fill=_rgb("warm_white"), outline=_rgb("yellow"), width=1)
     draw.rounded_rectangle((18, 176, 382, 181), radius=4, fill=_rgb("yellow"))
-    _draw_luxe_text_left(draw, (30, 190, 174, 207), "CURRENT TEMPERATURE", 13, True, _rgb("red"), 9)
+    _draw_luxe_text_left(draw, (29, 188, 180, 207), "CURRENT TEMPERATURE", 15, True, _rgb("red"), 10)
 
     temperature = _weather_temperature_text(data.temperature, data.unit)
-    _draw_luxe_text_left(draw, (29, 210, 151, 246), temperature, 42, True, _rgb("black"), 32)
+    _draw_luxe_text_left(draw, (28, 207, 154, 247), temperature, 50, True, _rgb("black"), 36)
     uv_value = _detail_value(data, ("UV", "uv_index"), data.uv_index) or "--"
-    _draw_luxe_text_left(draw, (166, 190, 222, 207), "UV INDEX", 13, True, _rgb("red"), 8)
-    _draw_luxe_text_right(draw, (156, 213, 220, 245), uv_value, 26, True, _rgb("black"), 16)
+    _draw_luxe_text_left(draw, (164, 188, 224, 207), "UV INDEX", 15, True, _rgb("red"), 9)
+    _draw_luxe_text_right(draw, (156, 211, 222, 247), uv_value, 31, True, _rgb("black"), 18)
 
     draw.line((229, 190, 229, 236), fill=_rgb("yellow"), width=1)
     condition = data.alert.strip() or data.condition.strip() or "Weather"
-    _draw_luxe_text_left(draw, (248, 192, 376, 215), condition, 18, True, _rgb("black"), 11)
+    _draw_luxe_text_left(draw, (247, 190, 377, 216), condition, 22, True, _rgb("black"), 13)
     feels_like = f"Feels {data.feels_like}" if data.feels_like else "Feels --"
-    _draw_luxe_text_left(draw, (248, 216, 376, 231), feels_like, 15, True, _rgb("black"), 10)
+    _draw_luxe_text_left(draw, (247, 215, 377, 232), feels_like, 17, True, _rgb("black"), 11)
     high_low = f"H {_weather_temperature_text(data.high, data.unit)} / L {_weather_temperature_text(data.low, data.unit)}"
-    _draw_luxe_text_left(draw, (248, 232, 376, 246), high_low, 15, True, _rgb("red"), 10)
+    _draw_luxe_text_left(draw, (247, 231, 377, 247), high_low, 17, True, _rgb("red"), 11)
 
     _draw_luxe_weather_tile(draw, (18, 253, 136, 291), "HUMIDITY", _detail_value(data, ("Hum", "Humidity"), data.humidity) or "--")
     _draw_luxe_weather_tile(draw, (141, 253, 259, 291), "WIND", _detail_value(data, ("Wind",), data.wind) or "--")
@@ -664,8 +664,8 @@ def _paste_luxe_weather_art(image: Image.Image, slug: str) -> None:
 def _draw_luxe_weather_tile(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], label: str, value: str) -> None:
     x1, y1, x2, y2 = box
     draw.rounded_rectangle(box, radius=7, fill=_rgb("pale_cream"), outline=_rgb("yellow"), width=1)
-    _draw_luxe_text_left(draw, (x1 + 9, y1 + 4, x2 - 8, y1 + 19), label, 13, True, _rgb("red"), 8)
-    _draw_luxe_text_left(draw, (x1 + 9, y1 + 18, x2 - 8, y2 - 2), value, 22, True, _rgb("black"), 14)
+    _draw_luxe_text_left(draw, (x1 + 9, y1 + 3, x2 - 8, y1 + 20), label, 15, True, _rgb("red"), 9)
+    _draw_luxe_text_left(draw, (x1 + 9, y1 + 17, x2 - 8, y2 - 1), value, 26, True, _rgb("black"), 16)
 
 
 def _weather_temperature_text(value: str, unit: str) -> str:
