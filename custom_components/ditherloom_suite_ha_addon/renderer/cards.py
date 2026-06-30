@@ -382,16 +382,16 @@ def _draw_luxe_top_identity(draw: ImageDraw.ImageDraw, title: str, state_label: 
     accent = _rgb("yellow")
     text = _rgb("black")
     secondary = _rgb("red")
-    draw.rounded_rectangle((12, 10, 388, 46), radius=8, fill=panel_fill, outline=panel_rule, width=1)
-    draw.line((22, 45, 378, 45), fill=accent, width=1)
-    title_font = _fit_ui_font(title, 218, 20, bold=True, min_size=13)
-    state_font = _fit_ui_font(state_label, 185, 13, bold=True, min_size=9)
-    _draw_solid_palette_text(draw, (24, 13), title, title_font, text)
-    _draw_solid_palette_text(draw, (24, 31), state_label, state_font, secondary)
+    draw.rounded_rectangle((12, 8, 388, 54), radius=8, fill=panel_fill, outline=panel_rule, width=1)
+    draw.line((22, 53, 378, 53), fill=accent, width=1)
+    title_font = _fit_ui_font(title, 226, 24, bold=True, min_size=16, max_height=21)
+    state_font = _fit_ui_font(state_label, 214, 15, bold=True, min_size=10, max_height=14)
+    _draw_solid_palette_text(draw, (23, 10), title, title_font, text)
+    _draw_solid_palette_text(draw, (23, 34), state_label, state_font, secondary)
     brand = "DITHERLOOM"
-    brand_font = _load_ui_font(10, bold=True)
+    brand_font = _load_ui_font(12, bold=True)
     left, top, right, bottom = brand_font.getbbox(brand)
-    _draw_solid_palette_text(draw, (374 - (right - left), 21), brand, brand_font, _rgb("red"))
+    _draw_solid_palette_text(draw, (376 - (right - left), 23), brand, brand_font, _rgb("red"))
 
 
 def _draw_luxe_main_panel(
@@ -403,15 +403,15 @@ def _draw_luxe_main_panel(
 ) -> None:
     draw.rounded_rectangle((18, 174, 382, 246), radius=10, fill=_rgb("pale_cream"), outline=_rgb("yellow"), width=1)
     draw.rounded_rectangle((18, 174, 382, 179), radius=5, fill=_rgb("yellow"))
-    label_font = _fit_ui_font(primary_label, 180, 13, bold=True, min_size=9)
-    value_font = _fit_ui_font(primary_value, 198, 39, bold=True, min_size=27)
-    prefix_font = _load_ui_font(12, bold=True)
-    secondary_font = _fit_ui_font(secondary_value, 120, 28, bold=True, min_size=18)
-    _draw_solid_palette_text(draw, (31, 186), primary_label, label_font, _rgb("red"))
-    _draw_solid_palette_text(draw, (30, 204), primary_value, value_font, _rgb("black"))
+    label_font = _fit_ui_font(primary_label, 190, 16, bold=True, min_size=11, max_height=15)
+    value_font = _fit_ui_font(primary_value, 202, 47, bold=True, min_size=33, max_height=38)
+    prefix_font = _fit_ui_font(secondary_prefix, 124, 16, bold=True, min_size=11, max_height=15)
+    secondary_font = _fit_ui_font(secondary_value, 126, 34, bold=True, min_size=22, max_height=31)
+    _draw_solid_palette_text(draw, (30, 184), primary_label, label_font, _rgb("red"))
+    _draw_solid_palette_text(draw, (29, 201), primary_value, value_font, _rgb("black"))
     draw.line((226, 191, 226, 232), fill=_rgb("yellow"), width=1)
-    _draw_solid_palette_text(draw, (250, 189), secondary_prefix, prefix_font, _rgb("black"))
-    _draw_solid_palette_text(draw, (247, 210), secondary_value, secondary_font, _rgb("black"))
+    _draw_solid_palette_text(draw, (248, 186), secondary_prefix, prefix_font, _rgb("black"))
+    _draw_solid_palette_text(draw, (246, 207), secondary_value, secondary_font, _rgb("black"))
 
 
 def _draw_luxe_tile_row(draw: ImageDraw.ImageDraw, tiles: tuple[tuple[str, str], tuple[str, str], tuple[str, str]]) -> None:
@@ -422,10 +422,10 @@ def _draw_luxe_tile_row(draw: ImageDraw.ImageDraw, tiles: tuple[tuple[str, str],
 def _draw_luxe_tile(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], label: str, value: str) -> None:
     x1, y1, x2, y2 = box
     draw.rounded_rectangle(box, radius=7, fill=_rgb("cream"), outline=_rgb("yellow"), width=1)
-    label_font = _fit_ui_font(label, x2 - x1 - 12, 10, bold=True, min_size=7)
-    value_font = _fit_ui_font(value, x2 - x1 - 12, 17, bold=True, min_size=12)
-    _draw_solid_palette_text(draw, (x1 + 9, y1 + 5), label, label_font, _rgb("red"))
-    _draw_solid_palette_text(draw, (x1 + 9, y1 + 19), value, value_font, _rgb("black"))
+    label_font = _fit_ui_font(label, x2 - x1 - 12, 14, bold=True, min_size=9, max_height=13)
+    value_font = _fit_ui_font(value, x2 - x1 - 12, 23, bold=True, min_size=15, max_height=20)
+    _draw_solid_palette_text(draw, (x1 + 9, y1 + 3), label, label_font, _rgb("red"))
+    _draw_solid_palette_text(draw, (x1 + 9, y1 + 17), value, value_font, _rgb("black"))
 
 
 def _draw_luxe_text_left(
@@ -480,12 +480,19 @@ def _draw_solid_palette_text(
     draw._image.paste(colour, (int(round(xy[0])) + left - 2, int(round(xy[1])) + top - 2), hard_mask)
 
 
-def _fit_ui_font(text: str, max_width: int, size: int, bold: bool = False, min_size: int = 8) -> ImageFont.ImageFont:
+def _fit_ui_font(
+    text: str,
+    max_width: int,
+    size: int,
+    bold: bool = False,
+    min_size: int = 8,
+    max_height: int | None = None,
+) -> ImageFont.ImageFont:
     value = str(text)
     for font_size in range(size, min_size - 1, -1):
         font = _load_ui_font(font_size, bold=bold)
         left, top, right, bottom = font.getbbox(value)
-        if right - left <= max_width:
+        if right - left <= max_width and (max_height is None or bottom - top <= max_height):
             return font
     return _load_ui_font(min_size, bold=bold)
 
@@ -623,6 +630,7 @@ def _render_luxe_weather_card(data: WeatherCardData) -> Image.Image:
     image = Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
     draw = ImageDraw.Draw(image)
     _paste_luxe_weather_art(image, _template_slug_for_data(data))
+    current_temperature_label = "CURRENT TEMPERATURE"
 
     draw.rounded_rectangle((12, 12, 388, 46), radius=7, fill=_rgb("warm_white"), outline=_rgb("yellow"), width=1)
     _draw_luxe_text_left(draw, (23, 16, 272, 42), (data.location or "Weather").upper(), 25, True, _rgb("black"), 16)
@@ -630,10 +638,12 @@ def _render_luxe_weather_card(data: WeatherCardData) -> Image.Image:
 
     draw.rounded_rectangle((18, 176, 382, 247), radius=9, fill=_rgb("warm_white"), outline=_rgb("yellow"), width=1)
     draw.rounded_rectangle((18, 176, 382, 181), radius=4, fill=_rgb("yellow"))
-    _draw_luxe_text_left(draw, (29, 188, 180, 207), "CURRENT TEMPERATURE", 15, True, _rgb("red"), 10)
+    current_word, temperature_word = current_temperature_label.split(" ", 1)
+    _draw_luxe_text_left(draw, (29, 186, 140, 199), current_word, 13, True, _rgb("red"), 9)
+    _draw_luxe_text_left(draw, (29, 198, 154, 210), temperature_word, 13, True, _rgb("red"), 9)
 
     temperature = _weather_temperature_text(data.temperature, data.unit)
-    _draw_luxe_text_left(draw, (28, 207, 154, 247), temperature, 50, True, _rgb("black"), 36)
+    _draw_luxe_text_left(draw, (28, 211, 154, 247), temperature, 48, True, _rgb("black"), 36)
     uv_value = _detail_value(data, ("UV", "uv_index"), data.uv_index) or "--"
     _draw_luxe_text_left(draw, (164, 188, 224, 207), "UV INDEX", 15, True, _rgb("red"), 9)
     _draw_luxe_text_right(draw, (156, 211, 222, 247), uv_value, 31, True, _rgb("black"), 18)
