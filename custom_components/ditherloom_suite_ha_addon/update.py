@@ -6,7 +6,6 @@ import logging
 import shutil
 import zipfile
 from datetime import timedelta
-from pathlib import Path
 from typing import Any
 
 from aiohttp import ClientError, ClientTimeout
@@ -18,7 +17,7 @@ from homeassistant.helpers import aiohttp_client
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import DOMAIN, INTEGRATION_VERSION
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -127,13 +126,7 @@ class DitherloomReleaseUpdate(UpdateEntity):
 
 
 def _installed_version() -> str:
-    manifest_path = Path(__file__).with_name("manifest.json")
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return "0.0.0"
-    version = manifest.get("version")
-    return str(version) if version else "0.0.0"
+    return INTEGRATION_VERSION
 
 
 def _version_from_tag(tag: Any) -> str | None:

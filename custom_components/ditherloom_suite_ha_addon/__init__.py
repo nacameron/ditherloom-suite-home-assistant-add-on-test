@@ -72,6 +72,7 @@ from .const import (
     DEVICE_WIFI_B64WRITE_CHUNK_BYTES,
     DEVICE_WIFI_COMMAND_MAX_CHARS,
     DOMAIN,
+    INTEGRATION_VERSION,
     MAX_HA_LANE_SLOTS,
     SERVICE_RENDER_MOON,
     SERVICE_RENDER_SUN,
@@ -85,7 +86,7 @@ from .ha_lane import enabled_content_providers, ha_lane_slots, parse_slot_pool, 
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
-CARD_RENDERER_VERSION = "luxe-0.1.60"
+CARD_RENDERER_VERSION = "luxe-0.1.62"
 DISCOVERY_AUTH_MESSAGE = "Provide a Home Assistant Long-Lived Access Token."
 STALE_FRONTEND_ENTITY_NAMES = {
     "Synchronise Wi-Fi " + "wake window",
@@ -106,6 +107,38 @@ PRESERVED_RUNTIME_METADATA_KEYS = (
     "frame_content_last_delivered_content_ids",
     "frame_awake_last_delivered_jobs",
 )
+
+
+def _render_weather_artifact_to_disk(card_data: Any, display_mode: str, payload_dir: Path, stem: str) -> Any:
+    from .renderer import render_modern_weather_card, render_to_artifact
+    from .renderer.pack import write_artifact
+
+    image = render_modern_weather_card(card_data, colour_mode=display_mode)
+    artifact = render_to_artifact(image, "weather_current", [card_data.source_entity_id])
+    write_artifact(artifact, payload_dir, stem)
+    return artifact
+
+
+def _render_sun_artifact_to_disk(provider_data: Any, payload_dir: Path, stem: str) -> tuple[Any, Any]:
+    from .renderer import SunCardData, render_sun_card, render_to_artifact
+    from .renderer.pack import write_artifact
+
+    card_data = SunCardData(**provider_data.__dict__)
+    image = render_sun_card(card_data)
+    artifact = render_to_artifact(image, "sunrise_sunset", [card_data.source_entity_id])
+    write_artifact(artifact, payload_dir, stem)
+    return artifact, card_data
+
+
+def _render_moon_artifact_to_disk(provider_data: Any, payload_dir: Path, stem: str) -> tuple[Any, Any]:
+    from .renderer import MoonCardData, render_moon_card, render_to_artifact
+    from .renderer.pack import write_artifact
+
+    card_data = MoonCardData(**provider_data.__dict__)
+    image = render_moon_card(card_data)
+    artifact = render_to_artifact(image, "moon_phase", [card_data.source_entity_id])
+    write_artifact(artifact, payload_dir, stem)
+    return artifact, card_data
 STALE_FRONTEND_ENTITY_UNIQUE_ID_SUFFIXES = {
     "sync_wifi_wake_window",
     "synchronise_wifi_wake_window",
@@ -287,10 +320,7 @@ class DitherloomRuntime:
 
     async def async_start(self) -> None:
         self._schedule_weather_refresh()
-        if not self.payload_path().exists() or ATTR_CRC32 not in self.last_metadata:
-            await self.async_refresh_content_payload(reason="startup")
-        else:
-            await self.async_save()
+        await self.async_refresh_content_payload(reason="startup")
 
     async def async_save(self) -> None:
         await self.store.async_save(
@@ -394,7 +424,6 @@ class DitherloomRuntime:
 
     async def async_handle_frame_awake(self, data: dict[str, Any], remote_addr: str | None = None) -> dict[str, Any]:
         await _store_frame_provided_ha_config(self.hass, self.entry, data)
-        await self.async_refresh_content_payload(reason="frame_awake")
 
         now = datetime.now(timezone.utc)
         host = str(data.get("ip") or data.get("host") or remote_addr or self.options.get(CONF_FRAME_HOST) or "").strip()
@@ -610,8 +639,6 @@ class DitherloomRuntime:
         cache_provider_id: str | None = None,
     ) -> dict[str, Any]:
         from .open_meteo import fetch_open_meteo_card
-        from .renderer import render_modern_weather_card, render_to_artifact
-        from .renderer.pack import write_artifact
 
         opts = self.options
         picked_location = data.get(CONF_WEATHER_LOCATION)
@@ -635,10 +662,14 @@ class DitherloomRuntime:
             wind_speed_unit,
         )
         display_mode = str(data.get(CONF_DISPLAY_MODE) or opts.get(CONF_DISPLAY_MODE, DEFAULT_DISPLAY_MODE))
-        image = render_modern_weather_card(card_data, colour_mode=display_mode)
-        artifact = render_to_artifact(image, "weather_current", [card_data.source_entity_id])
         stem = self._provider_payload_name(cache_provider_id) if cache_provider_id else self.latest_payload_name
-        await self.hass.async_add_executor_job(write_artifact, artifact, self.payload_dir, stem)
+        artifact = await self.hass.async_add_executor_job(
+            _render_weather_artifact_to_disk,
+            card_data,
+            display_mode,
+            self.payload_dir,
+            stem,
+        )
         if cache_provider_id:
             await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.ppbin", self.payload_path())
             await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.preview.png", self.preview_path())
@@ -688,8 +719,6 @@ class DitherloomRuntime:
         send_to_frame: bool,
         cache_provider_id: str | None = None,
     ) -> dict[str, Any]:
-        from .renderer import SunCardData, render_sun_card, render_to_artifact
-        from .renderer.pack import write_artifact
         from .sun_provider import build_sun_provider_data
 
         opts = self.options
@@ -711,11 +740,13 @@ class DitherloomRuntime:
             self.hass.config.time_zone,
             current_datetime=render_target,
         )
-        card_data = SunCardData(**provider_data.__dict__)
-        image = render_sun_card(card_data)
-        artifact = render_to_artifact(image, "sunrise_sunset", [card_data.source_entity_id])
         stem = self._provider_payload_name(cache_provider_id) if cache_provider_id else self.latest_payload_name
-        await self.hass.async_add_executor_job(write_artifact, artifact, self.payload_dir, stem)
+        artifact, card_data = await self.hass.async_add_executor_job(
+            _render_sun_artifact_to_disk,
+            provider_data,
+            self.payload_dir,
+            stem,
+        )
         if cache_provider_id:
             await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.ppbin", self.payload_path())
             await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.preview.png", self.preview_path())
@@ -777,8 +808,6 @@ class DitherloomRuntime:
         cache_provider_id: str | None = None,
     ) -> dict[str, Any]:
         from .moon_provider import build_moon_provider_data
-        from .renderer import MoonCardData, render_moon_card, render_to_artifact
-        from .renderer.pack import write_artifact
 
         opts = self.options
         picked_location = data.get(CONF_WEATHER_LOCATION)
@@ -799,11 +828,13 @@ class DitherloomRuntime:
             self.hass.config.time_zone,
             current_datetime=render_target,
         )
-        card_data = MoonCardData(**provider_data.__dict__)
-        image = render_moon_card(card_data)
-        artifact = render_to_artifact(image, "moon_phase", [card_data.source_entity_id])
         stem = self._provider_payload_name(cache_provider_id) if cache_provider_id else self.latest_payload_name
-        await self.hass.async_add_executor_job(write_artifact, artifact, self.payload_dir, stem)
+        artifact, card_data = await self.hass.async_add_executor_job(
+            _render_moon_artifact_to_disk,
+            provider_data,
+            self.payload_dir,
+            stem,
+        )
         if cache_provider_id:
             await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.ppbin", self.payload_path())
             await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.preview.png", self.preview_path())
@@ -1038,10 +1069,12 @@ class DitherloomRuntime:
     async def _frame_sync_jobs(self) -> list[dict[str, Any]]:
         jobs: list[dict[str, Any]] = []
         slot_map = self._provider_slot_map()
+        missing_or_stale: list[str] = []
         for provider in self._enabled_content_providers():
             metadata = await self._read_cached_metadata(provider)
             if metadata is None or not self._cached_content_is_fresh(provider, metadata):
-                metadata = await self.async_render_provider_to_cache(provider)
+                missing_or_stale.append(provider)
+                continue
             if not self._provider_needs_frame_sync(provider, metadata):
                 continue
             stem = self._provider_payload_name(provider)
@@ -1056,6 +1089,17 @@ class DitherloomRuntime:
                     "date_label": metadata.get("date_label"),
                 }
             )
+        if missing_or_stale:
+            message = (
+                "Pre-rendered Home Assistant content is missing or stale for: "
+                + ", ".join(missing_or_stale)
+                + ". Home Assistant must render enabled content before the frame wakes."
+            )
+            self.last_status = "content_prerender_required"
+            self.last_metadata[ATTR_LAST_ERROR] = message
+            self.last_metadata["frame_awake_missing_cached_providers"] = missing_or_stale
+            await self.async_save()
+            raise HomeAssistantError(message)
         self.last_metadata["ha_owned_slots"] = slot_map
         return jobs
 
@@ -1272,11 +1316,7 @@ class DitherloomRuntime:
 
 
 def _integration_version() -> str:
-    manifest_path = Path(__file__).with_name("manifest.json")
-    try:
-        return str(json.loads(manifest_path.read_text(encoding="utf-8")).get("version") or "")
-    except Exception:
-        return ""
+    return INTEGRATION_VERSION
 
 
 async def _validate_discovery_bearer_token(hass: HomeAssistant, request, body: dict[str, Any] | None = None) -> bool:

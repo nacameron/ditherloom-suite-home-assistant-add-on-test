@@ -81,3 +81,30 @@ def test_renderer_cache_is_versioned():
     assert "CARD_RENDERER_VERSION" in init_source
     assert 'metadata["card_renderer_version"] = CARD_RENDERER_VERSION' in init_source
     assert 'metadata.get("card_renderer_version") != CARD_RENDERER_VERSION' in init_source
+
+
+def test_frame_awake_uses_prerendered_cache_only():
+    init_source = INIT.read_text(encoding="utf-8")
+    frame_awake_start = init_source.index("async def async_handle_frame_awake")
+    frame_awake_end = init_source.index("async def async_deliver_cached_content_to_announced_frame", frame_awake_start)
+    frame_awake_source = init_source[frame_awake_start:frame_awake_end]
+    sync_jobs_start = init_source.index("async def _frame_sync_jobs")
+    sync_jobs_end = init_source.index("def _provider_needs_frame_sync", sync_jobs_start)
+    sync_jobs_source = init_source[sync_jobs_start:sync_jobs_end]
+
+    assert 'async_refresh_content_payload(reason="frame_awake")' not in frame_awake_source
+    assert "async_render_provider_to_cache(provider)" not in sync_jobs_source
+    assert "Pre-rendered Home Assistant content is missing or stale" in sync_jobs_source
+    assert "frame_awake_missing_cached_providers" in sync_jobs_source
+
+
+def test_weather_luxe_uses_full_background_art():
+    cards_source = (COMPONENT / "renderer" / "cards.py").read_text(encoding="utf-8")
+    paste_start = cards_source.index("def _paste_luxe_weather_art")
+    paste_end = cards_source.index("def _draw_luxe_weather_tile", paste_start)
+    paste_source = cards_source[paste_start:paste_end]
+
+    assert "art.thumbnail" not in paste_source
+    assert "WIDTH / artwork.width" in paste_source
+    assert "HEIGHT / artwork.height" in paste_source
+    assert "image.paste(resized.crop" in paste_source

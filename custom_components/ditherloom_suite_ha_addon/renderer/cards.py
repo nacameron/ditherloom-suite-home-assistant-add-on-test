@@ -13,7 +13,7 @@ WIDTH = 400
 HEIGHT = 300
 TOP_BAR_HEIGHT = 38
 BOTTOM_BAR_HEIGHT = 38
-FONT_SCALE = 1.4
+FONT_SCALE = 1.5
 GLYPH_ROWS = 7
 GLYPH_COLS = 5
 
@@ -310,10 +310,14 @@ def _weather_art_for_title(title: str, kind: str) -> Image.Image | None:
         return _load_weather_art("partly_cloudy_night" if is_night else "partly_cloudy_day")
     if "cloud" in normalized or "overcast" in normalized:
         return _load_weather_art("cloudy_night" if is_night else "cloudy_day")
-    if "fog" in normalized:
-        return _load_weather_art("cloudy_night" if is_night else "cloudy_day")
-    if "snow" in normalized or "freezing" in normalized or "cold" in normalized or "wind" in normalized:
-        return _load_weather_art("cloudy_night" if is_night else "cloudy_day")
+    if "fog" in normalized or "mist" in normalized or "haze" in normalized:
+        return _load_weather_art("cloudy_night" if is_night else "fog_day")
+    if "snow" in normalized:
+        return _load_weather_art("cloudy_night" if is_night else "snow_day")
+    if "freezing" in normalized or "cold" in normalized:
+        return _load_weather_art("cloudy_night" if is_night else "extreme_cold_day")
+    if "wind" in normalized or "gale" in normalized:
+        return _load_weather_art("cloudy_night" if is_night else "high_wind_day")
     if is_night or "clear night" in normalized:
         return _load_weather_art("clear_night")
     return _load_weather_art("sunny_day")
@@ -622,8 +626,8 @@ def render_modern_weather_card(data: WeatherCardData, colour_mode: str = COLOUR_
 
 def _render_luxe_weather_card(data: WeatherCardData) -> Image.Image:
     image = Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
-    draw = ImageDraw.Draw(image)
     _paste_luxe_weather_art(image, _template_slug_for_data(data))
+    draw = ImageDraw.Draw(image)
     current_temperature_label = "CURRENT TEMPERATURE"
 
     draw.rounded_rectangle((12, 12, 388, 46), radius=7, fill=_rgb("warm_white"), outline=_rgb("yellow"), width=1)
@@ -660,9 +664,14 @@ def _paste_luxe_weather_art(image: Image.Image, slug: str) -> None:
     artwork = _load_weather_art(slug) or _load_weather_art("sunny_day")
     if artwork is None:
         return
-    art = artwork.convert("RGBA")
-    art.thumbnail((184, 128), Image.Resampling.LANCZOS)
-    image.paste(art.convert("RGB"), ((WIDTH - art.width) // 2, 48 + (120 - art.height) // 2), art if art.mode == "RGBA" else None)
+    scale = max(WIDTH / artwork.width, HEIGHT / artwork.height)
+    resized = artwork.resize(
+        (max(1, int(round(artwork.width * scale))), max(1, int(round(artwork.height * scale)))),
+        Image.Resampling.LANCZOS,
+    )
+    left = max(0, (resized.width - WIDTH) // 2)
+    top = max(0, (resized.height - HEIGHT) // 2)
+    image.paste(resized.crop((left, top, left + WIDTH, top + HEIGHT)), (0, 0))
 
 
 def _draw_luxe_weather_tile(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], label: str, value: str) -> None:

@@ -280,8 +280,8 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.61"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.61")
+    if '"version": "0.1.62"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.62")
 
 
 def check_public_repo_single_version() -> None:
@@ -664,7 +664,7 @@ def check_locked_render_delivery_pathway() -> None:
         "timed out during Gateway",
         "async_send_to_frame_host",
         "manual_send_last_success_at",
-        "await self.async_refresh_content_payload(reason)",
+        "Pre-rendered Home Assistant content is missing or stale",
         'self.last_status = f"{provider_id}_ready"',
         'self.last_status = "frame_awake_received"',
         'self.last_status = "frame_awake_sent"',
@@ -682,6 +682,8 @@ def check_locked_render_delivery_pathway() -> None:
         "async_track_point_in_time",
         "_schedule_next_auto_send",
         "_handle_auto_send",
+        'async_refresh_content_payload(reason="frame_awake")',
+        "metadata = await self.async_render_provider_to_cache(provider)",
     ):
         if forbidden in init_text:
             fail(f"locked render delivery pathway contains forbidden shortcut: {forbidden}")
