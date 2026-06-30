@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from PIL import Image
+
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPONENT = ROOT / "custom_components" / "ditherloom_suite_ha_addon"
@@ -7,6 +9,7 @@ INIT = COMPONENT / "__init__.py"
 BUTTON = COMPONENT / "button.py"
 SENSOR = COMPONENT / "sensor.py"
 UPDATE = COMPONENT / "update.py"
+WEATHER_ART = COMPONENT / "assets" / "weather_art"
 
 
 def test_home_assistant_brand_assets_are_packaged():
@@ -33,6 +36,16 @@ def test_update_platform_accepts_artwork_sized_release_downloads():
     assert "from pathlib import Path" in update_source
     assert "MAX_ZIPBALL_BYTES = 96 * 1024 * 1024" in update_source
     assert "MAX_ZIPBALL_BYTES = 30 * 1024 * 1024" not in update_source
+
+
+def test_weather_backdrops_are_packaged_at_panel_resolution():
+    total_size = 0
+    for path in WEATHER_ART.glob("*.png"):
+        total_size += path.stat().st_size
+        with Image.open(path) as image:
+            assert image.size == (400, 300)
+
+    assert total_size < 5 * 1024 * 1024
 
 
 def test_sync_wifi_button_is_not_created_and_stale_entity_is_removed():
@@ -88,6 +101,7 @@ def test_handshake_sensor_exposes_frame_schedule_config():
 def test_renderer_cache_is_versioned():
     init_source = (ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py").read_text(encoding="utf-8")
     assert "CARD_RENDERER_VERSION" in init_source
+    assert 'CARD_RENDERER_VERSION = "luxe-0.1.66"' in init_source
     assert 'metadata["card_renderer_version"] = CARD_RENDERER_VERSION' in init_source
     assert 'metadata.get("card_renderer_version") != CARD_RENDERER_VERSION' in init_source
 

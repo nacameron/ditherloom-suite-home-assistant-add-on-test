@@ -86,7 +86,7 @@ from .ha_lane import enabled_content_providers, ha_lane_slots, parse_slot_pool, 
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
-CARD_RENDERER_VERSION = "luxe-0.1.64"
+CARD_RENDERER_VERSION = "luxe-0.1.66"
 DISCOVERY_AUTH_MESSAGE = "Provide a Home Assistant Long-Lived Access Token."
 STALE_FRONTEND_ENTITY_NAMES = {
     "Synchronise Wi-Fi " + "wake window",
