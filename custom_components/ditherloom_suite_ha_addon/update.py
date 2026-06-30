@@ -6,6 +6,7 @@ import logging
 import shutil
 import zipfile
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 
 from aiohttp import ClientError, ClientTimeout
@@ -27,7 +28,7 @@ LATEST_RELEASE_API_URL = f"https://api.github.com/repos/{GITHUB_REPOSITORY}/rele
 LATEST_RELEASE_URL = f"https://github.com/{GITHUB_REPOSITORY}/releases/latest"
 REQUEST_TIMEOUT = ClientTimeout(total=15)
 ZIPBALL_TIMEOUT = ClientTimeout(total=60)
-MAX_ZIPBALL_BYTES = 30 * 1024 * 1024
+MAX_ZIPBALL_BYTES = 96 * 1024 * 1024
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:

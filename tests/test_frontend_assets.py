@@ -6,6 +6,7 @@ COMPONENT = ROOT / "custom_components" / "ditherloom_suite_ha_addon"
 INIT = COMPONENT / "__init__.py"
 BUTTON = COMPONENT / "button.py"
 SENSOR = COMPONENT / "sensor.py"
+UPDATE = COMPONENT / "update.py"
 
 
 def test_home_assistant_brand_assets_are_packaged():
@@ -24,6 +25,14 @@ def test_home_assistant_brand_assets_are_packaged():
         path = COMPONENT / name
         assert path.exists()
         assert path.stat().st_size > 0
+
+
+def test_update_platform_accepts_artwork_sized_release_downloads():
+    update_source = UPDATE.read_text(encoding="utf-8")
+
+    assert "from pathlib import Path" in update_source
+    assert "MAX_ZIPBALL_BYTES = 96 * 1024 * 1024" in update_source
+    assert "MAX_ZIPBALL_BYTES = 30 * 1024 * 1024" not in update_source
 
 
 def test_sync_wifi_button_is_not_created_and_stale_entity_is_removed():

@@ -234,6 +234,8 @@ def check_update_platform() -> None:
         "UpdateEntityFeature.INSTALL",
         "async_install",
         "_install_release_zipball",
+        "from pathlib import Path",
+        "MAX_ZIPBALL_BYTES = 96 * 1024 * 1024",
     ):
         if required not in update_text:
             fail(f"update platform missing release-check route/text: {required}")
@@ -280,8 +282,8 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.64"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.64")
+    if '"version": "0.1.65"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.65")
 
 
 def check_public_repo_single_version() -> None:
