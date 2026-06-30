@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
 from .palette import TEMPLATE_COLOURS
 
@@ -618,10 +618,10 @@ def _template_slug_for_data(data: WeatherCardData) -> str:
 
 
 def render_modern_weather_card(data: WeatherCardData, colour_mode: str = COLOUR_MODE_COLOUR) -> Image.Image:
+    image = _render_luxe_weather_card(data)
     if _is_mono(colour_mode):
-        return render_weather_card(data, colour_mode=colour_mode)
-
-    return _render_luxe_weather_card(data)
+        return ImageOps.grayscale(image).convert("RGB")
+    return image
 
 
 def _render_luxe_weather_card(data: WeatherCardData) -> Image.Image:

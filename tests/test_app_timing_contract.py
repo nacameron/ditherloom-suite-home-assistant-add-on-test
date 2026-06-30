@@ -34,6 +34,21 @@ def test_wake_window_is_not_used_as_refresh_or_rotation_interval():
     assert "CONF_WAKE_WINDOW" not in source[rotation_start:rotation_end]
 
 
+def test_content_cache_follows_app_update_interval_not_ha_rotation_interval():
+    source = INIT.read_text(encoding="utf-8")
+    cache_start = source.index("def _time_sensitive_cache_minutes")
+    cache_end = source.index("def async_cancel_weather_refresh", cache_start)
+    cache_source = source[cache_start:cache_end]
+    refresh_start = source.index("async def async_refresh_content_payload")
+    refresh_end = source.index("async def async_render_provider_to_cache", refresh_start)
+    refresh_source = source[refresh_start:refresh_end]
+
+    assert "_effective_update_interval_minutes()" in cache_source
+    assert "_ha_rotation_seconds" not in cache_source
+    assert "_display_rotation_interval_minutes" not in cache_source
+    assert "force_prerender = reason in {\"startup\", \"timer\"}" in refresh_source
+
+
 def test_sensor_attributes_expose_distinct_timing_meanings():
     source = SENSOR.read_text(encoding="utf-8")
 
@@ -43,4 +58,3 @@ def test_sensor_attributes_expose_distinct_timing_meanings():
     assert 'frame_interval_minutes = frame_ha_config.get("intervalMinutes")' in source
     assert 'frame_ha_rotation_seconds = frame_ha_config.get("haRotationSeconds")' in source
     assert 'frame_wake_window_seconds = frame_awake.get("wake_window_seconds") or frame_ha_config.get("wakeWindowSeconds")' in source
-

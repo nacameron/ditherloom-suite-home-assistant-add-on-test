@@ -100,10 +100,16 @@ def test_frame_awake_uses_prerendered_cache_only():
 
 def test_weather_luxe_uses_full_background_art():
     cards_source = (COMPONENT / "renderer" / "cards.py").read_text(encoding="utf-8")
+    modern_start = cards_source.index("def render_modern_weather_card")
+    modern_end = cards_source.index("def _render_luxe_weather_card", modern_start)
+    modern_source = cards_source[modern_start:modern_end]
     paste_start = cards_source.index("def _paste_luxe_weather_art")
     paste_end = cards_source.index("def _draw_luxe_weather_tile", paste_start)
     paste_source = cards_source[paste_start:paste_end]
 
+    assert "render_weather_card(" not in modern_source
+    assert "image = _render_luxe_weather_card(data)" in modern_source
+    assert 'ImageOps.grayscale(image).convert("RGB")' in modern_source
     assert "art.thumbnail" not in paste_source
     assert "WIDTH / artwork.width" in paste_source
     assert "HEIGHT / artwork.height" in paste_source

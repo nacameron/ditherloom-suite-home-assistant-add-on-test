@@ -280,8 +280,8 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.63"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.63")
+    if '"version": "0.1.64"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.64")
 
 
 def check_public_repo_single_version() -> None:
@@ -451,6 +451,20 @@ def check_weather_renderer_options() -> None:
             if required not in text:
                 fail(f"weather renderer option route missing required text in {path.name}: {required}")
     cards_text = cards_path.read_text(encoding="utf-8")
+    modern_start = cards_text.index("def render_modern_weather_card")
+    modern_end = cards_text.index("def _render_luxe_weather_card", modern_start)
+    modern_source = cards_text[modern_start:modern_end]
+    for forbidden in (
+        "render_weather_card(",
+    ):
+        if forbidden in modern_source:
+            fail(f"HA weather renderer can still route away from luxe full-backdrop layout: {forbidden}")
+    for required in (
+        "image = _render_luxe_weather_card(data)",
+        "ImageOps.grayscale(image).convert(\"RGB\")",
+    ):
+        if required not in modern_source:
+            fail(f"HA weather mono route must strip colour after luxe full-backdrop render: {required}")
     for forbidden in (
         "WEATHER_TEMPLATE_DIR",
         "_load_weather_template",
