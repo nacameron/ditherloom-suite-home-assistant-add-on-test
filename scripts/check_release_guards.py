@@ -283,8 +283,8 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.67"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.67")
+    if '"version": "0.1.68"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.68")
 
 
 def check_public_repo_single_version() -> None:
@@ -633,6 +633,12 @@ def check_dashboard_surface() -> None:
             "Last job status",
             "DitherloomFrameScheduleSensor",
             "Frame handshake status",
+            "DitherloomDataAttributionSensor",
+            "Data attribution",
+            "weather_attribution_url",
+            "weather_license_url",
+            "place_lookup_attribution_url",
+            "visible_card_attribution",
             "async_add_listener",
             "weather_refresh_next_at",
             "frame_awake_last_received_at",

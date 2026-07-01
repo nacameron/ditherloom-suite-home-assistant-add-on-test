@@ -105,6 +105,8 @@ def test_handshake_sensor_exposes_frame_schedule_config():
     assert '"frame_awake_last_delivered_jobs"' in sensor_source
     assert '"frame_awake_last_delivery_summary"' in sensor_source
     assert '"frame_awake_last_failed_at"' in sensor_source
+    assert "DitherloomDataAttributionSensor" in sensor_source
+    assert '"Data attribution"' in sensor_source
     assert "from homeassistant.util import dt as dt_util" in sensor_source
     assert "_state_time_label" in sensor_source
     assert "dt_util.as_local(value)" in sensor_source
@@ -113,10 +115,33 @@ def test_handshake_sensor_exposes_frame_schedule_config():
     assert "Sent {count} job" in sensor_source
 
 
+def test_backend_attribution_sensor_is_always_visible():
+    sensor_source = SENSOR.read_text(encoding="utf-8")
+
+    assert "DitherloomDataAttributionSensor(coordinator, entry)" in sensor_source
+    assert "class DitherloomDataAttributionSensor" in sensor_source
+    assert 'self._attr_unique_id = f"{entry.entry_id}_data_attribution"' in sensor_source
+    assert 'return "Open-Meteo Weather; Ditherloom local sun/moon"' in sensor_source
+    assert '"weather_provider": "Open-Meteo"' in sensor_source
+    assert '"weather_attribution": OPEN_METEO_ATTRIBUTION' in sensor_source
+    assert '"weather_attribution_url": OPEN_METEO_ATTRIBUTION_URL' in sensor_source
+    assert '"weather_license": OPEN_METEO_LICENSE' in sensor_source
+    assert '"weather_license_url": OPEN_METEO_LICENSE_URL' in sensor_source
+    assert '"place_lookup_provider": "OpenStreetMap / Nominatim"' in sensor_source
+    assert '"place_lookup_attribution": NOMINATIM_ATTRIBUTION' in sensor_source
+    assert '"place_lookup_attribution_url": NOMINATIM_ATTRIBUTION_URL' in sensor_source
+    assert '"place_lookup_license": NOMINATIM_LICENSE' in sensor_source
+    assert '"place_lookup_license_url": NOMINATIM_LICENSE_URL' in sensor_source
+    assert '"sun_provider": "Ditherloom local solar calculation"' in sensor_source
+    assert '"moon_provider": "Ditherloom local moon calculation"' in sensor_source
+    assert '"visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM."' in sensor_source
+    assert '"audit_note": "These diagnostic attribution fields are fixed compliance metadata' in sensor_source
+
+
 def test_renderer_cache_is_versioned():
     init_source = (ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py").read_text(encoding="utf-8")
     assert "CARD_RENDERER_VERSION" in init_source
-    assert 'CARD_RENDERER_VERSION = "luxe-0.1.67"' in init_source
+    assert 'CARD_RENDERER_VERSION = "luxe-0.1.68"' in init_source
     assert 'metadata["card_renderer_version"] = CARD_RENDERER_VERSION' in init_source
     assert 'metadata.get("card_renderer_version") != CARD_RENDERER_VERSION' in init_source
 

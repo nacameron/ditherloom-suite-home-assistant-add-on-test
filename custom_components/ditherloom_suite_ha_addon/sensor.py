@@ -11,6 +11,17 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
+from .open_meteo import (
+    NOMINATIM_ATTRIBUTION,
+    NOMINATIM_ATTRIBUTION_URL,
+    NOMINATIM_LICENSE,
+    NOMINATIM_LICENSE_URL,
+    OPEN_METEO_ATTRIBUTION,
+    OPEN_METEO_ATTRIBUTION_URL,
+    OPEN_METEO_CHANGES,
+    OPEN_METEO_LICENSE,
+    OPEN_METEO_LICENSE_URL,
+)
 
 PROVIDER_DISPLAY_NAMES = {
     "open_meteo_weather": "Open-Meteo Weather",
@@ -25,6 +36,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         [
             DitherloomStatusSensor(coordinator, entry),
             DitherloomFrameScheduleSensor(coordinator, entry),
+            DitherloomDataAttributionSensor(coordinator, entry),
         ]
     )
 
@@ -168,6 +180,43 @@ class DitherloomFrameScheduleSensor(DitherloomSensorBase):
             "frame_awake": frame_awake,
             "frame_sleeping": metadata.get("frame_sleeping"),
             "last_error": metadata.get("last_error"),
+        }
+
+
+class DitherloomDataAttributionSensor(DitherloomSensorBase):
+    _attr_name = "Data attribution"
+
+    def __init__(self, coordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_data_attribution"
+
+    @property
+    def native_value(self):
+        return "Open-Meteo Weather; Ditherloom local sun/moon"
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "weather_provider": "Open-Meteo",
+            "weather_attribution": OPEN_METEO_ATTRIBUTION,
+            "weather_attribution_url": OPEN_METEO_ATTRIBUTION_URL,
+            "weather_license": OPEN_METEO_LICENSE,
+            "weather_license_url": OPEN_METEO_LICENSE_URL,
+            "weather_data_transformations": OPEN_METEO_CHANGES,
+            "place_lookup_provider": "OpenStreetMap / Nominatim",
+            "place_lookup_used_when": "When a location name is resolved from configured coordinates.",
+            "place_lookup_attribution": NOMINATIM_ATTRIBUTION,
+            "place_lookup_attribution_url": NOMINATIM_ATTRIBUTION_URL,
+            "place_lookup_license": NOMINATIM_LICENSE,
+            "place_lookup_license_url": NOMINATIM_LICENSE_URL,
+            "sun_provider": "Ditherloom local solar calculation",
+            "sun_attribution": "Sun times are calculated locally from the configured Home Assistant location.",
+            "sun_license": "Ditherloom integration code and bundled artwork licence applies; no third-party sun data service is used.",
+            "moon_provider": "Ditherloom local moon calculation",
+            "moon_attribution": "Moon phase is calculated locally from the configured Home Assistant location.",
+            "moon_license": "Ditherloom integration code and bundled artwork licence applies; no third-party moon data service is used.",
+            "visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM.",
+            "audit_note": "These diagnostic attribution fields are fixed compliance metadata and do not depend on the latest render or delivery.",
         }
 
 
