@@ -77,6 +77,16 @@ def test_handshake_sensor_exposes_frame_schedule_config():
     assert '"frame_ha_rotation_enabled"' in sensor_source
     assert '"content_rendered_at"' in sensor_source
     assert '"content_rendered_provider_id"' in sensor_source
+    assert '"content_rendered_provider_name"' in sensor_source
+    assert '"content_rendered_source"' in sensor_source
+    assert '"content_rendered_source_name"' in sensor_source
+    assert '"content_rendered_source_url"' in sensor_source
+    assert '"content_rendered_attribution"' in sensor_source
+    assert '"content_rendered_attribution_url"' in sensor_source
+    assert '"content_rendered_license"' in sensor_source
+    assert '"content_rendered_license_url"' in sensor_source
+    assert '"content_rendered_data_transformations"' in sensor_source
+    assert '"content_rendered_secondary_attribution"' in sensor_source
     assert '"content_rendered_content_id"' in sensor_source
     assert '"content_rendered_crc32"' in sensor_source
     assert '"frame_content_last_delivered_at"' in sensor_source
@@ -86,6 +96,11 @@ def test_handshake_sensor_exposes_frame_schedule_config():
     assert '"frame_content_last_delivered_content_ids"' in sensor_source
     assert '"frame_content_last_delivered_provider_ids"' in sensor_source
     assert '"frame_content_last_delivered_provider_names"' in sensor_source
+    assert '"frame_content_last_delivered_attributions"' in sensor_source
+    assert '"frame_content_last_delivered_licenses"' in sensor_source
+    assert '"frame_awake_last_delivered_sources"' in sensor_source
+    assert '"frame_awake_last_delivered_attributions"' in sensor_source
+    assert '"frame_awake_last_delivered_licenses"' in sensor_source
     assert '"frame_content_last_delivered_summary"' in sensor_source
     assert '"frame_awake_last_delivered_jobs"' in sensor_source
     assert '"frame_awake_last_delivery_summary"' in sensor_source
@@ -101,7 +116,7 @@ def test_handshake_sensor_exposes_frame_schedule_config():
 def test_renderer_cache_is_versioned():
     init_source = (ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py").read_text(encoding="utf-8")
     assert "CARD_RENDERER_VERSION" in init_source
-    assert 'CARD_RENDERER_VERSION = "luxe-0.1.66"' in init_source
+    assert 'CARD_RENDERER_VERSION = "luxe-0.1.67"' in init_source
     assert 'metadata["card_renderer_version"] = CARD_RENDERER_VERSION' in init_source
     assert 'metadata.get("card_renderer_version") != CARD_RENDERER_VERSION' in init_source
 
@@ -137,3 +152,56 @@ def test_weather_luxe_uses_full_background_art():
     assert "WIDTH / artwork.width" in paste_source
     assert "HEIGHT / artwork.height" in paste_source
     assert "image.paste(resized.crop" in paste_source
+
+
+def test_luxe_cards_use_fixed_large_fonts_not_box_fitted_fonts():
+    cards_source = (COMPONENT / "renderer" / "cards.py").read_text(encoding="utf-8")
+    left_start = cards_source.index("def _draw_luxe_text_left")
+    left_end = cards_source.index("def _draw_luxe_text_right", left_start)
+    right_start = left_end
+    right_end = cards_source.index("def _draw_solid_palette_text", right_start)
+    left_source = cards_source[left_start:left_end]
+    right_source = cards_source[right_start:right_end]
+    weather_start = cards_source.index("def _render_luxe_weather_card")
+    weather_end = cards_source.index("def _paste_luxe_weather_art", weather_start)
+    weather_source = cards_source[weather_start:weather_end]
+
+    assert "_fit_font(" not in left_source
+    assert "_fit_font(" not in right_source
+    assert "_truncate_for_width" not in cards_source
+    assert "font = _fit_ui_font(value" in left_source
+    assert "font = _fit_ui_font(value" in right_source
+    assert "_draw_luxe_location_text(draw, (23, 15, 272, 45)" in weather_source
+    assert "_draw_luxe_text_left(draw, (28, 199, 158, 247), temperature, 52" in weather_source
+    assert "_draw_luxe_text_left(draw, (247, 179, 377, 211), condition, 20" in weather_source
+    assert "_draw_luxe_text_left(draw, (x1 + 9, y1 + 20, x2 - 8, y2 - 6), value, 23" in cards_source
+
+
+def test_sun_moon_cards_use_source_attribution_label():
+    cards_source = (COMPONENT / "renderer" / "cards.py").read_text(encoding="utf-8")
+
+    assert "_source_label(data.attribution)" in cards_source
+    assert 'return "LOCAL CALC"' not in cards_source
+    assert 'return "DITHERLOOM"' in cards_source
+    assert 'return "OPEN-METEO"' in cards_source
+
+
+def test_provider_attribution_metadata_is_recorded_for_backend_compliance():
+    init_source = INIT.read_text(encoding="utf-8")
+    open_meteo_source = (COMPONENT / "open_meteo.py").read_text(encoding="utf-8")
+
+    assert 'OPEN_METEO_LICENSE = "CC BY 4.0"' in open_meteo_source
+    assert 'OPEN_METEO_ATTRIBUTION_URL = "https://open-meteo.com/"' in open_meteo_source
+    assert 'NOMINATIM_ATTRIBUTION_URL = "https://www.openstreetmap.org/copyright"' in open_meteo_source
+    assert 'NOMINATIM_LICENSE = "ODbL"' in open_meteo_source
+    assert 'metadata["source_name"] = "Open-Meteo"' in init_source
+    assert 'metadata["license"] = OPEN_METEO_LICENSE' in init_source
+    assert 'metadata["license_url"] = OPEN_METEO_LICENSE_URL' in init_source
+    assert 'metadata["secondary_attribution"] = NOMINATIM_ATTRIBUTION' in init_source
+    assert 'metadata["source_name"] = "Ditherloom local solar calculation"' in init_source
+    assert 'metadata["source_name"] = "Ditherloom local moon calculation"' in init_source
+    assert '"content_source": metadata.get("source")' in init_source
+    assert '"attribution": metadata.get("attribution")' in init_source
+    assert '"license_url": metadata.get("license_url")' in init_source
+    assert '"frame_content_last_delivered_attributions"' in init_source
+    assert '"frame_content_last_delivered_licenses"' in init_source

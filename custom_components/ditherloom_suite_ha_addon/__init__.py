@@ -86,7 +86,7 @@ from .ha_lane import enabled_content_providers, ha_lane_slots, parse_slot_pool, 
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
-CARD_RENDERER_VERSION = "luxe-0.1.66"
+CARD_RENDERER_VERSION = "luxe-0.1.67"
 DISCOVERY_AUTH_MESSAGE = "Provide a Home Assistant Long-Lived Access Token."
 STALE_FRONTEND_ENTITY_NAMES = {
     "Synchronise Wi-Fi " + "wake window",
@@ -105,6 +105,8 @@ PRESERVED_RUNTIME_METADATA_KEYS = (
     "frame_content_last_delivered_slots",
     "frame_content_last_delivered_crc32",
     "frame_content_last_delivered_content_ids",
+    "frame_content_last_delivered_attributions",
+    "frame_content_last_delivered_licenses",
     "frame_awake_last_delivered_jobs",
 )
 
@@ -480,10 +482,18 @@ class DitherloomRuntime:
                 {
                     "synced_at": synced_at,
                     "provider_id": job.get("provider_id"),
+                    "provider_name": job.get("provider_name"),
                     "slot": job.get("slot"),
                     "crc32": job.get("crc32"),
                     "content_id": job.get("content_id"),
                     "date_label": job.get("date_label"),
+                    "source": job.get("content_source"),
+                    "source_name": job.get("source_name"),
+                    "source_url": job.get("source_url"),
+                    "attribution": job.get("attribution"),
+                    "attribution_url": job.get("attribution_url"),
+                    "license": job.get("license"),
+                    "license_url": job.get("license_url"),
                 }
                 for job in jobs
             ]
@@ -498,6 +508,8 @@ class DitherloomRuntime:
             self.last_metadata["frame_content_last_delivered_slots"] = [job["slot"] for job in delivered_jobs]
             self.last_metadata["frame_content_last_delivered_crc32"] = [job["crc32"] for job in delivered_jobs]
             self.last_metadata["frame_content_last_delivered_content_ids"] = [job["content_id"] for job in delivered_jobs]
+            self.last_metadata["frame_content_last_delivered_attributions"] = [job.get("attribution") for job in delivered_jobs]
+            self.last_metadata["frame_content_last_delivered_licenses"] = [job.get("license") for job in delivered_jobs]
             self.last_metadata["frame_awake_last_delivered_jobs"] = delivered_jobs
             if gateway_status.get("ha_rotation"):
                 self.last_metadata["ha_rotation"] = gateway_status["ha_rotation"]
@@ -639,7 +651,18 @@ class DitherloomRuntime:
         send_to_frame: bool,
         cache_provider_id: str | None = None,
     ) -> dict[str, Any]:
-        from .open_meteo import fetch_open_meteo_card
+        from .open_meteo import (
+            NOMINATIM_ATTRIBUTION,
+            NOMINATIM_ATTRIBUTION_URL,
+            NOMINATIM_LICENSE,
+            NOMINATIM_LICENSE_URL,
+            OPEN_METEO_ATTRIBUTION,
+            OPEN_METEO_ATTRIBUTION_URL,
+            OPEN_METEO_CHANGES,
+            OPEN_METEO_LICENSE,
+            OPEN_METEO_LICENSE_URL,
+            fetch_open_meteo_card,
+        )
 
         opts = self.options
         picked_location = data.get(CONF_WEATHER_LOCATION)
@@ -689,10 +712,25 @@ class DitherloomRuntime:
         metadata["provider_id"] = "open_meteo_weather"
         metadata["provider_name"] = "Open-Meteo Weather"
         metadata["card_renderer_version"] = CARD_RENDERER_VERSION
-        metadata["source"] = "https://open-meteo.com/"
-        metadata["attribution"] = card_data.attribution or "Weather data by Open-Meteo.com."
+        metadata["source"] = "open_meteo"
+        metadata["source_name"] = "Open-Meteo"
+        metadata["source_url"] = OPEN_METEO_ATTRIBUTION_URL
+        metadata["attribution"] = card_data.attribution or OPEN_METEO_ATTRIBUTION
+        metadata["attribution_url"] = OPEN_METEO_ATTRIBUTION_URL
+        metadata["license"] = OPEN_METEO_LICENSE
+        metadata["license_url"] = OPEN_METEO_LICENSE_URL
+        metadata["data_transformations"] = OPEN_METEO_CHANGES
+        if NOMINATIM_ATTRIBUTION in metadata["attribution"]:
+            metadata["secondary_attribution"] = NOMINATIM_ATTRIBUTION
+            metadata["secondary_attribution_url"] = NOMINATIM_ATTRIBUTION_URL
+            metadata["secondary_license"] = NOMINATIM_LICENSE
+            metadata["secondary_license_url"] = NOMINATIM_LICENSE_URL
         metadata["content_rendered_at"] = metadata["rendered_at"]
         metadata["content_rendered_provider_id"] = metadata["provider_id"]
+        metadata["content_rendered_provider_name"] = metadata["provider_name"]
+        metadata["content_rendered_source_name"] = metadata["source_name"]
+        metadata["content_rendered_attribution"] = metadata["attribution"]
+        metadata["content_rendered_license"] = metadata["license"]
         metadata["content_rendered_content_id"] = metadata.get(ATTR_CONTENT_ID)
         metadata["content_rendered_crc32"] = metadata.get(ATTR_CRC32)
         for preserved_key in PRESERVED_RUNTIME_METADATA_KEYS:
@@ -761,7 +799,16 @@ class DitherloomRuntime:
         metadata["provider_name"] = "Sunrise / Sunset"
         metadata["card_renderer_version"] = CARD_RENDERER_VERSION
         metadata["source"] = "local_solar_calculation"
+        metadata["source_name"] = "Ditherloom local solar calculation"
+        metadata["source_url"] = ""
         metadata["attribution"] = card_data.attribution
+        metadata["attribution_url"] = ""
+        metadata["license"] = ""
+        metadata["license_url"] = ""
+        metadata["data_transformations"] = (
+            "Sunrise, sunset, twilight, day length, and golden-hour fields are calculated "
+            "from configured coordinates and rendered into a Ditherloom e-ink card."
+        )
         metadata["location"] = card_data.location
         metadata["date_label"] = card_data.date_label
         metadata["sunrise"] = card_data.sunrise
@@ -781,6 +828,10 @@ class DitherloomRuntime:
         metadata["max_jobs_per_wake"] = opts.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE)
         metadata["content_rendered_at"] = metadata["rendered_at"]
         metadata["content_rendered_provider_id"] = metadata["provider_id"]
+        metadata["content_rendered_provider_name"] = metadata["provider_name"]
+        metadata["content_rendered_source_name"] = metadata["source_name"]
+        metadata["content_rendered_attribution"] = metadata["attribution"]
+        metadata["content_rendered_license"] = metadata["license"]
         metadata["content_rendered_content_id"] = metadata.get(ATTR_CONTENT_ID)
         metadata["content_rendered_crc32"] = metadata.get(ATTR_CRC32)
         for preserved_key in PRESERVED_RUNTIME_METADATA_KEYS:
@@ -849,7 +900,16 @@ class DitherloomRuntime:
         metadata["provider_name"] = "Moon Phase"
         metadata["card_renderer_version"] = CARD_RENDERER_VERSION
         metadata["source"] = "local_moon_calculation"
+        metadata["source_name"] = "Ditherloom local moon calculation"
+        metadata["source_url"] = ""
         metadata["attribution"] = card_data.attribution
+        metadata["attribution_url"] = ""
+        metadata["license"] = ""
+        metadata["license_url"] = ""
+        metadata["data_transformations"] = (
+            "Moon phase, illumination, moonrise, moonset, and upcoming phase dates are calculated "
+            "from configured coordinates and rendered into a Ditherloom e-ink card."
+        )
         metadata["location"] = card_data.location
         metadata["date_label"] = card_data.date_label
         metadata["phase_name"] = card_data.phase_name
@@ -869,6 +929,10 @@ class DitherloomRuntime:
         metadata["max_jobs_per_wake"] = opts.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE)
         metadata["content_rendered_at"] = metadata["rendered_at"]
         metadata["content_rendered_provider_id"] = metadata["provider_id"]
+        metadata["content_rendered_provider_name"] = metadata["provider_name"]
+        metadata["content_rendered_source_name"] = metadata["source_name"]
+        metadata["content_rendered_attribution"] = metadata["attribution"]
+        metadata["content_rendered_license"] = metadata["license"]
         metadata["content_rendered_content_id"] = metadata.get(ATTR_CONTENT_ID)
         metadata["content_rendered_crc32"] = metadata.get(ATTR_CRC32)
         for preserved_key in PRESERVED_RUNTIME_METADATA_KEYS:
@@ -978,7 +1042,8 @@ class DitherloomRuntime:
         return max(60, legacy_minutes * 60)
 
     def _ha_rotation_config(self) -> dict[str, Any]:
-        return {"enabled": self._ha_rotation_enabled(), "seconds": self._ha_rotation_seconds(), "slots": self._ha_owned_slots()}
+        provider_slots = sorted(set(self._provider_slot_map().values()))
+        return {"enabled": self._ha_rotation_enabled(), "seconds": self._ha_rotation_seconds(), "slots": provider_slots}
 
     def _time_sensitive_render_target(self, data: dict[str, Any] | None = None) -> datetime:
         explicit = _parse_datetime((data or {}).get("render_target_at") or (data or {}).get("renderTargetAt"))
@@ -1083,11 +1148,19 @@ class DitherloomRuntime:
             jobs.append(
                 {
                     "provider_id": provider,
+                    "provider_name": metadata.get("provider_name"),
                     "slot": slot_map[provider],
                     "packed": packed,
                     "crc32": str(metadata[ATTR_CRC32]),
                     "content_id": metadata.get(ATTR_CONTENT_ID),
                     "date_label": metadata.get("date_label"),
+                    "content_source": metadata.get("source"),
+                    "source_name": metadata.get("source_name"),
+                    "source_url": metadata.get("source_url"),
+                    "attribution": metadata.get("attribution"),
+                    "attribution_url": metadata.get("attribution_url"),
+                    "license": metadata.get("license"),
+                    "license_url": metadata.get("license_url"),
                 }
             )
         if missing_or_stale:
@@ -1272,6 +1345,14 @@ class DitherloomRuntime:
             "job_type": "content_card",
             "content_id": metadata[ATTR_CONTENT_ID],
             "source": "home_assistant",
+            "content_source": metadata.get("source"),
+            "source_name": metadata.get("source_name"),
+            "source_url": metadata.get("source_url"),
+            "attribution": metadata.get("attribution"),
+            "attribution_url": metadata.get("attribution_url"),
+            "license": metadata.get("license"),
+            "license_url": metadata.get("license_url"),
+            "data_transformations": metadata.get("data_transformations"),
             "template": metadata.get("template_name", "weather_current"),
             "slot": slot,
             "ha_owned_slots": self._provider_slot_map(),
@@ -1608,7 +1689,7 @@ def _send_gateway_batch_jobs(
     if display_slot is not None and (display_slot < 1 or display_slot > DEVICE_SLOT_COUNT):
         raise ValueError(f"Display slot must be between 1 and {DEVICE_SLOT_COUNT}, got {display_slot}")
     ha_rotation_enabled = bool(ha_rotation and ha_rotation.get("enabled"))
-    ha_rotation_slots = [int(slot) for slot in (ha_rotation or {}).get("slots", [])]
+    ha_rotation_slots = sorted(set(int(slot) for slot in (ha_rotation or {}).get("slots", [])))
     if len(ha_rotation_slots) > MAX_HA_LANE_SLOTS:
         raise ValueError(f"HA rotation supports up to {MAX_HA_LANE_SLOTS} HA-owned slots")
     for slot in ha_rotation_slots:
@@ -1630,7 +1711,10 @@ def _send_gateway_batch_jobs(
                 _upload_gateway_payload(sock_file, slot, packed, crc32)
                 _ensure_gateway_slot_is_ha(sock_file, slot)
             if ha_rotation_enabled:
-                _set_gateway_ha_rotation(sock_file, int((ha_rotation or {}).get("seconds") or DEFAULT_HA_ROTATION_SECONDS), ha_rotation_slots)
+                rotation_seconds = int((ha_rotation or {}).get("seconds") or DEFAULT_HA_ROTATION_SECONDS)
+                if not _harotation_state_matches(gateway_status["ha_rotation"], rotation_seconds, ha_rotation_slots):
+                    _set_gateway_ha_rotation(sock_file, rotation_seconds, ha_rotation_slots)
+                display_slot = None
             if display_slot is not None:
                 _ensure_gateway_slot_is_ha(sock_file, display_slot)
                 display = _send_gateway_stage(sock_file, f"DISPLAY {display_slot}", "DISPLAY")
@@ -1694,6 +1778,14 @@ def _set_gateway_ha_rotation(sock_file, seconds: int, slots: list[int]) -> None:
     response = _send_gateway_stage(sock_file, command, "HAROTATION")
     if not _harotation_on_response_ok(response, seconds, slots):
         raise RuntimeError(f"HAROTATION failed or firmware rejected HA rotation slots: {response}")
+
+
+def _harotation_state_matches(state: dict[str, Any], seconds: int, slots: list[int]) -> bool:
+    return (
+        bool(state.get("enabled"))
+        and int(state.get("seconds") or 0) == max(60, int(seconds))
+        and list(state.get("slots") or []) == slots
+    )
 
 
 def _harotation_on_response_ok(response: str, seconds: int, slots: list[int]) -> bool:

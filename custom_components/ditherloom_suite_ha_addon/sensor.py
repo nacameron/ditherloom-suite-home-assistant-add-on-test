@@ -117,6 +117,19 @@ class DitherloomFrameScheduleSensor(DitherloomSensorBase):
             "content_refresh_last_success_at": metadata.get("content_refresh_last_success_at"),
             "content_rendered_at": metadata.get("content_rendered_at") or metadata.get("rendered_at"),
             "content_rendered_provider_id": metadata.get("content_rendered_provider_id") or metadata.get("provider_id"),
+            "content_rendered_provider_name": metadata.get("content_rendered_provider_name") or metadata.get("provider_name"),
+            "content_rendered_source": metadata.get("source"),
+            "content_rendered_source_name": metadata.get("content_rendered_source_name") or metadata.get("source_name"),
+            "content_rendered_source_url": metadata.get("source_url"),
+            "content_rendered_attribution": metadata.get("content_rendered_attribution") or metadata.get("attribution"),
+            "content_rendered_attribution_url": metadata.get("attribution_url"),
+            "content_rendered_license": metadata.get("content_rendered_license") or metadata.get("license"),
+            "content_rendered_license_url": metadata.get("license_url"),
+            "content_rendered_data_transformations": metadata.get("data_transformations"),
+            "content_rendered_secondary_attribution": metadata.get("secondary_attribution"),
+            "content_rendered_secondary_attribution_url": metadata.get("secondary_attribution_url"),
+            "content_rendered_secondary_license": metadata.get("secondary_license"),
+            "content_rendered_secondary_license_url": metadata.get("secondary_license_url"),
             "content_rendered_content_id": metadata.get("content_rendered_content_id") or metadata.get("content_id"),
             "content_rendered_crc32": metadata.get("content_rendered_crc32") or metadata.get("crc32"),
             "frame_content_last_delivered_at": metadata.get("frame_content_last_delivered_at"),
@@ -126,6 +139,11 @@ class DitherloomFrameScheduleSensor(DitherloomSensorBase):
             "frame_content_last_delivered_content_ids": metadata.get("frame_content_last_delivered_content_ids"),
             "frame_content_last_delivered_provider_ids": delivered_provider_ids,
             "frame_content_last_delivered_provider_names": delivered_provider_names,
+            "frame_content_last_delivered_attributions": metadata.get("frame_content_last_delivered_attributions"),
+            "frame_content_last_delivered_licenses": metadata.get("frame_content_last_delivered_licenses"),
+            "frame_awake_last_delivered_sources": _delivered_field(metadata, "source"),
+            "frame_awake_last_delivered_attributions": _delivered_field(metadata, "attribution"),
+            "frame_awake_last_delivered_licenses": _delivered_field(metadata, "license"),
             "frame_content_last_delivered_summary": delivered_summary,
             "frame_awake_last_delivered_jobs": metadata.get("frame_awake_last_delivered_jobs"),
             "frame_awake_last_delivery_summary": delivered_summary,
@@ -187,6 +205,17 @@ def _delivered_provider_ids(metadata: dict) -> list[str]:
         if isinstance(job, dict) and job.get("provider_id"):
             provider_ids.append(str(job["provider_id"]))
     return provider_ids
+
+
+def _delivered_field(metadata: dict, field: str) -> list[str]:
+    jobs = metadata.get("frame_awake_last_delivered_jobs")
+    if not isinstance(jobs, list):
+        return []
+    values: list[str] = []
+    for job in jobs:
+        if isinstance(job, dict) and job.get(field):
+            values.append(str(job[field]))
+    return values
 
 
 def _provider_display_name(provider_id: str) -> str:

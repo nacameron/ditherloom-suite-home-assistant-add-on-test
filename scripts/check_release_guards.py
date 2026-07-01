@@ -245,6 +245,7 @@ def check_update_platform() -> None:
         "_query_gateway_ha_rotation",
         "_parse_harotation_response",
         "_set_gateway_ha_rotation",
+        "_harotation_state_matches",
         "_harotation_on_response_ok",
         "_upload_gateway_payload(sock_file, slot, packed, crc32)",
         "_ensure_gateway_slot_is_ha(sock_file, slot)",
@@ -282,8 +283,8 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.66"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.66")
+    if '"version": "0.1.67"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.67")
 
 
 def check_public_repo_single_version() -> None:
@@ -414,8 +415,8 @@ def check_weather_renderer_options() -> None:
             "_template_slug_for_data",
             "_render_luxe_weather_card",
             "_paste_luxe_weather_art",
-            "CURRENT TEMPERATURE",
-            "UV INDEX",
+            "CURRENTLY",
+            "UV",
             "bushfire_risk_day",
             "extreme_heat_day",
             "extreme_cold_day",

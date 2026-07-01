@@ -47,7 +47,14 @@ WEATHER_CODES = {
 
 NIGHT_AWARE_CODES = {0, 1, 2}
 OPEN_METEO_ATTRIBUTION = "Weather data by Open-Meteo.com."
+OPEN_METEO_ATTRIBUTION_URL = "https://open-meteo.com/"
+OPEN_METEO_LICENSE = "CC BY 4.0"
+OPEN_METEO_LICENSE_URL = "https://creativecommons.org/licenses/by/4.0/"
+OPEN_METEO_CHANGES = "Weather values are rounded and rendered into a Ditherloom e-ink card."
 NOMINATIM_ATTRIBUTION = "Place-name lookup by OpenStreetMap contributors via Nominatim."
+NOMINATIM_ATTRIBUTION_URL = "https://www.openstreetmap.org/copyright"
+NOMINATIM_LICENSE = "ODbL"
+NOMINATIM_LICENSE_URL = "https://opendatacommons.org/licenses/odbl/"
 
 
 def fetch_open_meteo_card(

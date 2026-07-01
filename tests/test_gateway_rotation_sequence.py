@@ -46,3 +46,28 @@ def test_harotation_can_apply_to_explicit_slots_without_fresh_upload_jobs():
 
     assert batch_index < rotation_index < helper_index
     assert mark_index > helper_index
+
+
+def test_harotation_is_not_reapplied_or_display_reset_when_already_active():
+    source = _source()
+    batch_start = source.index("def _send_gateway_batch_jobs")
+    batch_end = source.index("def _ensure_gateway_slot_is_ha", batch_start)
+    batch_source = source[batch_start:batch_end]
+
+    assert "_harotation_state_matches(gateway_status[\"ha_rotation\"], rotation_seconds, ha_rotation_slots)" in batch_source
+    assert "display_slot = None" in batch_source
+    assert batch_source.index("_harotation_state_matches") < batch_source.index("_set_gateway_ha_rotation")
+
+
+def test_harotation_slots_are_populated_enabled_provider_slots_in_physical_order():
+    source = _source()
+    config_start = source.index("def _ha_rotation_config")
+    config_end = source.index("def _time_sensitive_render_target", config_start)
+    config_source = source[config_start:config_end]
+    batch_start = source.index("def _send_gateway_batch_jobs")
+    batch_end = source.index("with socket.create_connection", batch_start)
+    batch_source = source[batch_start:batch_end]
+
+    assert "provider_slots = sorted(set(self._provider_slot_map().values()))" in config_source
+    assert '"slots": provider_slots' in config_source
+    assert "ha_rotation_slots = sorted(set(int(slot) for slot in (ha_rotation or {}).get(\"slots\", [])))" in batch_source
