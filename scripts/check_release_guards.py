@@ -313,7 +313,8 @@ def check_public_repo_single_version() -> None:
         capture_output=True,
         text=True,
     ).stdout.splitlines()
-    if len(releases) != 1 or not releases[0].startswith(f"{expected_tag}\t"):
+    release_columns = releases[0].split("\t") if releases else []
+    if len(releases) != 1 or expected_tag not in release_columns:
         fail(f"public GitHub repo must expose exactly one release: {expected_tag}")
 
     tags_output = subprocess.run(
