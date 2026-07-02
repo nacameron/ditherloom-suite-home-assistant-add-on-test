@@ -37,6 +37,23 @@ def test_harotation_does_not_auto_claim_implicit_slots():
     assert "free" not in source[source.index("def _send_gateway_batch_jobs") : source.index("def _ensure_gateway_slot_is_ha")]
 
 
+def test_gateway_success_requires_hacomplete_all_jobs_complete():
+    source = _source()
+    batch_start = source.index("def _send_gateway_batch_jobs")
+    batch_end = source.index("def _ensure_gateway_slot_is_ha", batch_start)
+    batch_source = source[batch_start:batch_end]
+    completion_start = source.index("def _send_gateway_completion")
+    completion_end = source.index("def _best_effort_open_connection_idle", completion_start)
+    completion_source = source[completion_start:completion_end]
+
+    assert "gateway_status[\"ha_completion\"] = _send_gateway_completion(sock_file)" in batch_source
+    assert "_best_effort_open_connection_idle(sock_file)" not in batch_source.split("except Exception:", 1)[0]
+    assert 'command = "HACOMPLETE all_jobs_complete"' in completion_source
+    assert 'response = _send_gateway_stage(sock_file, command, "HACOMPLETE all_jobs_complete")' in completion_source
+    assert 'response.startswith("OK HACOMPLETE")' in completion_source
+    assert "HACOMPLETE all_jobs_complete failed" in completion_source
+
+
 def test_harotation_can_apply_to_explicit_slots_without_fresh_upload_jobs():
     source = _source()
     batch_index = source.index("def _send_gateway_batch_jobs")

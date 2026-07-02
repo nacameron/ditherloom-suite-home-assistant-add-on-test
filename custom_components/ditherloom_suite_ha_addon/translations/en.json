@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Set up Ditherloom",
-        "description": "Configure the Ditherloom frame and its repeating Home Assistant update wake window. Home Assistant reads HA slots from the Ditherloom app/frame setup. If you enable more than Weather, first connect to the Ditherloom app over Wi-Fi, configure the Home Assistant slots, save them to the frame, then come back here. {ha_lane_error}",
+        "description": "Configure the Ditherloom frame and its repeating Home Assistant update wake window. Home Assistant reads HA slots from the Ditherloom app/frame setup. If you enable more than Weather, first connect to the Ditherloom app over Wi-Fi, configure the Home Assistant slots, save them to the frame, then come back here. Weather data: Open-Meteo (https://open-meteo.com/), CC BY 4.0. Place lookup: OpenStreetMap/Nominatim (https://www.openstreetmap.org/copyright), ODbL. {ha_lane_error}",
         "data": {
           "library_id": "Library ID",
           "frame_host": "Frame Wi-Fi host or IP",
@@ -40,7 +40,7 @@
       },
       "weather": {
         "title": "Weather",
-        "description": "Each enabled Home Assistant content provider needs one explicit HA slot from the Ditherloom app/frame setup.",
+        "description": "Each enabled Home Assistant content provider needs one explicit HA slot from the Ditherloom app/frame setup. Weather data: Open-Meteo (https://open-meteo.com/), CC BY 4.0. Place lookup: OpenStreetMap/Nominatim (https://www.openstreetmap.org/copyright), ODbL.",
         "data": {
           "weather_enabled": "Enable Weather",
           "location_name": "Weather location name",

@@ -86,7 +86,7 @@ from .ha_lane import enabled_content_providers, ha_lane_slots, parse_slot_pool, 
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
-CARD_RENDERER_VERSION = "luxe-0.1.68"
+CARD_RENDERER_VERSION = "luxe-0.1.69"
 DISCOVERY_AUTH_MESSAGE = "Provide a Home Assistant Long-Lived Access Token."
 STALE_FRONTEND_ENTITY_NAMES = {
     "Synchronise Wi-Fi " + "wake window",
@@ -511,6 +511,13 @@ class DitherloomRuntime:
             self.last_metadata["frame_content_last_delivered_attributions"] = [job.get("attribution") for job in delivered_jobs]
             self.last_metadata["frame_content_last_delivered_licenses"] = [job.get("license") for job in delivered_jobs]
             self.last_metadata["frame_awake_last_delivered_jobs"] = delivered_jobs
+            completion = gateway_status.get("ha_completion") or {}
+            if completion:
+                self.last_metadata["frame_awake_last_completion_command"] = completion.get("command")
+                self.last_metadata["frame_awake_last_completion_sent_at"] = completion.get("sent_at")
+                self.last_metadata["frame_awake_last_completion_response"] = completion.get("response")
+                self.last_metadata["frame_awake_last_completion_ok"] = bool(completion.get("ok"))
+                self.last_metadata["frame_sleeping_expected_after_completion"] = True
             if gateway_status.get("ha_rotation"):
                 self.last_metadata["ha_rotation"] = gateway_status["ha_rotation"]
             self.last_metadata.pop(ATTR_LAST_ERROR, None)
@@ -542,6 +549,7 @@ class DitherloomRuntime:
         if next_wake_seconds is not None:
             self.last_metadata["frame_next_wake_at"] = (now + timedelta(seconds=next_wake_seconds)).isoformat()
         self.last_metadata["frame_sleeping_last_received_at"] = now.isoformat()
+        self.last_metadata["frame_sleeping_expected_after_completion"] = False
         await self.async_save()
         return {"accepted": True, "message": "sleep recorded"}
 
@@ -1720,11 +1728,10 @@ def _send_gateway_batch_jobs(
                 display = _send_gateway_stage(sock_file, f"DISPLAY {display_slot}", "DISPLAY")
                 if not display.startswith("OK"):
                     raise RuntimeError(f"DISPLAY failed: {display}")
+            gateway_status["ha_completion"] = _send_gateway_completion(sock_file)
         except Exception:
             _best_effort_open_connection_idle(sock_file)
             raise
-        else:
-            _best_effort_open_connection_idle(sock_file)
         return gateway_status
 
 
@@ -1836,6 +1843,21 @@ def _send_gateway_stage(sock_file, command: str, stage: str) -> str:
         raise TimeoutError(f"timed out during Gateway {stage}") from exc
     except OSError as exc:
         raise RuntimeError(f"Gateway {stage} failed: {type(exc).__name__}: {exc}") from exc
+
+
+def _send_gateway_completion(sock_file) -> dict[str, Any]:
+    command = "HACOMPLETE all_jobs_complete"
+    sent_at = datetime.now(timezone.utc).isoformat()
+    response = _send_gateway_stage(sock_file, command, "HACOMPLETE all_jobs_complete")
+    ok = response.startswith("OK HACOMPLETE")
+    if not ok:
+        raise RuntimeError(f"HACOMPLETE all_jobs_complete failed: {response}")
+    return {
+        "command": command,
+        "sent_at": sent_at,
+        "response": response,
+        "ok": ok,
+    }
 
 
 def _best_effort_open_connection_idle(sock_file) -> None:

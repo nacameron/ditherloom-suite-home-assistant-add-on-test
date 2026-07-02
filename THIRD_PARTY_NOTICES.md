@@ -34,9 +34,22 @@ components. They retain their original licenses and notices.
 
 ## Fonts
 
-The add-on Dockerfile installs DejaVu fonts through the base image package
-manager. DejaVu fonts and any bundled font files remain under their own font
-licenses. The Ditherloom project does not claim copyright over those fonts.
+The Home Assistant integration bundles Barlow Condensed font files for stable
+400 x 300 e-ink card rendering across Home Assistant hosts.
+
+| Component | License | Project |
+| --- | --- | --- |
+| Barlow / Barlow Condensed | SIL Open Font License 1.1 | https://github.com/jpt/barlow |
+
+The bundled Barlow license text is packaged at:
+
+```text
+custom_components/ditherloom_suite_ha_addon/assets/fonts/OFL-Barlow.txt
+```
+
+The add-on Dockerfile may also install DejaVu fonts through the base image
+package manager. DejaVu fonts and any bundled font files remain under their own
+font licenses. The Ditherloom project does not claim copyright over those fonts.
 
 ## Weather Data Provider
 

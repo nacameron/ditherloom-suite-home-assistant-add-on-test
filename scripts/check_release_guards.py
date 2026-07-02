@@ -283,8 +283,8 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.68"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.68")
+    if '"version": "0.1.69"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.69")
 
 
 def check_public_repo_single_version() -> None:
@@ -406,10 +406,17 @@ def check_weather_renderer_options() -> None:
         strings_path: (
             '"temperature_unit": "Temperature unit"',
             '"wind_speed_unit": "Wind speed unit"',
+            "Weather data: Open-Meteo (https://open-meteo.com/), CC BY 4.0.",
+            "Place lookup: OpenStreetMap/Nominatim (https://www.openstreetmap.org/copyright), ODbL.",
         ),
         cards_path: (
             "COLOUR_MODE_COLOUR = \"colour\"",
             "COLOUR_MODE_MONO = \"mono\"",
+            "FONT_DIR = Path(__file__).resolve().parents[1] / \"assets\" / \"fonts\"",
+            "BarlowCondensed-Bold.otf",
+            "BarlowCondensed-Regular.otf",
+            "TEXT_ALPHA_THRESHOLD = 32",
+            "pixel >= TEXT_ALPHA_THRESHOLD",
             "TOP_BAR_HEIGHT = 38",
             "BOTTOM_BAR_HEIGHT = 38",
             "WEATHER_ART_DIR",
@@ -476,9 +483,14 @@ def check_weather_renderer_options() -> None:
         "_render_modern_weather_card_legacy",
         "weather_templates",
         "safe_400x300",
+        "ImageFont.load_default()",
     ):
         if forbidden in cards_text:
             fail(f"weather renderer still contains old template path: {forbidden}")
+    font_root = ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "assets" / "fonts"
+    for required_font in ("BarlowCondensed-Bold.otf", "BarlowCondensed-Regular.otf", "OFL-Barlow.txt"):
+        if not (font_root / required_font).exists():
+            fail(f"bundled renderer font asset is missing: {required_font}")
 
 
 def _png_dimensions(path: Path) -> tuple[int, int]:

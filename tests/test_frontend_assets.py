@@ -105,6 +105,11 @@ def test_handshake_sensor_exposes_frame_schedule_config():
     assert '"frame_awake_last_delivered_jobs"' in sensor_source
     assert '"frame_awake_last_delivery_summary"' in sensor_source
     assert '"frame_awake_last_failed_at"' in sensor_source
+    assert '"frame_awake_last_completion_command"' in sensor_source
+    assert '"frame_awake_last_completion_sent_at"' in sensor_source
+    assert '"frame_awake_last_completion_response"' in sensor_source
+    assert '"frame_awake_last_completion_ok"' in sensor_source
+    assert '"frame_sleeping_expected_after_completion"' in sensor_source
     assert "DitherloomDataAttributionSensor" in sensor_source
     assert '"Data attribution"' in sensor_source
     assert "from homeassistant.util import dt as dt_util" in sensor_source
@@ -141,7 +146,7 @@ def test_backend_attribution_sensor_is_always_visible():
 def test_renderer_cache_is_versioned():
     init_source = (ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py").read_text(encoding="utf-8")
     assert "CARD_RENDERER_VERSION" in init_source
-    assert 'CARD_RENDERER_VERSION = "luxe-0.1.68"' in init_source
+    assert 'CARD_RENDERER_VERSION = "luxe-0.1.69"' in init_source
     assert 'metadata["card_renderer_version"] = CARD_RENDERER_VERSION' in init_source
     assert 'metadata.get("card_renderer_version") != CARD_RENDERER_VERSION' in init_source
 
@@ -197,9 +202,33 @@ def test_luxe_cards_use_fixed_large_fonts_not_box_fitted_fonts():
     assert "font = _fit_ui_font(value" in left_source
     assert "font = _fit_ui_font(value" in right_source
     assert "_draw_luxe_location_text(draw, (23, 15, 272, 45)" in weather_source
-    assert "_draw_luxe_text_left(draw, (28, 199, 158, 247), temperature, 52" in weather_source
-    assert "_draw_luxe_text_left(draw, (247, 179, 377, 211), condition, 20" in weather_source
-    assert "_draw_luxe_text_left(draw, (x1 + 9, y1 + 20, x2 - 8, y2 - 6), value, 23" in cards_source
+    assert "_draw_luxe_text_left(draw, (28, 199, 158, 247), temperature, 66" in weather_source
+    assert "_draw_luxe_text_left(draw, (247, 179, 377, 211), condition, 26" in weather_source
+    assert "_draw_luxe_text_left(draw, (x1 + 9, y1 + 20, x2 - 8, y2 - 6), value, 29" in cards_source
+
+
+def test_luxe_renderer_uses_bundled_font_and_protected_text_threshold():
+    cards_source = (COMPONENT / "renderer" / "cards.py").read_text(encoding="utf-8")
+    fonts_dir = COMPONENT / "assets" / "fonts"
+
+    assert (fonts_dir / "BarlowCondensed-Bold.otf").exists()
+    assert (fonts_dir / "BarlowCondensed-Regular.otf").exists()
+    assert (fonts_dir / "OFL-Barlow.txt").exists()
+    assert 'FONT_DIR = Path(__file__).resolve().parents[1] / "assets" / "fonts"' in cards_source
+    assert 'str(FONT_DIR / "BarlowCondensed-Bold.otf")' in cards_source
+    assert 'str(FONT_DIR / "BarlowCondensed-Regular.otf")' in cards_source
+    assert "TEXT_ALPHA_THRESHOLD = 32" in cards_source
+    assert "pixel >= TEXT_ALPHA_THRESHOLD" in cards_source
+    assert "ImageFont.load_default()" not in cards_source
+
+
+def test_weather_options_make_open_meteo_attribution_visible():
+    strings_source = (COMPONENT / "strings.json").read_text(encoding="utf-8")
+    translations_source = (COMPONENT / "translations" / "en.json").read_text(encoding="utf-8")
+
+    for source in (strings_source, translations_source):
+        assert "Weather data: Open-Meteo (https://open-meteo.com/), CC BY 4.0." in source
+        assert "Place lookup: OpenStreetMap/Nominatim (https://www.openstreetmap.org/copyright), ODbL." in source
 
 
 def test_sun_moon_cards_use_source_attribution_label():
