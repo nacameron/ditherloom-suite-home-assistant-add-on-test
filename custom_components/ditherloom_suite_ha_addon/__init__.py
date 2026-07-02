@@ -457,6 +457,11 @@ class DitherloomRuntime:
             "ha_config": _frame_provided_ha_config(self.options),
         }
         self.last_metadata["frame_awake_last_received_at"] = now.isoformat()
+        self.last_metadata.pop("frame_awake_last_completion_command", None)
+        self.last_metadata.pop("frame_awake_last_completion_sent_at", None)
+        self.last_metadata.pop("frame_awake_last_completion_response", None)
+        self.last_metadata.pop("frame_awake_last_completion_ok", None)
+        self.last_metadata["frame_sleeping_expected_after_completion"] = False
         await self.async_save()
 
         jobs = await self._frame_sync_jobs()
@@ -507,6 +512,9 @@ class DitherloomRuntime:
             ha_rotation = self._ha_rotation_config()
             gateway_status = await self.hass.async_add_executor_job(_send_gateway_batch_jobs, host, port, jobs, display_slot, ha_rotation)
             synced_at = datetime.now(timezone.utc).isoformat()
+            completion = gateway_status.get("ha_completion") or {}
+            if not completion or not completion.get("ok"):
+                raise RuntimeError(f"Gateway delivery did not complete with HACOMPLETE all_jobs_complete: {completion or gateway_status}")
             for job in jobs:
                 await self._mark_provider_frame_synced(str(job["provider_id"]), str(job["crc32"]), synced_at)
             delivered_jobs = [
@@ -542,13 +550,11 @@ class DitherloomRuntime:
             self.last_metadata["frame_content_last_delivered_attributions"] = [job.get("attribution") for job in delivered_jobs]
             self.last_metadata["frame_content_last_delivered_licenses"] = [job.get("license") for job in delivered_jobs]
             self.last_metadata["frame_awake_last_delivered_jobs"] = delivered_jobs
-            completion = gateway_status.get("ha_completion") or {}
-            if completion:
-                self.last_metadata["frame_awake_last_completion_command"] = completion.get("command")
-                self.last_metadata["frame_awake_last_completion_sent_at"] = completion.get("sent_at")
-                self.last_metadata["frame_awake_last_completion_response"] = completion.get("response")
-                self.last_metadata["frame_awake_last_completion_ok"] = bool(completion.get("ok"))
-                self.last_metadata["frame_sleeping_expected_after_completion"] = True
+            self.last_metadata["frame_awake_last_completion_command"] = completion.get("command")
+            self.last_metadata["frame_awake_last_completion_sent_at"] = completion.get("sent_at")
+            self.last_metadata["frame_awake_last_completion_response"] = completion.get("response")
+            self.last_metadata["frame_awake_last_completion_ok"] = bool(completion.get("ok"))
+            self.last_metadata["frame_sleeping_expected_after_completion"] = True
             if gateway_status.get("ha_rotation"):
                 self.last_metadata["ha_rotation"] = gateway_status["ha_rotation"]
             self.last_metadata.pop(ATTR_LAST_ERROR, None)
@@ -556,6 +562,7 @@ class DitherloomRuntime:
             self.last_status = "frame_awake_send_failed"
             self.last_metadata[ATTR_LAST_ERROR] = f"Frame awake delivery failed: {type(exc).__name__}: {exc}"
             self.last_metadata["frame_awake_last_failed_at"] = datetime.now(timezone.utc).isoformat()
+            self.last_metadata["frame_awake_last_completion_ok"] = False
             self._create_notification("Ditherloom frame awake delivery failed", str(self.last_metadata[ATTR_LAST_ERROR]))
         finally:
             await self.async_save()

@@ -98,6 +98,12 @@ class DitherloomFrameScheduleSensor(DitherloomSensorBase):
             return f"delivery failed {_state_time_label(failed_at, self.hass)}"
         if delivered_at is not None and delivered_at == latest:
             count = _delivered_job_count(metadata)
+            if metadata.get("frame_awake_last_completion_ok") is not True:
+                return f"delivery incomplete {count} job{'s' if count != 1 else ''} {_state_time_label(delivered_at, self.hass)}"
+            if metadata.get("frame_sleeping_expected_after_completion") and (
+                sleeping_at is None or sleeping_at < delivered_at
+            ):
+                return f"sleep callback pending {count} job{'s' if count != 1 else ''} {_state_time_label(delivered_at, self.hass)}"
             return f"delivered {count} job{'s' if count != 1 else ''} {_state_time_label(delivered_at, self.hass)}"
         if sleeping_at is not None and sleeping_at == latest and delivered_at is not None:
             count = _delivered_job_count(metadata)

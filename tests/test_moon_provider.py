@@ -1,21 +1,8 @@
 from datetime import date
-import sys
-import types
-from pathlib import Path
 
 from moon_provider import build_moon_provider_data
-
-ROOT = Path(__file__).resolve().parents[1]
-custom_components = types.ModuleType("custom_components")
-custom_components.__path__ = [str(ROOT / "custom_components")]
-sys.modules.setdefault("custom_components", custom_components)
-
-ditherloom_package = types.ModuleType("custom_components.ditherloom_suite_ha_addon")
-ditherloom_package.__path__ = [str(ROOT / "custom_components" / "ditherloom_suite_ha_addon")]
-sys.modules.setdefault("custom_components.ditherloom_suite_ha_addon", ditherloom_package)
-
-from custom_components.ditherloom_suite_ha_addon.renderer.cards import MoonCardData, render_moon_card
-from custom_components.ditherloom_suite_ha_addon.renderer.pack import PACKED_LENGTH, WIDTH, HEIGHT, render_to_artifact
+from renderer.cards import MoonCardData, render_moon_card
+from renderer.pack import PACKED_LENGTH, WIDTH, HEIGHT, render_to_artifact
 
 
 def test_moon_provider_builds_expected_daily_fields():

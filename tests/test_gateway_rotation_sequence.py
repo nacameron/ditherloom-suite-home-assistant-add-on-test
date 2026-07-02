@@ -54,6 +54,20 @@ def test_gateway_success_requires_hacomplete_all_jobs_complete():
     assert "HACOMPLETE all_jobs_complete failed" in completion_source
 
 
+def test_frame_awake_success_metadata_requires_recorded_completion():
+    source = _source()
+    delivery_start = source.index("async def async_deliver_cached_content_to_announced_frame")
+    delivery_end = source.index("async def async_deliver_cached_weather_to_announced_frame", delivery_start)
+    delivery_source = source[delivery_start:delivery_end]
+
+    assert "completion = gateway_status.get(\"ha_completion\") or {}" in delivery_source
+    assert "Gateway delivery did not complete with HACOMPLETE all_jobs_complete" in delivery_source
+    assert delivery_source.index("completion = gateway_status.get(\"ha_completion\") or {}") < delivery_source.index("self.last_status = \"frame_awake_sent\"")
+    assert "self.last_metadata[\"frame_awake_last_completion_command\"] = completion.get(\"command\")" in delivery_source
+    assert "self.last_metadata[\"frame_awake_last_completion_response\"] = completion.get(\"response\")" in delivery_source
+    assert "self.last_metadata[\"frame_awake_last_completion_ok\"] = bool(completion.get(\"ok\"))" in delivery_source
+
+
 def test_frame_awake_reports_no_jobs_before_waiting_for_gateway_delivery():
     source = _source()
     awake_start = source.index("async def async_handle_frame_awake")

@@ -117,6 +117,7 @@ def test_handshake_sensor_exposes_frame_schedule_config():
     assert "dt_util.as_local(value)" in sensor_source
     assert 'return f"frame awake {_state_time_label(awake_at, self.hass)}"' in sensor_source
     assert 'return f"delivered {count} job' in sensor_source
+    assert "sleeping_at is None or sleeping_at < delivered_at" in sensor_source
     assert "Sent {count} job" in sensor_source
 
 
