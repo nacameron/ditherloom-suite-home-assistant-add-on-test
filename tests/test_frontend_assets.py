@@ -290,10 +290,14 @@ def test_xkcd_options_and_controls_are_exposed_as_opt_in_provider():
     assert 'XKCD_FORM_NUMBER = "Fixed comic number"' in config_source
     assert 'XKCD_FORM_ATTEMPTS = "Random search attempts"' in config_source
     assert "_xkcd_form_to_options" in config_source
+    assert "default=_xkcd_number_text(data.get(CONF_XKCD_NUMBER))): str" in config_source
+    assert "default=data.get(CONF_XKCD_NUMBER)): int" not in config_source
+    assert "_positive_int_or_none" in config_source
     assert "xkcd / Randall Munroe | CC BY-NC 2.5" in config_source
     assert "Fixed comic number" in config_source
     assert "Random suitable comic" in config_source
     assert "xkcd_number_required" in config_source
+    assert "xkcd_number_invalid" in config_source
     assert "DitherloomRenderXkcdButton" in button_source
     assert "render_xkcd_card:" in services_source
     assert "send_xkcd_card:" in services_source
@@ -310,6 +314,7 @@ def test_xkcd_options_and_controls_are_exposed_as_opt_in_provider():
         assert '"xkcd_mode": "Comic selection"' in source
         assert '"xkcd_number": "Fixed comic number"' in source
         assert '"xkcd_random_attempts": "Random search attempts"' in source
+        assert '"xkcd_number_invalid": "Enter a whole comic number greater than zero' in source
         assert "CC BY-NC 2.5" in source
         assert "Comics are by Randall Munroe and licensed CC BY-NC 2.5" in source
         assert "Ditherloom displays this attribution on rendered xkcd cards and stores it in metadata." in source

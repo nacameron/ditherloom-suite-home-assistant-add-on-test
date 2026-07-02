@@ -230,7 +230,7 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                     default="xkcd / Randall Munroe | CC BY-NC 2.5",
                 ): _xkcd_attribution_selector(),
                 vol.Optional(XKCD_FORM_MODE, default=data.get(CONF_XKCD_MODE, DEFAULT_XKCD_MODE)): _xkcd_mode_selector(),
-                vol.Optional(XKCD_FORM_NUMBER, default=data.get(CONF_XKCD_NUMBER)): int,
+                vol.Optional(XKCD_FORM_NUMBER, default=_xkcd_number_text(data.get(CONF_XKCD_NUMBER))): str,
                 vol.Optional(
                     XKCD_FORM_ATTEMPTS,
                     default=data.get(CONF_XKCD_RANDOM_ATTEMPTS, DEFAULT_XKCD_RANDOM_ATTEMPTS),
@@ -239,6 +239,13 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
         )
         if user_input is not None:
             internal_input = _xkcd_form_to_options(user_input)
+            raw_number = str(user_input.get(XKCD_FORM_NUMBER) or "").strip()
+            if raw_number and CONF_XKCD_NUMBER not in internal_input:
+                return self.async_show_form(
+                    step_id="xkcd",
+                    data_schema=schema,
+                    errors={XKCD_FORM_NUMBER: "xkcd_number_invalid"},
+                )
             if internal_input.get(CONF_XKCD_MODE) == XKCD_MODE_FIXED and not internal_input.get(CONF_XKCD_NUMBER):
                 return self.async_show_form(
                     step_id="xkcd",
@@ -347,12 +354,25 @@ def _xkcd_form_to_options(user_input: dict[str, Any]) -> dict[str, Any]:
     data: dict[str, Any] = {
         CONF_XKCD_ENABLED: bool(user_input.get(XKCD_FORM_ENABLED, False)),
         CONF_XKCD_MODE: user_input.get(XKCD_FORM_MODE, DEFAULT_XKCD_MODE),
-        CONF_XKCD_NUMBER: user_input.get(XKCD_FORM_NUMBER),
         CONF_XKCD_RANDOM_ATTEMPTS: user_input.get(XKCD_FORM_ATTEMPTS, DEFAULT_XKCD_RANDOM_ATTEMPTS),
     }
-    if data[CONF_XKCD_NUMBER] in ("", None):
-        data.pop(CONF_XKCD_NUMBER, None)
+    number = _positive_int_or_none(user_input.get(XKCD_FORM_NUMBER))
+    if number is not None:
+        data[CONF_XKCD_NUMBER] = number
     return data
+
+
+def _xkcd_number_text(value: Any) -> str:
+    number = _positive_int_or_none(value)
+    return "" if number is None else str(number)
+
+
+def _positive_int_or_none(value: Any) -> int | None:
+    try:
+        number = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
 
 
 def _xkcd_mode_selector() -> selector.SelectSelector:
