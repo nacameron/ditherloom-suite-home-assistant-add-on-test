@@ -18,6 +18,9 @@
           "sunrise_sunset_enabled": "Enable Sunrise / Sunset",
           "moon_phase_enabled": "Enable Moon Phase",
           "xkcd_enabled": "Enable xkcd Comic",
+          "xkcd_mode": "xkcd selection mode",
+          "xkcd_number": "Fixed xkcd comic number",
+          "xkcd_random_attempts": "Random search attempts",
           "update_interval_minutes": "Repeating update interval minutes",
           "wake_window_minutes": "Wake window minutes",
           "max_jobs_per_wake": "Maximum jobs per wake",
@@ -78,9 +81,18 @@
       },
       "xkcd": {
         "title": "xkcd Comic",
-        "description": "Each enabled Home Assistant content provider needs one explicit HA slot from the Ditherloom app/frame setup. xkcd comics are by Randall Munroe and licensed CC BY-NC 2.5; this optional provider rejects comics that are too busy or poorly reproducible on the Ditherloom display.",
+        "description": "xkcd Comic is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. Comics are by Randall Munroe and licensed CC BY-NC 2.5 (https://xkcd.com/license.html). Ditherloom filters out comics that are too busy, too tall, have more than three panels, or use colours the display cannot reproduce clearly.",
         "data": {
-          "xkcd_enabled": "Enable xkcd Comic"
+          "xkcd_enabled": "Enable xkcd Comic",
+          "xkcd_mode": "Comic selection",
+          "xkcd_number": "Fixed comic number",
+          "xkcd_random_attempts": "Random search attempts"
+        },
+        "data_description": {
+          "xkcd_enabled": "When enabled, xkcd joins the HA-owned content rotation and consumes one explicit HA slot.",
+          "xkcd_mode": "Random searches for a suitable landscape comic. Latest uses the newest comic only if it passes the display filter. Fixed always tries the comic number below.",
+          "xkcd_number": "Only used when Comic selection is Fixed comic number. Unsuitable comics fail closed instead of rendering unreadable content.",
+          "xkcd_random_attempts": "Maximum random comics to test before failing closed. Higher values improve selection quality but may take longer."
         }
       },
       "device": {
@@ -101,6 +113,7 @@
     "not_enough_ha_slots": "Not enough explicit HA slots are configured.",
     "frame_ha_slots_not_synced": "Home Assistant has not received the frame HA slot setup yet.",
     "too_many_ha_slots": "Home Assistant supports up to 8 explicit HA slots.",
-    "ha_lane_invalid": "Home Assistant slot lane configuration is invalid."
+    "ha_lane_invalid": "Home Assistant slot lane configuration is invalid.",
+    "xkcd_number_required": "Choose a comic number when xkcd selection is fixed."
   }
 }

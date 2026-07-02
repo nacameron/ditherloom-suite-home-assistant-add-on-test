@@ -275,20 +275,32 @@ def test_xkcd_options_and_controls_are_exposed_as_opt_in_provider():
     translations_source = (COMPONENT / "translations" / "en.json").read_text(encoding="utf-8")
 
     assert 'CONF_XKCD_ENABLED = "xkcd_enabled"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
+    assert 'CONF_XKCD_MODE = "xkcd_mode"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
+    assert 'CONF_XKCD_NUMBER = "xkcd_number"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
+    assert 'CONF_XKCD_RANDOM_ATTEMPTS = "xkcd_random_attempts"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
     assert 'SERVICE_RENDER_XKCD = "render_xkcd_card"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
     assert 'SERVICE_SEND_XKCD = "send_xkcd_card"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
     assert '"xkcd", "device"' in config_source
     assert "async_step_xkcd" in config_source
+    assert "Fixed comic number" in config_source
+    assert "Random suitable comic" in config_source
+    assert "xkcd_number_required" in config_source
     assert "DitherloomRenderXkcdButton" in button_source
     assert "render_xkcd_card:" in services_source
     assert "send_xkcd_card:" in services_source
     assert 'metadata["provider_id"] = "xkcd_comic"' in init_source
     assert '"xkcd_suitability"' in init_source
     assert '"xkcd_alt_text"' in init_source
+    assert '"xkcd_configured_number"' in init_source
+    assert '"xkcd_random_attempts"' in init_source
     for source in (strings_source, translations_source):
         assert '"xkcd": "xkcd Comic"' in source
         assert '"xkcd_enabled": "Enable xkcd Comic"' in source
+        assert '"xkcd_mode": "Comic selection"' in source
+        assert '"xkcd_number": "Fixed comic number"' in source
+        assert '"xkcd_random_attempts": "Random search attempts"' in source
         assert "CC BY-NC 2.5" in source
+        assert "Comics are by Randall Munroe and licensed CC BY-NC 2.5" in source
 
 
 def test_sun_moon_cards_use_source_attribution_label():

@@ -57,6 +57,11 @@ from .const import (
     CONF_WEATHER_ENABLED,
     CONF_WIND_SPEED_UNIT,
     CONF_XKCD_ENABLED,
+    CONF_XKCD_MODE,
+    CONF_XKCD_NUMBER,
+    CONF_XKCD_RANDOM_ATTEMPTS,
+    DEFAULT_XKCD_MODE,
+    DEFAULT_XKCD_RANDOM_ATTEMPTS,
     DEFAULT_FRAME_PORT,
     DEFAULT_DISPLAY_MODE,
     DEFAULT_DISPLAY_ROTATION_HOURS,
@@ -83,6 +88,9 @@ from .const import (
     SERVICE_SEND_SUN,
     SERVICE_SEND_WEATHER,
     SERVICE_SEND_XKCD,
+    XKCD_MODE_FIXED,
+    XKCD_MODE_LATEST,
+    XKCD_MODE_RANDOM,
 )
 from .ha_lane import enabled_content_providers, ha_lane_slots, parse_slot_pool, provider_slot_map, slot_csv, validate_ha_lane
 
@@ -156,12 +164,21 @@ def _render_xkcd_artifact_to_disk(data: dict[str, Any], payload_dir: Path, stem:
     from .xkcd_provider import DEFAULT_RANDOM_ATTEMPTS, analyze_xkcd_image, fetch_xkcd_comic, download_comic_image, render_xkcd_card, select_suitable_xkcd
 
     number = _positive_int(data.get("xkcd_number") or data.get("comic_number") or data.get("number"))
+    mode = str(data.get("xkcd_mode") or data.get("mode") or (XKCD_MODE_FIXED if number is not None else XKCD_MODE_RANDOM)).lower()
+    if mode == XKCD_MODE_FIXED and number is None:
+        raise ValueError("xkcd fixed comic mode needs a comic number.")
     if number is not None:
         comic = fetch_xkcd_comic(number)
         source = download_comic_image(comic)
         suitability = analyze_xkcd_image(source)
         if not suitability.suitable:
             raise ValueError(f"xkcd #{number} is not suitable for Ditherloom: {', '.join(suitability.reasons)}")
+    elif mode == XKCD_MODE_LATEST:
+        comic = fetch_xkcd_comic()
+        source = download_comic_image(comic)
+        suitability = analyze_xkcd_image(source)
+        if not suitability.suitable:
+            raise ValueError(f"Latest xkcd #{comic.number} is not suitable for Ditherloom: {', '.join(suitability.reasons)}")
     else:
         latest = fetch_xkcd_comic()
         comic, source, suitability = select_suitable_xkcd(
@@ -1080,9 +1097,15 @@ class DitherloomRuntime:
     ) -> dict[str, Any]:
         opts = self.options
         stem = self._provider_payload_name(cache_provider_id) if cache_provider_id else self.latest_payload_name
+        render_data = {
+            "xkcd_mode": opts.get(CONF_XKCD_MODE, DEFAULT_XKCD_MODE),
+            "xkcd_number": opts.get(CONF_XKCD_NUMBER),
+            "attempts": opts.get(CONF_XKCD_RANDOM_ATTEMPTS, DEFAULT_XKCD_RANDOM_ATTEMPTS),
+        }
+        render_data.update({key: value for key, value in data.items() if value not in (None, "")})
         artifact, comic, suitability = await self.hass.async_add_executor_job(
             _render_xkcd_artifact_to_disk,
-            dict(data),
+            render_data,
             self.payload_dir,
             stem,
         )
@@ -1113,6 +1136,9 @@ class DitherloomRuntime:
         metadata["xkcd_alt_text"] = comic.alt
         metadata["xkcd_image_url"] = comic.image_url
         metadata["xkcd_published"] = comic.published
+        metadata["xkcd_mode"] = render_data.get("xkcd_mode", DEFAULT_XKCD_MODE)
+        metadata["xkcd_configured_number"] = _positive_int(render_data.get("xkcd_number"))
+        metadata["xkcd_random_attempts"] = _positive_int(render_data.get("attempts")) or DEFAULT_XKCD_RANDOM_ATTEMPTS
         metadata["xkcd_suitability"] = {
             "suitable": suitability.suitable,
             "score": suitability.score,

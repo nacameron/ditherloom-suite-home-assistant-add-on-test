@@ -26,6 +26,11 @@ from .const import (
     CONF_WEATHER_ENABLED,
     CONF_WIND_SPEED_UNIT,
     CONF_XKCD_ENABLED,
+    CONF_XKCD_MODE,
+    CONF_XKCD_NUMBER,
+    CONF_XKCD_RANDOM_ATTEMPTS,
+    DEFAULT_XKCD_MODE,
+    DEFAULT_XKCD_RANDOM_ATTEMPTS,
     DEFAULT_FRAME_PORT,
     DEFAULT_DISPLAY_MODE,
     DEFAULT_MAX_JOBS_PER_WAKE,
@@ -41,6 +46,9 @@ from .const import (
     TEMPERATURE_UNIT_FAHRENHEIT,
     WIND_SPEED_UNIT_KMH,
     WIND_SPEED_UNIT_MPH,
+    XKCD_MODE_FIXED,
+    XKCD_MODE_LATEST,
+    XKCD_MODE_RANDOM,
 )
 from .ha_lane import validate_ha_lane
 
@@ -72,6 +80,9 @@ class DitherloomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_SUN_ENABLED, default=False): bool,
                 vol.Optional(CONF_MOON_ENABLED, default=False): bool,
                 vol.Optional(CONF_XKCD_ENABLED, default=False): bool,
+                vol.Optional(CONF_XKCD_MODE, default=DEFAULT_XKCD_MODE): _xkcd_mode_selector(),
+                vol.Optional(CONF_XKCD_NUMBER): int,
+                vol.Optional(CONF_XKCD_RANDOM_ATTEMPTS, default=DEFAULT_XKCD_RANDOM_ATTEMPTS): int,
                 vol.Optional(CONF_UPDATE_INTERVAL_MINUTES, default=DEFAULT_UPDATE_INTERVAL_MINUTES): int,
                 vol.Optional(CONF_WAKE_WINDOW_MINUTES, default=DEFAULT_WAKE_WINDOW_MINUTES): int,
                 vol.Optional(CONF_MAX_JOBS_PER_WAKE, default=DEFAULT_MAX_JOBS_PER_WAKE): int,
@@ -207,9 +218,21 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
         schema = vol.Schema(
             {
                 vol.Optional(CONF_XKCD_ENABLED, default=_bool_option(data, CONF_XKCD_ENABLED, False)): bool,
+                vol.Optional(CONF_XKCD_MODE, default=data.get(CONF_XKCD_MODE, DEFAULT_XKCD_MODE)): _xkcd_mode_selector(),
+                vol.Optional(CONF_XKCD_NUMBER, default=data.get(CONF_XKCD_NUMBER)): int,
+                vol.Optional(
+                    CONF_XKCD_RANDOM_ATTEMPTS,
+                    default=data.get(CONF_XKCD_RANDOM_ATTEMPTS, DEFAULT_XKCD_RANDOM_ATTEMPTS),
+                ): int,
             }
         )
         if user_input is not None:
+            if user_input.get(CONF_XKCD_MODE) == XKCD_MODE_FIXED and not user_input.get(CONF_XKCD_NUMBER):
+                return self.async_show_form(
+                    step_id="xkcd",
+                    data_schema=schema,
+                    errors={CONF_XKCD_NUMBER: "xkcd_number_required"},
+                )
             return self._save_options_or_show("xkcd", user_input, schema)
         return self.async_show_form(step_id="xkcd", data_schema=schema)
 
@@ -299,3 +322,16 @@ def _float_or_zero(value: Any) -> float:
 
 def _bool_option(data: dict[str, Any], key: str, default: bool) -> bool:
     return bool(data[key]) if key in data else default
+
+
+def _xkcd_mode_selector() -> selector.SelectSelector:
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=[
+                {"value": XKCD_MODE_RANDOM, "label": "Random suitable comic"},
+                {"value": XKCD_MODE_LATEST, "label": "Latest comic if suitable"},
+                {"value": XKCD_MODE_FIXED, "label": "Fixed comic number"},
+            ],
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )

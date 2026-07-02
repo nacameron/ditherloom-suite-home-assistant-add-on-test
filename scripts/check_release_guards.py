@@ -283,8 +283,8 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.74"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.74")
+    if '"version": "0.1.75"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.75")
 
 
 def check_public_repo_single_version() -> None:
