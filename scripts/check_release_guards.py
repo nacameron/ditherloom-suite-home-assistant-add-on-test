@@ -283,8 +283,8 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.76"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.76")
+    if '"version": "0.1.77"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.77")
 
 
 def check_public_repo_single_version() -> None:
@@ -385,7 +385,8 @@ def check_weather_renderer_options() -> None:
             "async_handle_frame_awake",
             "async_handle_frame_sleeping",
             "async_deliver_cached_weather_to_announced_frame",
-            '"mode": "gateway_push"',
+            '"mode": "frame_pull"',
+            "_frame_pull_job_descriptor",
             "frame_awake_last_success_at",
             "frame_sleeping_last_received_at",
             "_create_notification",
@@ -607,7 +608,8 @@ def check_frame_awake_handshake() -> None:
         "async_handle_frame_awake",
         "async_deliver_cached_weather_to_announced_frame",
         "async_send_to_frame_host",
-        '"mode": "gateway_push"',
+        '"mode": "frame_pull"',
+        "_frame_pull_job_descriptor",
     ):
         if required not in init_text:
             fail(f"frame awake handshake missing required code/text: {required}")

@@ -259,8 +259,9 @@ def test_luxe_cards_use_regular_barlow_not_bold_text():
 def test_weather_options_make_open_meteo_attribution_visible():
     strings_source = (COMPONENT / "strings.json").read_text(encoding="utf-8")
     translations_source = (COMPONENT / "translations" / "en.json").read_text(encoding="utf-8")
+    translations_en_gb_source = (COMPONENT / "translations" / "en-GB.json").read_text(encoding="utf-8")
 
-    for source in (strings_source, translations_source):
+    for source in (strings_source, translations_source, translations_en_gb_source):
         assert "Weather data: Open-Meteo (https://open-meteo.com/), CC BY 4.0." in source
         assert "Place lookup: OpenStreetMap/Nominatim (https://www.openstreetmap.org/copyright), ODbL." in source
         assert "Optional xkcd comics are by Randall Munroe and licensed CC BY-NC 2.5" in source
@@ -275,16 +276,20 @@ def test_xkcd_options_and_controls_are_exposed_as_opt_in_provider():
     translations_source = (COMPONENT / "translations" / "en.json").read_text(encoding="utf-8")
 
     assert 'CONF_XKCD_ENABLED = "xkcd_enabled"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
-    assert 'CONF_XKCD_ATTRIBUTION_NOTICE = "xkcd_attribution_notice"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
     assert 'CONF_XKCD_MODE = "xkcd_mode"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
     assert 'CONF_XKCD_NUMBER = "xkcd_number"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
     assert 'CONF_XKCD_RANDOM_ATTEMPTS = "xkcd_random_attempts"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
     assert 'SERVICE_RENDER_XKCD = "render_xkcd_card"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
     assert 'SERVICE_SEND_XKCD = "send_xkcd_card"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
-    assert '"xkcd_comic", "device"' in config_source
+    assert '"xkcd", "device"' in config_source
     assert "async_step_xkcd" in config_source
-    assert "async_step_xkcd_comic" in config_source
     assert "_xkcd_attribution_selector" in config_source
+    assert 'XKCD_FORM_ENABLED = "Enable xkcd Comic"' in config_source
+    assert 'XKCD_FORM_ATTRIBUTION = "Attribution - xkcd / Randall Munroe | CC BY-NC 2.5"' in config_source
+    assert 'XKCD_FORM_MODE = "Comic selection"' in config_source
+    assert 'XKCD_FORM_NUMBER = "Fixed comic number"' in config_source
+    assert 'XKCD_FORM_ATTEMPTS = "Random search attempts"' in config_source
+    assert "_xkcd_form_to_options" in config_source
     assert "xkcd / Randall Munroe | CC BY-NC 2.5" in config_source
     assert "Fixed comic number" in config_source
     assert "Random suitable comic" in config_source

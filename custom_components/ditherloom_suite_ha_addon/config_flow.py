@@ -53,6 +53,12 @@ from .const import (
 )
 from .ha_lane import validate_ha_lane
 
+XKCD_FORM_ENABLED = "Enable xkcd Comic"
+XKCD_FORM_ATTRIBUTION = "Attribution - xkcd / Randall Munroe | CC BY-NC 2.5"
+XKCD_FORM_MODE = "Comic selection"
+XKCD_FORM_NUMBER = "Fixed comic number"
+XKCD_FORM_ATTEMPTS = "Random search attempts"
+
 
 class DitherloomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
@@ -130,7 +136,7 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         return self.async_show_menu(
             step_id="init",
-            menu_options=["weather", "sun", "moon", "xkcd_comic", "device"],
+            menu_options=["weather", "sun", "moon", "xkcd", "device"],
         )
 
     async def async_step_weather(self, user_input: dict[str, Any] | None = None):
@@ -215,36 +221,39 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(step_id="moon", data_schema=schema)
 
     async def async_step_xkcd(self, user_input: dict[str, Any] | None = None):
-        return await self.async_step_xkcd_comic(user_input)
-
-    async def async_step_xkcd_comic(self, user_input: dict[str, Any] | None = None):
         data = self._data()
         schema = vol.Schema(
             {
-                vol.Optional(CONF_XKCD_ENABLED, default=_bool_option(data, CONF_XKCD_ENABLED, False)): bool,
+                vol.Optional(XKCD_FORM_ENABLED, default=_bool_option(data, CONF_XKCD_ENABLED, False)): bool,
                 vol.Optional(
-                    CONF_XKCD_ATTRIBUTION_NOTICE,
+                    XKCD_FORM_ATTRIBUTION,
                     default="xkcd / Randall Munroe | CC BY-NC 2.5",
                 ): _xkcd_attribution_selector(),
-                vol.Optional(CONF_XKCD_MODE, default=data.get(CONF_XKCD_MODE, DEFAULT_XKCD_MODE)): _xkcd_mode_selector(),
-                vol.Optional(CONF_XKCD_NUMBER, default=data.get(CONF_XKCD_NUMBER)): int,
+                vol.Optional(XKCD_FORM_MODE, default=data.get(CONF_XKCD_MODE, DEFAULT_XKCD_MODE)): _xkcd_mode_selector(),
+                vol.Optional(XKCD_FORM_NUMBER, default=data.get(CONF_XKCD_NUMBER)): int,
                 vol.Optional(
-                    CONF_XKCD_RANDOM_ATTEMPTS,
+                    XKCD_FORM_ATTEMPTS,
                     default=data.get(CONF_XKCD_RANDOM_ATTEMPTS, DEFAULT_XKCD_RANDOM_ATTEMPTS),
                 ): int,
             }
         )
         if user_input is not None:
-            if user_input.get(CONF_XKCD_MODE) == XKCD_MODE_FIXED and not user_input.get(CONF_XKCD_NUMBER):
+            internal_input = _xkcd_form_to_options(user_input)
+            if internal_input.get(CONF_XKCD_MODE) == XKCD_MODE_FIXED and not internal_input.get(CONF_XKCD_NUMBER):
                 return self.async_show_form(
-                    step_id="xkcd_comic",
+                    step_id="xkcd",
                     data_schema=schema,
-                    errors={CONF_XKCD_NUMBER: "xkcd_number_required"},
+                    errors={XKCD_FORM_NUMBER: "xkcd_number_required"},
                 )
-            user_input = dict(user_input)
-            user_input.pop(CONF_XKCD_ATTRIBUTION_NOTICE, None)
-            return self._save_options_or_show("xkcd_comic", user_input, schema)
-        return self.async_show_form(step_id="xkcd_comic", data_schema=schema)
+            return self._save_options_or_show("xkcd", internal_input, schema)
+        return self.async_show_form(
+            step_id="xkcd",
+            data_schema=schema,
+            description_placeholders={
+                "xkcd_attribution": "xkcd / Randall Munroe | CC BY-NC 2.5",
+                "xkcd_license_url": "https://xkcd.com/license.html",
+            },
+        )
 
     async def async_step_device(self, user_input: dict[str, Any] | None = None):
         data = {**self._entry.data, **self._entry.options}
@@ -332,6 +341,18 @@ def _float_or_zero(value: Any) -> float:
 
 def _bool_option(data: dict[str, Any], key: str, default: bool) -> bool:
     return bool(data[key]) if key in data else default
+
+
+def _xkcd_form_to_options(user_input: dict[str, Any]) -> dict[str, Any]:
+    data: dict[str, Any] = {
+        CONF_XKCD_ENABLED: bool(user_input.get(XKCD_FORM_ENABLED, False)),
+        CONF_XKCD_MODE: user_input.get(XKCD_FORM_MODE, DEFAULT_XKCD_MODE),
+        CONF_XKCD_NUMBER: user_input.get(XKCD_FORM_NUMBER),
+        CONF_XKCD_RANDOM_ATTEMPTS: user_input.get(XKCD_FORM_ATTEMPTS, DEFAULT_XKCD_RANDOM_ATTEMPTS),
+    }
+    if data[CONF_XKCD_NUMBER] in ("", None):
+        data.pop(CONF_XKCD_NUMBER, None)
+    return data
 
 
 def _xkcd_mode_selector() -> selector.SelectSelector:
