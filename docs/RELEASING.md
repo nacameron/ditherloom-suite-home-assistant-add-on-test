@@ -26,7 +26,7 @@ v<manifest version>
 Example:
 
 ```text
-manifest version 0.1.72 -> public tag v0.1.72
+manifest version 0.1.73 -> public tag v0.1.73
 ```
 
 ## Private Repo Checklist
@@ -107,4 +107,3 @@ After a meaningful release, update the Obsidian vault with:
 - tests/guards run,
 - public release URL/tag,
 - anything intentionally not changed.
-
