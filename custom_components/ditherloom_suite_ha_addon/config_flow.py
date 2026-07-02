@@ -26,6 +26,7 @@ from .const import (
     CONF_WEATHER_ENABLED,
     CONF_WIND_SPEED_UNIT,
     CONF_XKCD_ENABLED,
+    CONF_XKCD_ATTRIBUTION_NOTICE,
     CONF_XKCD_MODE,
     CONF_XKCD_NUMBER,
     CONF_XKCD_RANDOM_ATTEMPTS,
@@ -129,7 +130,7 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         return self.async_show_menu(
             step_id="init",
-            menu_options=["weather", "sun", "moon", "xkcd", "device"],
+            menu_options=["weather", "sun", "moon", "xkcd_comic", "device"],
         )
 
     async def async_step_weather(self, user_input: dict[str, Any] | None = None):
@@ -214,10 +215,17 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(step_id="moon", data_schema=schema)
 
     async def async_step_xkcd(self, user_input: dict[str, Any] | None = None):
+        return await self.async_step_xkcd_comic(user_input)
+
+    async def async_step_xkcd_comic(self, user_input: dict[str, Any] | None = None):
         data = self._data()
         schema = vol.Schema(
             {
                 vol.Optional(CONF_XKCD_ENABLED, default=_bool_option(data, CONF_XKCD_ENABLED, False)): bool,
+                vol.Optional(
+                    CONF_XKCD_ATTRIBUTION_NOTICE,
+                    default="xkcd / Randall Munroe | CC BY-NC 2.5",
+                ): _xkcd_attribution_selector(),
                 vol.Optional(CONF_XKCD_MODE, default=data.get(CONF_XKCD_MODE, DEFAULT_XKCD_MODE)): _xkcd_mode_selector(),
                 vol.Optional(CONF_XKCD_NUMBER, default=data.get(CONF_XKCD_NUMBER)): int,
                 vol.Optional(
@@ -229,12 +237,14 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             if user_input.get(CONF_XKCD_MODE) == XKCD_MODE_FIXED and not user_input.get(CONF_XKCD_NUMBER):
                 return self.async_show_form(
-                    step_id="xkcd",
+                    step_id="xkcd_comic",
                     data_schema=schema,
                     errors={CONF_XKCD_NUMBER: "xkcd_number_required"},
                 )
-            return self._save_options_or_show("xkcd", user_input, schema)
-        return self.async_show_form(step_id="xkcd", data_schema=schema)
+            user_input = dict(user_input)
+            user_input.pop(CONF_XKCD_ATTRIBUTION_NOTICE, None)
+            return self._save_options_or_show("xkcd_comic", user_input, schema)
+        return self.async_show_form(step_id="xkcd_comic", data_schema=schema)
 
     async def async_step_device(self, user_input: dict[str, Any] | None = None):
         data = {**self._entry.data, **self._entry.options}
@@ -331,6 +341,20 @@ def _xkcd_mode_selector() -> selector.SelectSelector:
                 {"value": XKCD_MODE_RANDOM, "label": "Random suitable comic"},
                 {"value": XKCD_MODE_LATEST, "label": "Latest comic if suitable"},
                 {"value": XKCD_MODE_FIXED, "label": "Fixed comic number"},
+            ],
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
+def _xkcd_attribution_selector() -> selector.SelectSelector:
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=[
+                {
+                    "value": "xkcd / Randall Munroe | CC BY-NC 2.5",
+                    "label": "xkcd / Randall Munroe | CC BY-NC 2.5",
+                }
             ],
             mode=selector.SelectSelectorMode.DROPDOWN,
         )

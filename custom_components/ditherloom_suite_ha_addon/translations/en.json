@@ -40,6 +40,7 @@
           "sun": "Sunrise / Sunset",
           "moon": "Moon Phase",
           "xkcd": "xkcd Comic",
+          "xkcd_comic": "xkcd Comic",
           "device": "Device / Connection"
         }
       },
@@ -84,12 +85,32 @@
         "description": "xkcd Comic is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. Comics are by Randall Munroe and licensed CC BY-NC 2.5 (https://xkcd.com/license.html). Ditherloom filters out comics that are too busy, too tall, have more than three panels, or use colours the display cannot reproduce clearly.",
         "data": {
           "xkcd_enabled": "Enable xkcd Comic",
+          "xkcd_attribution_notice": "Attribution",
           "xkcd_mode": "Comic selection",
           "xkcd_number": "Fixed comic number",
           "xkcd_random_attempts": "Random search attempts"
         },
         "data_description": {
           "xkcd_enabled": "When enabled, xkcd joins the HA-owned content rotation and consumes one explicit HA slot.",
+          "xkcd_attribution_notice": "xkcd comics are by Randall Munroe and licensed CC BY-NC 2.5. Ditherloom displays this attribution on rendered xkcd cards and stores it in metadata.",
+          "xkcd_mode": "Random searches for a suitable landscape comic. Latest uses the newest comic only if it passes the display filter. Fixed always tries the comic number below.",
+          "xkcd_number": "Only used when Comic selection is Fixed comic number. Unsuitable comics fail closed instead of rendering unreadable content.",
+          "xkcd_random_attempts": "Maximum random comics to test before failing closed. Higher values improve selection quality but may take longer."
+        }
+      },
+      "xkcd_comic": {
+        "title": "xkcd Comic",
+        "description": "xkcd Comic is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. Comics are by Randall Munroe and licensed CC BY-NC 2.5 (https://xkcd.com/license.html). Ditherloom filters out comics that are too busy, too tall, have more than three panels, or use colours the display cannot reproduce clearly.",
+        "data": {
+          "xkcd_enabled": "Enable xkcd Comic",
+          "xkcd_attribution_notice": "Attribution",
+          "xkcd_mode": "Comic selection",
+          "xkcd_number": "Fixed comic number",
+          "xkcd_random_attempts": "Random search attempts"
+        },
+        "data_description": {
+          "xkcd_enabled": "When enabled, xkcd joins the HA-owned content rotation and consumes one explicit HA slot.",
+          "xkcd_attribution_notice": "xkcd comics are by Randall Munroe and licensed CC BY-NC 2.5. Ditherloom displays this attribution on rendered xkcd cards and stores it in metadata.",
           "xkcd_mode": "Random searches for a suitable landscape comic. Latest uses the newest comic only if it passes the display filter. Fixed always tries the comic number below.",
           "xkcd_number": "Only used when Comic selection is Fixed comic number. Unsuitable comics fail closed instead of rendering unreadable content.",
           "xkcd_random_attempts": "Maximum random comics to test before failing closed. Higher values improve selection quality but may take longer."

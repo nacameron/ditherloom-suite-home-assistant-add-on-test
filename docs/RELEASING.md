@@ -26,7 +26,7 @@ v<manifest version>
 Example:
 
 ```text
-manifest version 0.1.75 -> public tag v0.1.75
+manifest version 0.1.76 -> public tag v0.1.76
 ```
 
 ## Private Repo Checklist
