@@ -290,3 +290,29 @@ def test_provider_attribution_metadata_is_recorded_for_backend_compliance():
     assert '"license_url": metadata.get("license_url")' in init_source
     assert '"frame_content_last_delivered_attributions"' in init_source
     assert '"frame_content_last_delivered_licenses"' in init_source
+
+
+def test_third_party_notices_include_font_and_dependency_compliance_details():
+    notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    dependency_snapshot = (ROOT / "docs" / "DEPENDENCY_LICENSE_SNAPSHOT.md")
+
+    assert "docs/DEPENDENCY_LICENSE_SNAPSHOT.md" in notices
+    assert dependency_snapshot.exists()
+    assert "Copyright 2017 The Barlow Project Authors" in notices
+    assert "SIL Open Font License 1.1" in notices
+    assert "Fonts are (c) Bitstream" in notices
+    assert "Glyphs imported from Arev fonts are (c) Tavmjong Bah" in notices
+    assert "https://dejavu-fonts.github.io/License.html" in notices
+
+    snapshot = dependency_snapshot.read_text(encoding="utf-8")
+    for required in (
+        "| fastapi | 0.115.6 | MIT |",
+        "| uvicorn | 0.32.1 | BSD-3-Clause |",
+        "| pillow | 11.0.0 | HPND / MIT-CMU style Pillow license |",
+        "| paho-mqtt | 2.1.0 | EPL-2.0 OR BSD-3-Clause |",
+        "| python-multipart | 0.0.20 | Apache-2.0 |",
+        "| pytest | 8.3.4 | MIT |",
+        "| Barlow / Barlow Condensed | SIL Open Font License 1.1 |",
+        "| DejaVu fonts | Bitstream Vera / Arev / public-domain DejaVu changes |",
+    ):
+        assert required in snapshot

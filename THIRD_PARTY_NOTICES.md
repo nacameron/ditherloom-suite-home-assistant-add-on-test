@@ -17,9 +17,14 @@ The current prototype uses these Python packages:
 | pytest | 8.3.4 | MIT | https://docs.pytest.org/ |
 
 Transitive dependencies are installed by Python packaging tools and retain their
-own licenses. Before public release, generate a full dependency/license report
-from the release environment and include the complete notice set required by
-those packages.
+own licenses. The current release dependency notice snapshot is recorded in:
+
+```text
+docs/DEPENDENCY_LICENSE_SNAPSHOT.md
+```
+
+Regenerate that snapshot from the release environment before each public release
+that changes Python dependencies or the base image.
 
 ## Home Assistant Base Image
 
@@ -47,9 +52,35 @@ The bundled Barlow license text is packaged at:
 custom_components/ditherloom_suite_ha_addon/assets/fonts/OFL-Barlow.txt
 ```
 
+Barlow copyright notice:
+
+```text
+Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
+```
+
 The add-on Dockerfile may also install DejaVu fonts through the base image
 package manager. DejaVu fonts and any bundled font files remain under their own
 font licenses. The Ditherloom project does not claim copyright over those fonts.
+
+DejaVu font notice:
+
+```text
+Fonts are (c) Bitstream (see below). DejaVu changes are in public domain.
+Glyphs imported from Arev fonts are (c) Tavmjong Bah (see below).
+
+Bitstream Vera Fonts Copyright:
+Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved. Bitstream Vera is
+a trademark of Bitstream, Inc.
+
+Arev Fonts Copyright:
+Copyright (c) 2006 by Tavmjong Bah. All Rights Reserved.
+```
+
+Full DejaVu license text is published by the DejaVu project:
+
+```text
+https://dejavu-fonts.github.io/License.html
+```
 
 ## Weather Data Provider
 
