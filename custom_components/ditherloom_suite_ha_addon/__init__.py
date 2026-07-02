@@ -108,6 +108,11 @@ PRESERVED_RUNTIME_METADATA_KEYS = (
     "frame_content_last_delivered_attributions",
     "frame_content_last_delivered_licenses",
     "frame_awake_last_delivered_jobs",
+    "frame_awake_last_no_jobs_at",
+    "frame_awake_last_no_jobs_host",
+    "frame_awake_last_no_jobs_port",
+    "frame_awake_last_no_jobs_target_slot",
+    "frame_awake_last_no_jobs_providers",
 )
 
 
@@ -436,7 +441,6 @@ class DitherloomRuntime:
         if target_slot < 1 or target_slot > DEVICE_SLOT_COUNT:
             raise ValueError(f"Frame target slot {target_slot} is outside the supported slot range")
 
-        await self.async_publish_job(self.last_metadata)
         self.last_status = "frame_awake_received"
         self.last_metadata["frame_awake"] = {
             "received_at": now.isoformat(),
@@ -455,12 +459,32 @@ class DitherloomRuntime:
         self.last_metadata["frame_awake_last_received_at"] = now.isoformat()
         await self.async_save()
 
-        self.hass.async_create_task(self.async_deliver_cached_content_to_announced_frame(host, port, target_slot))
+        jobs = await self._frame_sync_jobs()
+        if not jobs:
+            self.last_status = "frame_awake_no_jobs"
+            self.last_metadata["frame_awake_last_no_jobs_at"] = now.isoformat()
+            self.last_metadata["frame_awake_last_no_jobs_host"] = host
+            self.last_metadata["frame_awake_last_no_jobs_port"] = port
+            self.last_metadata["frame_awake_last_no_jobs_target_slot"] = target_slot
+            self.last_metadata["frame_awake_last_no_jobs_providers"] = self._enabled_content_providers()
+            self.last_metadata["frame_sleeping_expected_after_completion"] = False
+            await self.async_save()
+            return {
+                "accepted": True,
+                "mode": "gateway_push",
+                "has_jobs": False,
+                "job_count": 0,
+                "message": "no frame sync jobs queued",
+                "slot": target_slot,
+                "display": False,
+            }
+
+        self.hass.async_create_task(self.async_deliver_cached_content_to_announced_frame(host, port, target_slot, jobs))
         return {
             "accepted": True,
             "mode": "gateway_push",
             "has_jobs": True,
-            "job_count": len(self._enabled_content_providers()),
+            "job_count": len(jobs),
             "payload_url": self.last_metadata.get(ATTR_PAYLOAD_URL),
             "preview_url": self.last_metadata.get(ATTR_PREVIEW_URL),
             "crc32": self.last_metadata.get(ATTR_CRC32),
@@ -469,9 +493,16 @@ class DitherloomRuntime:
             "display": True,
         }
 
-    async def async_deliver_cached_content_to_announced_frame(self, host: str, port: int, target_slot: int) -> None:
+    async def async_deliver_cached_content_to_announced_frame(
+        self,
+        host: str,
+        port: int,
+        target_slot: int,
+        jobs: list[dict[str, Any]] | None = None,
+    ) -> None:
         try:
-            jobs = await self._frame_sync_jobs()
+            if jobs is None:
+                jobs = await self._frame_sync_jobs()
             display_slot = self._selected_display_slot()
             ha_rotation = self._ha_rotation_config()
             gateway_status = await self.hass.async_add_executor_job(_send_gateway_batch_jobs, host, port, jobs, display_slot, ha_rotation)
@@ -1186,17 +1217,16 @@ class DitherloomRuntime:
         return jobs
 
     def _provider_needs_frame_sync(self, provider: str, metadata: dict[str, Any]) -> bool:
+        content_id = metadata.get(ATTR_CONTENT_ID)
+        if content_id:
+            return metadata.get("frame_synced_content_id") != content_id
         if metadata.get("frame_synced_crc32") != metadata.get(ATTR_CRC32):
             return True
         if provider in {"sunrise_sunset", "moon_phase"}:
             if metadata.get("frame_synced_date_label") != metadata.get("date_label"):
                 return True
             return metadata.get("frame_synced_render_target_at") != metadata.get("render_target_at")
-        synced_at = _parse_datetime(metadata.get("frame_synced_at"))
-        if synced_at is None:
-            return True
-        age = datetime.now(timezone.utc) - synced_at.astimezone(timezone.utc)
-        return age >= timedelta(minutes=self._effective_update_interval_minutes())
+        return _parse_datetime(metadata.get("frame_synced_at")) is None
 
     async def _mark_provider_frame_synced(self, provider: str, crc32: str, synced_at: str) -> None:
         metadata = await self._read_cached_metadata(provider)
@@ -1204,6 +1234,7 @@ class DitherloomRuntime:
             return
         metadata["frame_synced_at"] = synced_at
         metadata["frame_synced_crc32"] = crc32
+        metadata["frame_synced_content_id"] = metadata.get(ATTR_CONTENT_ID)
         metadata["frame_synced_date_label"] = metadata.get("date_label") or datetime.now(self._local_timezone()).strftime("%d %b").upper()
         if provider in {"sunrise_sunset", "moon_phase"}:
             metadata["frame_synced_render_target_at"] = metadata.get("render_target_at")

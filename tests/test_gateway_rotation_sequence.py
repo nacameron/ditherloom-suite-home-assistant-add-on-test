@@ -54,6 +54,48 @@ def test_gateway_success_requires_hacomplete_all_jobs_complete():
     assert "HACOMPLETE all_jobs_complete failed" in completion_source
 
 
+def test_frame_awake_reports_no_jobs_before_waiting_for_gateway_delivery():
+    source = _source()
+    awake_start = source.index("async def async_handle_frame_awake")
+    awake_end = source.index("async def async_deliver_cached_content_to_announced_frame", awake_start)
+    awake_source = source[awake_start:awake_end]
+
+    assert "jobs = await self._frame_sync_jobs()" in awake_source
+    assert 'self.last_status = "frame_awake_no_jobs"' in awake_source
+    assert '"has_jobs": False' in awake_source
+    assert '"job_count": 0' in awake_source
+    assert "async_create_task(self.async_deliver_cached_content_to_announced_frame(host, port, target_slot, jobs))" in awake_source
+    assert '"job_count": len(jobs)' in awake_source
+    assert "async_publish_job" not in awake_source
+
+
+def test_frame_awake_delivery_uses_precomputed_jobs_when_supplied():
+    source = _source()
+    delivery_start = source.index("async def async_deliver_cached_content_to_announced_frame")
+    delivery_end = source.index("async def async_deliver_cached_weather_to_announced_frame", delivery_start)
+    delivery_source = source[delivery_start:delivery_end]
+
+    assert "jobs: list[dict[str, Any]] | None = None" in delivery_source
+    assert "if jobs is None:" in delivery_source
+    assert "jobs = await self._frame_sync_jobs()" in delivery_source
+    assert "_send_gateway_batch_jobs, host, port, jobs, display_slot, ha_rotation" in delivery_source
+
+
+def test_frame_sync_uses_content_id_not_provider_count_or_age_resend():
+    source = _source()
+    sync_start = source.index("def _provider_needs_frame_sync")
+    sync_end = source.index("async def _mark_provider_frame_synced", sync_start)
+    sync_source = source[sync_start:sync_end]
+    mark_start = source.index("async def _mark_provider_frame_synced")
+    mark_end = source.index("def _time_sensitive_cache_minutes", mark_start)
+    mark_source = source[mark_start:mark_end]
+
+    assert "content_id = metadata.get(ATTR_CONTENT_ID)" in sync_source
+    assert 'metadata.get("frame_synced_content_id") != content_id' in sync_source
+    assert "age >= timedelta(minutes=self._effective_update_interval_minutes())" not in sync_source
+    assert 'metadata["frame_synced_content_id"] = metadata.get(ATTR_CONTENT_ID)' in mark_source
+
+
 def test_harotation_can_apply_to_explicit_slots_without_fresh_upload_jobs():
     source = _source()
     batch_index = source.index("def _send_gateway_batch_jobs")
