@@ -1,5 +1,5 @@
 DOMAIN = "ditherloom_suite_ha_addon"
-INTEGRATION_VERSION = "0.1.77"
+INTEGRATION_VERSION = "0.1.78"
 
 CONF_LIBRARY_ID = "library_id"
 CONF_TOPIC_BASE = "topic_base"
