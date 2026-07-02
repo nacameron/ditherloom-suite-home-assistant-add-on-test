@@ -49,7 +49,7 @@ The custom integration:
 
 - renders the Ditherloom weather card inside Home Assistant,
 - fetches Open-Meteo data for free/non-commercial testing,
-- serves the latest `.ppbin` payload through a Home Assistant HTTP endpoint,
+- caches the latest `.ppbin` payload for Gateway delivery after `frame-awake`,
 - serves a preview PNG endpoint,
 - publishes optional MQTT job metadata if the MQTT integration is configured,
 - can try the existing Wi-Fi Gateway command path directly:

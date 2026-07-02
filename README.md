@@ -121,11 +121,10 @@ redownload the integration from there.
 - Resolves a map-picked weather location name when one is not entered manually.
 - Uses a Home Assistant map picker for weather action location, with manual
   latitude/longitude fields kept as fallback.
-- Serves a `.ppbin` payload through a Home Assistant HTTP endpoint.
+- Caches `.ppbin` payloads locally and delivers them only through the frame Gateway after `frame-awake`.
 - Serves a preview PNG endpoint.
-- Publishes optional MQTT job metadata if MQTT is configured.
 - Uses the existing Wi-Fi Gateway command path after the frame announces it is awake:
-  `PING`, `BEGIN`, `B64WRITE`, `END`, `DISPLAY`, `IDLE`.
+  `PING`, `BEGIN`, `B64WRITE`, `END`, `SETSLOTCLASS`, `SLOTCLASS`, optional `HAROTATION`, and `HACOMPLETE`.
 - Adds a Home Assistant update entity that checks the latest GitHub release.
 - Supports colour or mono weather display mode.
 - Adds content option pages for Weather, Sunrise / Sunset, and Moon Phase.

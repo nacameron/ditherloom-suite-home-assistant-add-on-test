@@ -283,8 +283,22 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.78"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.78")
+    if '"version": "0.1.79"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.79")
+
+    for forbidden in (
+        '"mode": "frame_pull"',
+        "_frame_pull_job_descriptor",
+        "frame_awake_pending_pull_jobs",
+        "DitherloomPayloadView",
+        "payloadPath",
+        "payloadUrl",
+        "payload_url",
+        "async_publish_job",
+        "/payload/{filename}",
+    ):
+        if forbidden in init_text:
+            fail(f"runtime contains forbidden non-Gateway HA pull route: {forbidden}")
 
 
 def check_public_repo_single_version() -> None:
@@ -605,9 +619,12 @@ def check_frame_awake_handshake() -> None:
         'self.url = f"/api/ditherloom/{runtime.entry.entry_id}/frame-awake"',
         'self.url = f"/api/ditherloom/{runtime.entry.entry_id}/frame-sleeping"',
         "async_handle_frame_awake",
+        "async_deliver_cached_content_after_frame_callback",
         "async_deliver_cached_weather_to_announced_frame",
         "async_send_to_frame_host",
         '"mode": "gateway_push"',
+        "await asyncio.sleep(1.5)",
+        "single Gateway listener before HA opens the delivery",
     ):
         if required not in init_text:
             fail(f"frame awake handshake missing required code/text: {required}")
@@ -621,6 +638,15 @@ def check_frame_awake_handshake() -> None:
         "_read_existing_gateway_timer_config",
         "DitherloomSendWeatherButton",
         "Send weather to frame",
+        '"mode": "frame_pull"',
+        "_frame_pull_job_descriptor",
+        "frame_awake_pending_pull_jobs",
+        "DitherloomPayloadView",
+        "payloadPath",
+        "payloadUrl",
+        "payload_url",
+        "async_publish_job",
+        "/payload/{filename}",
     ):
         if forbidden in init_text or forbidden in button_text or forbidden in services_text:
             fail(f"removed frame sync/manual-send/probe surface is still present: {forbidden}")

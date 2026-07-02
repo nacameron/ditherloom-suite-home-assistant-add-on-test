@@ -39,8 +39,8 @@ example:
 http://homeassistant.local:8099
 ```
 
-Do not use the Ingress URL for ESP32 payload fetches. Ingress is for the Home
-Assistant UI.
+Do not use the Ingress URL for frame content delivery. Home Assistant delivers
+frame content through the frame Gateway after the `frame-awake` callback.
 
 ## Option B: Repository Later
 

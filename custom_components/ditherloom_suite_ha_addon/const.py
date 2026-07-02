@@ -1,5 +1,5 @@
 DOMAIN = "ditherloom_suite_ha_addon"
-INTEGRATION_VERSION = "0.1.78"
+INTEGRATION_VERSION = "0.1.79"
 
 CONF_LIBRARY_ID = "library_id"
 CONF_TOPIC_BASE = "topic_base"
@@ -83,7 +83,6 @@ SERVICE_RENDER_XKCD = "render_xkcd_card"
 SERVICE_SEND_XKCD = "send_xkcd_card"
 
 ATTR_PREVIEW_URL = "preview_url"
-ATTR_PAYLOAD_URL = "payload_url"
 ATTR_CRC32 = "crc32"
 ATTR_CONTENT_ID = "content_id"
 ATTR_LAST_ERROR = "last_error"

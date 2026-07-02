@@ -321,5 +321,5 @@ Clear Discovery
 ```
 
 Avoid calling the Home Assistant custom integration a Helper. It is not a
-Helper, because it runs renderer code, hosts payloads, exposes services, and
+Helper, because it runs renderer code, caches payloads for Gateway delivery, exposes services, and
 talks to the frame.

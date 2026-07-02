@@ -25,7 +25,6 @@ from .const import (
     ATTR_CONTENT_ID,
     ATTR_CRC32,
     ATTR_LAST_ERROR,
-    ATTR_PAYLOAD_URL,
     ATTR_PREVIEW_URL,
     CONF_DISPLAY_MODE,
     CONF_DISPLAY_ROTATION_ENABLED,
@@ -222,7 +221,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_start()
     _async_remove_stale_frontend_entities(hass, entry)
 
-    hass.http.register_view(DitherloomPayloadView(coordinator))
     hass.http.register_view(DitherloomPreviewView(coordinator))
     hass.http.register_view(DitherloomFrameAwakeView(coordinator))
     hass.http.register_view(DitherloomFrameSleepingView(coordinator))
@@ -501,10 +499,6 @@ class DitherloomRuntime:
     async def async_send_cached_weather(self) -> dict[str, Any]:
         if not self.payload_path().exists() or ATTR_CRC32 not in self.last_metadata:
             await self.async_render_selected_content(reason="manual_missing_payload")
-        else:
-            await self.async_publish_job(self.last_metadata)
-            self.last_status = "published"
-            await self.async_save()
         packed = await self.hass.async_add_executor_job(self.payload_path().read_bytes)
         crc32 = str(self.last_metadata[ATTR_CRC32])
         await self.async_send_to_frame(packed, crc32)
@@ -569,19 +563,33 @@ class DitherloomRuntime:
                 "display": False,
             }
 
-        self.hass.async_create_task(self.async_deliver_cached_content_to_announced_frame(host, port, target_slot, jobs))
+        self.hass.async_create_task(self.async_deliver_cached_content_after_frame_callback(host, port, target_slot, jobs))
+        self.last_metadata["frame_sleeping_expected_after_completion"] = True
+        await self.async_save()
         return {
             "accepted": True,
             "mode": "gateway_push",
             "has_jobs": True,
             "job_count": len(jobs),
-            "payload_url": self.last_metadata.get(ATTR_PAYLOAD_URL),
             "preview_url": self.last_metadata.get(ATTR_PREVIEW_URL),
             "crc32": self.last_metadata.get(ATTR_CRC32),
             "length": self.last_metadata.get("packed_length"),
             "slot": target_slot,
             "display": True,
         }
+
+    async def async_deliver_cached_content_after_frame_callback(
+        self,
+        host: str,
+        port: int,
+        target_slot: int,
+        jobs: list[dict[str, Any]],
+    ) -> None:
+        # Let the ESP32-C3 finish the outbound frame_awake HTTP response and
+        # return to its single Gateway listener before HA opens the delivery
+        # client. Without this handoff gap, the first Gateway PING can time out.
+        await asyncio.sleep(1.5)
+        await self.async_deliver_cached_content_to_announced_frame(host, port, target_slot, jobs)
 
     async def async_deliver_cached_content_to_announced_frame(
         self,
@@ -765,7 +773,6 @@ class DitherloomRuntime:
         await self.hass.async_add_executor_job(shutil.copyfile, source_payload, self.payload_path())
         await self.hass.async_add_executor_job(shutil.copyfile, source_preview, self.preview_path())
         metadata = dict(metadata)
-        metadata[ATTR_PAYLOAD_URL] = self.payload_url
         metadata[ATTR_PREVIEW_URL] = self.preview_url
         metadata["selected_provider_id"] = provider
         metadata["display_rotation_enabled"] = self._display_rotation_enabled()
@@ -773,9 +780,8 @@ class DitherloomRuntime:
         metadata["selected_provider_reason"] = reason
         metadata["selected_provider_cache"] = "cached"
         metadata["activated_at"] = datetime.now(timezone.utc).isoformat()
-        self.last_status = "published"
+        self.last_status = "rendered"
         self.last_metadata = metadata
-        await self.async_publish_job(metadata)
         await self.async_save()
         return metadata
 
@@ -834,7 +840,6 @@ class DitherloomRuntime:
             await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.preview.png", self.preview_path())
 
         metadata = dict(artifact.metadata)
-        metadata[ATTR_PAYLOAD_URL] = self.payload_url
         metadata[ATTR_PREVIEW_URL] = self.preview_url
         metadata["rendered_at"] = datetime.now(timezone.utc).isoformat()
         metadata["update_interval_minutes"] = self._effective_update_interval_minutes()
@@ -876,8 +881,7 @@ class DitherloomRuntime:
         self.last_metadata = metadata
 
         if publish:
-            await self.async_publish_job(metadata)
-            self.last_status = "published"
+            self.last_status = "rendered"
         if send_to_frame:
             await self.async_send_to_frame(artifact.packed, artifact.crc32)
             self.last_status = "sent"
@@ -926,7 +930,6 @@ class DitherloomRuntime:
             await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.preview.png", self.preview_path())
 
         metadata = dict(artifact.metadata)
-        metadata[ATTR_PAYLOAD_URL] = self.payload_url
         metadata[ATTR_PREVIEW_URL] = self.preview_url
         metadata["rendered_at"] = datetime.now(timezone.utc).isoformat()
         metadata["render_target_at"] = render_target.isoformat()
@@ -977,8 +980,7 @@ class DitherloomRuntime:
         self.last_metadata = metadata
 
         if publish:
-            await self.async_publish_job(metadata)
-            self.last_status = "published"
+            self.last_status = "rendered"
         if send_to_frame:
             await self.async_send_to_frame(artifact.packed, artifact.crc32)
             self.last_status = "sent"
@@ -1027,7 +1029,6 @@ class DitherloomRuntime:
             await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.preview.png", self.preview_path())
 
         metadata = dict(artifact.metadata)
-        metadata[ATTR_PAYLOAD_URL] = self.payload_url
         metadata[ATTR_PREVIEW_URL] = self.preview_url
         metadata["rendered_at"] = datetime.now(timezone.utc).isoformat()
         metadata["render_target_at"] = render_target.isoformat()
@@ -1078,8 +1079,7 @@ class DitherloomRuntime:
         self.last_metadata = metadata
 
         if publish:
-            await self.async_publish_job(metadata)
-            self.last_status = "published"
+            self.last_status = "rendered"
         if send_to_frame:
             await self.async_send_to_frame(artifact.packed, artifact.crc32)
             self.last_status = "sent"
@@ -1114,7 +1114,6 @@ class DitherloomRuntime:
             await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.preview.png", self.preview_path())
 
         metadata = dict(artifact.metadata)
-        metadata[ATTR_PAYLOAD_URL] = self.payload_url
         metadata[ATTR_PREVIEW_URL] = self.preview_url
         metadata["rendered_at"] = datetime.now(timezone.utc).isoformat()
         metadata["provider_id"] = "xkcd_comic"
@@ -1177,8 +1176,7 @@ class DitherloomRuntime:
         self.last_metadata = metadata
 
         if publish:
-            await self.async_publish_job(metadata)
-            self.last_status = "published"
+            self.last_status = "rendered"
         if send_to_frame:
             await self.async_send_to_frame(artifact.packed, artifact.crc32)
             self.last_status = "sent"
@@ -1485,10 +1483,6 @@ class DitherloomRuntime:
         )
 
     @property
-    def payload_url(self) -> str:
-        return f"/api/ditherloom/{self.entry.entry_id}/payload/{self.latest_payload_name}.ppbin"
-
-    @property
     def preview_url(self) -> str:
         return f"/api/ditherloom/{self.entry.entry_id}/preview/{self.latest_payload_name}.preview.png"
 
@@ -1534,8 +1528,6 @@ class DitherloomRuntime:
             "haRotationEnabled": self._ha_rotation_enabled(),
             "haRotationSeconds": self._ha_rotation_seconds(),
             "haRotationStatus": self.last_metadata.get("ha_rotation"),
-            "payloadPath": self.payload_url,
-            "payloadUrl": f"{origin}{self.payload_url}",
             "previewPath": self.preview_url,
             "previewUrl": f"{origin}{self.preview_url}",
             "config": {
@@ -1569,53 +1561,6 @@ class DitherloomRuntime:
 
     def preview_path(self) -> Path:
         return self.payload_dir / f"{self.latest_payload_name}.preview.png"
-
-    async def async_publish_job(self, metadata: dict[str, Any]) -> None:
-        topic_base = self.options.get(CONF_TOPIC_BASE) or f"ditherloom/{self.entry.data.get('library_id')}"
-        now = datetime.now(timezone.utc)
-        wake_window_seconds = self._effective_wake_window_seconds()
-        provider_id = str(metadata.get("provider_id") or metadata.get("selected_provider_id") or "open_meteo_weather")
-        slot = self._provider_slot_map().get(provider_id, self._reserved_ha_slot())
-        job = {
-            "command_id": f"ha-{metadata.get('provider_id', 'weather')}-{now.strftime('%Y%m%d-%H%M%S')}-{metadata[ATTR_CRC32].lower()}",
-            "job_type": "content_card",
-            "content_id": metadata[ATTR_CONTENT_ID],
-            "source": "home_assistant",
-            "content_source": metadata.get("source"),
-            "source_name": metadata.get("source_name"),
-            "source_url": metadata.get("source_url"),
-            "attribution": metadata.get("attribution"),
-            "attribution_url": metadata.get("attribution_url"),
-            "license": metadata.get("license"),
-            "license_url": metadata.get("license_url"),
-            "data_transformations": metadata.get("data_transformations"),
-            "template": metadata.get("template_name", "weather_current"),
-            "slot": slot,
-            "ha_owned_slots": self._provider_slot_map(),
-            "display": True,
-            "payload_url": metadata[ATTR_PAYLOAD_URL],
-            "length": metadata["packed_length"],
-            "crc32": metadata[ATTR_CRC32],
-            "expires_at": (now + timedelta(seconds=wake_window_seconds)).isoformat(),
-            "fallback_slot": "random",
-            "sleep_policy": "sleep_after_completion",
-            "wake_window_seconds": wake_window_seconds,
-            "wake_window_minutes": self._effective_wake_window_minutes(),
-            "max_jobs_per_wake": self.options.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE),
-        }
-        if self.hass.services.has_service("mqtt", "publish"):
-            await self.hass.services.async_call(
-                "mqtt",
-                "publish",
-                {
-                    "topic": f"{topic_base}/cmd/job",
-                    "payload": json.dumps(job),
-                    "qos": 1,
-                    "retain": False,
-                },
-                blocking=True,
-            )
-        self.last_metadata["last_job"] = job
 
     async def async_send_to_frame(self, packed: bytes, crc32: str) -> None:
         host = self.options.get(CONF_FRAME_HOST)
@@ -1743,27 +1688,6 @@ class DitherloomDiscoveryView(HomeAssistantView):
         runtime.last_metadata["frame_ha_config"] = _frame_provided_ha_config(runtime.options)
         await runtime.async_save()
         return self.json(runtime.app_discovery_payload(origin))
-
-
-class DitherloomPayloadView(HomeAssistantView):
-    requires_auth = False
-
-    def __init__(self, runtime: DitherloomRuntime) -> None:
-        self.runtime = runtime
-        self.url = f"/api/ditherloom/{runtime.entry.entry_id}/payload/{{filename}}"
-        self.name = f"api:{DOMAIN}:payload:{runtime.entry.entry_id}"
-
-    async def get(self, request, filename: str):
-        path = self.runtime.payload_path()
-        if filename != path.name or not path.exists():
-            return self.json({"error": "not_found"}, status_code=404)
-        return web.FileResponse(
-            path,
-            headers={
-                "Content-Type": "application/octet-stream",
-                "Cache-Control": "no-store",
-            },
-        )
 
 
 async def _store_frame_provided_ha_config(hass: HomeAssistant, entry: ConfigEntry, body: dict[str, Any]) -> None:

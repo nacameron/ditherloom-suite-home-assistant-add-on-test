@@ -52,7 +52,7 @@ Work:
 - Add a provider registry.
 - Add a shared normalized card schema.
 - Add shared content metadata fields: provider id, title, source, attribution,
-  rendered time, expiry time, payload URL, preview URL, CRC, and packed length.
+  rendered time, expiry time, preview URL, CRC, packed length, and Gateway delivery metadata.
 - Generalize current weather-only naming where needed so cached payloads can be
   content-type aware.
 - Add fixture-based render tests for non-weather cards.

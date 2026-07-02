@@ -12,10 +12,10 @@ All scheduled content types must use this sequence:
 1. Home Assistant refreshes the weather payload on the Home Assistant interval.
 2. Rendering and weather/network lookups finish before any frame contact.
 3. The 400x300 packed payload is written to disk using the existing device packer.
-4. Job metadata is published with the same payload URL, CRC, slot, and expiry window.
+4. Cached job metadata records CRC, slot, packed length, provider identity, and delivery freshness.
 5. The frame wakes on its firmware schedule and connects to Wi-Fi.
 6. Firmware posts to `/api/ditherloom/<entry_id>/frame-awake` with its live Gateway host, port, and slot.
-7. Home Assistant sends the existing packed payload through the existing Gateway path: `PING`, `BEGIN`, `B64WRITE`, `END`, `DISPLAY`, `IDLE`.
+7. Home Assistant returns the `frame-awake` HTTP response, waits briefly for firmware to return to its single Gateway listener, then sends the existing packed payload through one Gateway session: `PING`, `BEGIN`, `B64WRITE`, `END`, `SETSLOTCLASS <slot> ha`, `SLOTCLASS <slot>`, optional `HAROTATION on <seconds> <slot_csv>`, and mandatory `HACOMPLETE all_jobs_complete`.
 8. Firmware may post to `/api/ditherloom/<entry_id>/frame-sleeping` before it returns to deep sleep.
 
 Do not probe for the frame from Home Assistant. The frame wake callback is the
