@@ -283,8 +283,8 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.70"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.70")
+    if '"version": "0.1.71"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.71")
 
 
 def check_public_repo_single_version() -> None:
@@ -415,6 +415,7 @@ def check_weather_renderer_options() -> None:
             "FONT_DIR = Path(__file__).resolve().parents[1] / \"assets\" / \"fonts\"",
             "BarlowCondensed-Bold.otf",
             "BarlowCondensed-Regular.otf",
+            "LUXE_TEXT_BOLD = False",
             "TEXT_ALPHA_THRESHOLD = 32",
             "pixel >= TEXT_ALPHA_THRESHOLD",
             "TOP_BAR_HEIGHT = 38",

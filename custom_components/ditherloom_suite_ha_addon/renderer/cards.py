@@ -54,6 +54,7 @@ FONT_UI_BOLD_CANDIDATES = (
 WEATHER_ART_DIR = Path(__file__).resolve().parents[1] / "assets" / "weather_art"
 SUN_ART_DIR = Path(__file__).resolve().parents[1] / "assets" / "sun_art"
 MOON_ART_DIR = Path(__file__).resolve().parents[1] / "assets" / "moon_art"
+LUXE_TEXT_BOLD = False
 
 
 @dataclass(frozen=True)
@@ -412,10 +413,10 @@ def _draw_luxe_top_identity(draw: ImageDraw.ImageDraw, title: str, state_label: 
     secondary = _rgb("red")
     draw.rounded_rectangle((12, 8, 388, 60), radius=8, fill=panel_fill, outline=panel_rule, width=1)
     draw.line((22, 59, 378, 59), fill=accent, width=1)
-    _draw_luxe_text_left(draw, (23, 11, 270, 38), title, 32, True, text, 20)
-    _draw_luxe_text_left(draw, (23, 39, 280, 58), state_label, 19, True, secondary, 10)
+    _draw_luxe_text_left(draw, (23, 11, 270, 38), title, 32, LUXE_TEXT_BOLD, text, 20)
+    _draw_luxe_text_left(draw, (23, 39, 280, 58), state_label, 19, LUXE_TEXT_BOLD, secondary, 10)
     brand = source_label
-    _draw_luxe_text_right(draw, (285, 24, 376, 44), brand, 16, True, _rgb("red"), 11)
+    _draw_luxe_text_right(draw, (285, 24, 376, 44), brand, 16, LUXE_TEXT_BOLD, _rgb("red"), 11)
 
 
 def _draw_luxe_main_panel(
@@ -428,10 +429,10 @@ def _draw_luxe_main_panel(
     draw.rounded_rectangle((18, 166, 382, 247), radius=10, fill=_rgb("warm_white"), outline=_rgb("yellow"), width=1)
     draw.rounded_rectangle((18, 166, 382, 171), radius=5, fill=_rgb("yellow"))
     draw.line((226, 184, 226, 235), fill=_rgb("yellow"), width=1)
-    _draw_luxe_text_left(draw, (30, 176, 216, 196), primary_label, 22, True, _rgb("red"), 16)
-    _draw_luxe_text_left(draw, (29, 197, 214, 243), primary_value, 60, True, _rgb("black"), 42)
-    _draw_luxe_text_left(draw, (248, 177, 365, 198), secondary_prefix, 22, True, _rgb("black"), 16)
-    _draw_luxe_text_left(draw, (246, 203, 368, 243), secondary_value, 42, True, _rgb("black"), 30)
+    _draw_luxe_text_left(draw, (30, 176, 216, 196), primary_label, 22, LUXE_TEXT_BOLD, _rgb("red"), 16)
+    _draw_luxe_text_left(draw, (29, 197, 214, 243), primary_value, 60, LUXE_TEXT_BOLD, _rgb("black"), 42)
+    _draw_luxe_text_left(draw, (248, 177, 365, 198), secondary_prefix, 22, LUXE_TEXT_BOLD, _rgb("black"), 16)
+    _draw_luxe_text_left(draw, (246, 203, 368, 243), secondary_value, 42, LUXE_TEXT_BOLD, _rgb("black"), 30)
 
 
 def _draw_luxe_tile_row(draw: ImageDraw.ImageDraw, tiles: tuple[tuple[str, str], tuple[str, str], tuple[str, str]]) -> None:
@@ -442,8 +443,8 @@ def _draw_luxe_tile_row(draw: ImageDraw.ImageDraw, tiles: tuple[tuple[str, str],
 def _draw_luxe_tile(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], label: str, value: str) -> None:
     x1, y1, x2, y2 = box
     draw.rounded_rectangle(box, radius=7, fill=_rgb("warm_white"), outline=_rgb("yellow"), width=1)
-    _draw_luxe_text_left(draw, (x1 + 9, y1 + 4, x2 - 8, y1 + 19), label, 17, True, _rgb("red"), 13)
-    _draw_luxe_text_left(draw, (x1 + 9, y1 + 20, x2 - 8, y2 - 6), value, 28, True, _rgb("black"), 10)
+    _draw_luxe_text_left(draw, (x1 + 9, y1 + 4, x2 - 8, y1 + 19), label, 17, LUXE_TEXT_BOLD, _rgb("red"), 13)
+    _draw_luxe_text_left(draw, (x1 + 9, y1 + 20, x2 - 8, y2 - 6), value, 28, LUXE_TEXT_BOLD, _rgb("black"), 10)
 
 
 def _draw_luxe_text_left(
@@ -669,27 +670,27 @@ def _render_luxe_weather_card(data: WeatherCardData) -> Image.Image:
 
     draw.rounded_rectangle((12, 10, 388, 50), radius=7, fill=_rgb("warm_white"), outline=_rgb("yellow"), width=1)
     _draw_luxe_location_text(draw, (23, 15, 272, 45), (data.location or "Weather").upper(), 33)
-    _draw_luxe_text_right(draw, (282, 15, 376, 31), data.updated or "Now", 20, True, _rgb("red"), 14)
-    _draw_luxe_text_right(draw, (282, 31, 376, 46), _source_label(data.attribution), 16, True, _rgb("red"), 11)
+    _draw_luxe_text_right(draw, (282, 15, 376, 31), data.updated or "Now", 20, LUXE_TEXT_BOLD, _rgb("red"), 14)
+    _draw_luxe_text_right(draw, (282, 31, 376, 46), _source_label(data.attribution), 16, LUXE_TEXT_BOLD, _rgb("red"), 11)
 
     draw.rounded_rectangle((18, 166, 382, 247), radius=9, fill=_rgb("warm_white"), outline=_rgb("yellow"), width=1)
     draw.rounded_rectangle((18, 166, 382, 171), radius=4, fill=_rgb("yellow"))
-    _draw_luxe_text_left(draw, (29, 177, 164, 197), current_temperature_label, 20, True, _rgb("red"), 15)
+    _draw_luxe_text_left(draw, (29, 177, 164, 197), current_temperature_label, 20, LUXE_TEXT_BOLD, _rgb("red"), 15)
 
     temperature = _weather_temperature_text(data.temperature, data.unit)
-    _draw_luxe_text_left(draw, (28, 199, 158, 247), temperature, 66, True, _rgb("black"), 48)
+    _draw_luxe_text_left(draw, (28, 199, 158, 247), temperature, 66, LUXE_TEXT_BOLD, _rgb("black"), 48)
     uv_value = _detail_value(data, ("UV", "uv_index"), data.uv_index) or "--"
     draw.line((160, 184, 160, 238), fill=_rgb("yellow"), width=1)
-    _draw_luxe_text_left(draw, (168, 178, 222, 199), "UV", 20, True, _rgb("red"), 15)
-    _draw_luxe_text_right(draw, (166, 202, 222, 247), uv_value, 50, True, _rgb("black"), 32)
+    _draw_luxe_text_left(draw, (168, 178, 222, 199), "UV", 20, LUXE_TEXT_BOLD, _rgb("red"), 15)
+    _draw_luxe_text_right(draw, (166, 202, 222, 247), uv_value, 50, LUXE_TEXT_BOLD, _rgb("black"), 32)
 
     draw.line((229, 181, 229, 238), fill=_rgb("yellow"), width=1)
     condition = data.alert.strip() or data.condition.strip() or "Weather"
-    _draw_luxe_text_left(draw, (247, 179, 377, 211), condition, 26, True, _rgb("black"), 10)
+    _draw_luxe_text_left(draw, (247, 179, 377, 211), condition, 26, LUXE_TEXT_BOLD, _rgb("black"), 10)
     feels_like = f"Feels {data.feels_like}" if data.feels_like else "Feels --"
-    _draw_luxe_text_left(draw, (247, 211, 377, 230), feels_like, 21, True, _rgb("black"), 15)
+    _draw_luxe_text_left(draw, (247, 211, 377, 230), feels_like, 21, LUXE_TEXT_BOLD, _rgb("black"), 15)
     high_low = f"H {_weather_temperature_text(data.high, data.unit)} / L {_weather_temperature_text(data.low, data.unit)}"
-    _draw_luxe_text_left(draw, (247, 229, 377, 247), high_low, 21, True, _rgb("red"), 15)
+    _draw_luxe_text_left(draw, (247, 229, 377, 247), high_low, 21, LUXE_TEXT_BOLD, _rgb("red"), 15)
 
     _draw_luxe_weather_tile(draw, (18, 251, 136, 294), "HUMIDITY", _detail_value(data, ("Hum", "Humidity"), data.humidity) or "--")
     _draw_luxe_weather_tile(draw, (141, 251, 259, 294), "WIND", _detail_value(data, ("Wind",), data.wind) or "--")
@@ -714,13 +715,13 @@ def _paste_luxe_weather_art(image: Image.Image, slug: str) -> None:
 def _draw_luxe_weather_tile(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], label: str, value: str) -> None:
     x1, y1, x2, y2 = box
     draw.rounded_rectangle(box, radius=7, fill=_rgb("warm_white"), outline=_rgb("yellow"), width=1)
-    _draw_luxe_text_left(draw, (x1 + 9, y1 + 4, x2 - 8, y1 + 20), label, 17, True, _rgb("red"), 13)
-    _draw_luxe_text_left(draw, (x1 + 9, y1 + 20, x2 - 8, y2 - 6), value, 29, True, _rgb("black"), 10)
+    _draw_luxe_text_left(draw, (x1 + 9, y1 + 4, x2 - 8, y1 + 20), label, 17, LUXE_TEXT_BOLD, _rgb("red"), 13)
+    _draw_luxe_text_left(draw, (x1 + 9, y1 + 20, x2 - 8, y2 - 6), value, 29, LUXE_TEXT_BOLD, _rgb("black"), 10)
 
 
 def _draw_luxe_location_text(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], text: str, size: int) -> None:
     x1, y1, x2, y2 = box
-    font = _fit_ui_font(str(text), x2 - x1 - 4, size, bold=True, min_size=10, max_height=y2 - y1 - 4)
+    font = _fit_ui_font(str(text), x2 - x1 - 4, size, bold=LUXE_TEXT_BOLD, min_size=10, max_height=y2 - y1 - 4)
     left, top, right, bottom = font.getbbox(str(text))
     _draw_solid_palette_text_clipped(draw, (x1 - left, y1 - top), str(text), font, _rgb("black"), box)
 

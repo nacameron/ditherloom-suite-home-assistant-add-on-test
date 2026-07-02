@@ -146,7 +146,7 @@ def test_backend_attribution_sensor_is_always_visible():
 def test_renderer_cache_is_versioned():
     init_source = (ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py").read_text(encoding="utf-8")
     assert "CARD_RENDERER_VERSION" in init_source
-    assert 'CARD_RENDERER_VERSION = "luxe-0.1.69"' in init_source
+    assert 'CARD_RENDERER_VERSION = "luxe-0.1.71"' in init_source
     assert 'metadata["card_renderer_version"] = CARD_RENDERER_VERSION' in init_source
     assert 'metadata.get("card_renderer_version") != CARD_RENDERER_VERSION' in init_source
 
@@ -220,6 +220,36 @@ def test_luxe_renderer_uses_bundled_font_and_protected_text_threshold():
     assert "TEXT_ALPHA_THRESHOLD = 32" in cards_source
     assert "pixel >= TEXT_ALPHA_THRESHOLD" in cards_source
     assert "ImageFont.load_default()" not in cards_source
+
+
+def test_luxe_cards_use_regular_barlow_not_bold_text():
+    cards_source = (COMPONENT / "renderer" / "cards.py").read_text(encoding="utf-8")
+    top_start = cards_source.index("def _draw_luxe_top_identity")
+    top_end = cards_source.index("def _draw_luxe_main_panel", top_start)
+    main_start = top_end
+    main_end = cards_source.index("def _draw_luxe_tile_row", main_start)
+    weather_start = cards_source.index("def _render_luxe_weather_card")
+    weather_end = cards_source.index("def _paste_luxe_weather_art", weather_start)
+    tile_start = cards_source.index("def _draw_luxe_weather_tile")
+    tile_end = cards_source.index("def _draw_luxe_location_text", tile_start)
+    location_start = tile_end
+    location_end = cards_source.index("def _weather_temperature_text", location_start)
+
+    luxe_sources = "\n".join(
+        (
+            cards_source[top_start:top_end],
+            cards_source[main_start:main_end],
+            cards_source[weather_start:weather_end],
+            cards_source[tile_start:tile_end],
+            cards_source[location_start:location_end],
+        )
+    )
+
+    assert "LUXE_TEXT_BOLD = False" in cards_source
+    assert "bold=LUXE_TEXT_BOLD" in cards_source[location_start:location_end]
+    assert "LUXE_TEXT_BOLD" in luxe_sources
+    assert ", True," not in luxe_sources
+    assert "bold=True" not in luxe_sources
 
 
 def test_weather_options_make_open_meteo_attribution_visible():
