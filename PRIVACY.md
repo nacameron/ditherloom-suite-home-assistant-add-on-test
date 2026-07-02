@@ -19,9 +19,21 @@ cached in the Home Assistant process for repeated use of the same coordinates.
 
 ## Local Frame Delivery
 
-Rendered weather payloads are stored locally by Home Assistant and served to the
+Rendered content payloads are stored locally by Home Assistant and served to the
 frame through the configured local Home Assistant/Gateway path. The payload is a
 packed display image, not the original Home Assistant configuration.
+
+## Optional xkcd Comic Provider
+
+If you enable the xkcd Comic provider, Home Assistant requests xkcd JSON and
+image assets from `xkcd.com` / `imgs.xkcd.com`. Those requests are made by your
+Home Assistant host and may reveal your Home Assistant server's outbound IP
+address to xkcd's infrastructure.
+
+The integration stores rendered xkcd display payloads and metadata locally,
+including comic number, title, source URL, image URL, alt text, attribution, and
+license fields. It does not send your Home Assistant configuration, frame
+identity, Wi-Fi credentials, or local device slots to xkcd.
 
 ## Optional MQTT
 

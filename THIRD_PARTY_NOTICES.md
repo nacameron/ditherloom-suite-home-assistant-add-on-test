@@ -93,3 +93,22 @@ place name when the user picks a map coordinate without entering a location
 name. Results are cached in-process to avoid repeated lookups for the same
 coordinate. Nominatim/OpenStreetMap data, API terms, and provider branding
 remain controlled by their respective projects.
+
+## Optional xkcd Comic Content
+
+The optional xkcd Comic provider fetches comic metadata and image assets from
+xkcd. xkcd comics are created by Randall Munroe and are not owned by the
+Ditherloom project.
+
+Visible rendered xkcd cards include xkcd / Randall Munroe attribution and CC
+BY-NC 2.5 license text. Rendered metadata also stores the source comic URL,
+image URL, attribution URL, license name, and license URL.
+
+Sources:
+
+```text
+https://xkcd.com/
+https://xkcd.com/json.html
+https://xkcd.com/license.html
+https://creativecommons.org/licenses/by-nc/2.5/
+```

@@ -127,7 +127,7 @@ def test_backend_attribution_sensor_is_always_visible():
     assert "DitherloomDataAttributionSensor(coordinator, entry)" in sensor_source
     assert "class DitherloomDataAttributionSensor" in sensor_source
     assert 'self._attr_unique_id = f"{entry.entry_id}_data_attribution"' in sensor_source
-    assert 'return "Open-Meteo Weather; Ditherloom local sun/moon"' in sensor_source
+    assert 'return "Open-Meteo Weather; Ditherloom local sun/moon; xkcd"' in sensor_source
     assert '"weather_provider": "Open-Meteo"' in sensor_source
     assert '"weather_attribution": OPEN_METEO_ATTRIBUTION' in sensor_source
     assert '"weather_attribution_url": OPEN_METEO_ATTRIBUTION_URL' in sensor_source
@@ -140,7 +140,10 @@ def test_backend_attribution_sensor_is_always_visible():
     assert '"place_lookup_license_url": NOMINATIM_LICENSE_URL' in sensor_source
     assert '"sun_provider": "Ditherloom local solar calculation"' in sensor_source
     assert '"moon_provider": "Ditherloom local moon calculation"' in sensor_source
-    assert '"visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM."' in sensor_source
+    assert '"xkcd_provider": "xkcd"' in sensor_source
+    assert '"xkcd_attribution": "xkcd / Randall Munroe"' in sensor_source
+    assert '"xkcd_license": "CC BY-NC 2.5"' in sensor_source
+    assert '"visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM. xkcd cards show xkcd / Randall Munroe and CC BY-NC 2.5."' in sensor_source
     assert '"audit_note": "These diagnostic attribution fields are fixed compliance metadata' in sensor_source
 
 
@@ -260,6 +263,32 @@ def test_weather_options_make_open_meteo_attribution_visible():
     for source in (strings_source, translations_source):
         assert "Weather data: Open-Meteo (https://open-meteo.com/), CC BY 4.0." in source
         assert "Place lookup: OpenStreetMap/Nominatim (https://www.openstreetmap.org/copyright), ODbL." in source
+        assert "Optional xkcd comics are by Randall Munroe and licensed CC BY-NC 2.5" in source
+
+
+def test_xkcd_options_and_controls_are_exposed_as_opt_in_provider():
+    init_source = INIT.read_text(encoding="utf-8")
+    config_source = (COMPONENT / "config_flow.py").read_text(encoding="utf-8")
+    button_source = BUTTON.read_text(encoding="utf-8")
+    services_source = (COMPONENT / "services.yaml").read_text(encoding="utf-8")
+    strings_source = (COMPONENT / "strings.json").read_text(encoding="utf-8")
+    translations_source = (COMPONENT / "translations" / "en.json").read_text(encoding="utf-8")
+
+    assert 'CONF_XKCD_ENABLED = "xkcd_enabled"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
+    assert 'SERVICE_RENDER_XKCD = "render_xkcd_card"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
+    assert 'SERVICE_SEND_XKCD = "send_xkcd_card"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
+    assert '"xkcd", "device"' in config_source
+    assert "async_step_xkcd" in config_source
+    assert "DitherloomRenderXkcdButton" in button_source
+    assert "render_xkcd_card:" in services_source
+    assert "send_xkcd_card:" in services_source
+    assert 'metadata["provider_id"] = "xkcd_comic"' in init_source
+    assert '"xkcd_suitability"' in init_source
+    assert '"xkcd_alt_text"' in init_source
+    for source in (strings_source, translations_source):
+        assert '"xkcd": "xkcd Comic"' in source
+        assert '"xkcd_enabled": "Enable xkcd Comic"' in source
+        assert "CC BY-NC 2.5" in source
 
 
 def test_sun_moon_cards_use_source_attribution_label():
@@ -285,6 +314,9 @@ def test_provider_attribution_metadata_is_recorded_for_backend_compliance():
     assert 'metadata["secondary_attribution"] = NOMINATIM_ATTRIBUTION' in init_source
     assert 'metadata["source_name"] = "Ditherloom local solar calculation"' in init_source
     assert 'metadata["source_name"] = "Ditherloom local moon calculation"' in init_source
+    assert 'metadata["source_name"] = "xkcd / Randall Munroe"' in init_source
+    assert 'metadata["license"] = "CC BY-NC 2.5"' in init_source
+    assert 'metadata["attribution_url"] = "https://xkcd.com/license.html"' in init_source
     assert '"content_source": metadata.get("source")' in init_source
     assert '"attribution": metadata.get("attribution")' in init_source
     assert '"license_url": metadata.get("license_url")' in init_source

@@ -129,7 +129,12 @@ redownload the integration from there.
 - Adds a Home Assistant update entity that checks the latest GitHub release.
 - Supports colour or mono weather display mode.
 - Adds content option pages for Weather, Sunrise / Sunset, and Moon Phase.
+  xkcd Comic is also available as an optional provider and is disabled by
+  default.
   Existing installs keep Weather enabled by default.
+- xkcd Comic fetches xkcd JSON/image assets, rejects comics that are too busy
+  or poorly reproducible on the Ditherloom display, and stores xkcd attribution
+  and CC BY-NC 2.5 license metadata with the rendered payload.
 - Reports frame/app-owned HA slots and HA-only rotation state instead of letting
   Home Assistant independently edit those frame settings.
 - Adds dashboard-friendly entities for preview, render, frame handshake status,

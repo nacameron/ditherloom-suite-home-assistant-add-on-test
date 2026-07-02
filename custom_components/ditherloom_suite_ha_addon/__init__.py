@@ -56,6 +56,7 @@ from .const import (
     CONF_WAKE_WINDOW_SECONDS,
     CONF_WEATHER_ENABLED,
     CONF_WIND_SPEED_UNIT,
+    CONF_XKCD_ENABLED,
     DEFAULT_FRAME_PORT,
     DEFAULT_DISPLAY_MODE,
     DEFAULT_DISPLAY_ROTATION_HOURS,
@@ -77,9 +78,11 @@ from .const import (
     SERVICE_RENDER_MOON,
     SERVICE_RENDER_SUN,
     SERVICE_RENDER_WEATHER,
+    SERVICE_RENDER_XKCD,
     SERVICE_SEND_MOON,
     SERVICE_SEND_SUN,
     SERVICE_SEND_WEATHER,
+    SERVICE_SEND_XKCD,
 )
 from .ha_lane import enabled_content_providers, ha_lane_slots, parse_slot_pool, provider_slot_map, slot_csv, validate_ha_lane
 
@@ -146,6 +149,31 @@ def _render_moon_artifact_to_disk(provider_data: Any, payload_dir: Path, stem: s
     artifact = render_to_artifact(image, "moon_phase", [card_data.source_entity_id])
     write_artifact(artifact, payload_dir, stem)
     return artifact, card_data
+
+
+def _render_xkcd_artifact_to_disk(data: dict[str, Any], payload_dir: Path, stem: str) -> tuple[Any, Any, Any]:
+    from .renderer.pack import write_artifact
+    from .xkcd_provider import DEFAULT_RANDOM_ATTEMPTS, analyze_xkcd_image, fetch_xkcd_comic, download_comic_image, render_xkcd_card, select_suitable_xkcd
+
+    number = _positive_int(data.get("xkcd_number") or data.get("comic_number") or data.get("number"))
+    if number is not None:
+        comic = fetch_xkcd_comic(number)
+        source = download_comic_image(comic)
+        suitability = analyze_xkcd_image(source)
+        if not suitability.suitable:
+            raise ValueError(f"xkcd #{number} is not suitable for Ditherloom: {', '.join(suitability.reasons)}")
+    else:
+        latest = fetch_xkcd_comic()
+        comic, source, suitability = select_suitable_xkcd(
+            latest.number,
+            attempts=_positive_int(data.get("attempts")) or DEFAULT_RANDOM_ATTEMPTS,
+            seed=_positive_int(data.get("seed")),
+        )
+        if not suitability.suitable:
+            raise ValueError(f"No suitable xkcd comic found after the configured attempts: {', '.join(suitability.reasons)}")
+    render = render_xkcd_card(comic, source, suitability)
+    write_artifact(render.artifact, payload_dir, stem)
+    return render.artifact, comic, suitability
 STALE_FRONTEND_ENTITY_UNIQUE_ID_SUFFIXES = {
     "sync_wifi_wake_window",
     "synchronise_wifi_wake_window",
@@ -200,12 +228,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_send_moon(call: ServiceCall) -> None:
         await _handle_moon_service(coordinator, call, publish=True, send_to_frame=True, action="send moon phase")
 
+    async def handle_render_xkcd(call: ServiceCall) -> None:
+        await _handle_xkcd_service(coordinator, call, publish=False, send_to_frame=False, action="render xkcd")
+
+    async def handle_send_xkcd(call: ServiceCall) -> None:
+        await _handle_xkcd_service(coordinator, call, publish=True, send_to_frame=True, action="send xkcd")
+
     hass.services.async_register(DOMAIN, SERVICE_RENDER_WEATHER, handle_render_weather)
     hass.services.async_register(DOMAIN, SERVICE_SEND_WEATHER, handle_send_weather)
     hass.services.async_register(DOMAIN, SERVICE_RENDER_SUN, handle_render_sun)
     hass.services.async_register(DOMAIN, SERVICE_SEND_SUN, handle_send_sun)
     hass.services.async_register(DOMAIN, SERVICE_RENDER_MOON, handle_render_moon)
     hass.services.async_register(DOMAIN, SERVICE_SEND_MOON, handle_send_moon)
+    hass.services.async_register(DOMAIN, SERVICE_RENDER_XKCD, handle_render_xkcd)
+    hass.services.async_register(DOMAIN, SERVICE_SEND_XKCD, handle_send_xkcd)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
@@ -291,6 +327,21 @@ async def _handle_moon_service(
     action: str,
 ) -> None:
     await coordinator.async_run_moon_action(
+        dict(call.data),
+        publish=publish,
+        send_to_frame=send_to_frame,
+        action=action,
+    )
+
+
+async def _handle_xkcd_service(
+    coordinator: "DitherloomRuntime",
+    call: ServiceCall,
+    publish: bool,
+    send_to_frame: bool,
+    action: str,
+) -> None:
+    await coordinator.async_run_xkcd_action(
         dict(call.data),
         publish=publish,
         send_to_frame=send_to_frame,
@@ -394,6 +445,23 @@ class DitherloomRuntime:
     ) -> dict[str, Any]:
         try:
             return await self.async_render_moon(data, publish=publish, send_to_frame=send_to_frame)
+        except Exception as exc:
+            message = f"Ditherloom {action} failed: {type(exc).__name__}: {exc}"
+            self.last_status = "error"
+            self.last_metadata[ATTR_LAST_ERROR] = message
+            await self.async_save()
+            self._create_notification(f"Ditherloom {action} failed", message)
+            raise HomeAssistantError(message) from exc
+
+    async def async_run_xkcd_action(
+        self,
+        data: dict[str, Any],
+        publish: bool,
+        send_to_frame: bool,
+        action: str,
+    ) -> dict[str, Any]:
+        try:
+            return await self.async_render_xkcd(data, publish=publish, send_to_frame=send_to_frame)
         except Exception as exc:
             message = f"Ditherloom {action} failed: {type(exc).__name__}: {exc}"
             self.last_status = "error"
@@ -626,6 +694,8 @@ class DitherloomRuntime:
             metadata = await self.async_render_sun({}, publish=False, send_to_frame=False, cache_provider_id=provider)
         elif provider == "moon_phase":
             metadata = await self.async_render_moon({}, publish=False, send_to_frame=False, cache_provider_id=provider)
+        elif provider == "xkcd_comic":
+            metadata = await self.async_render_xkcd({}, publish=False, send_to_frame=False, cache_provider_id=provider)
         else:
             metadata = await self.async_render_weather({}, publish=False, send_to_frame=False, cache_provider_id=provider)
         metadata["selected_provider_id"] = provider
@@ -644,6 +714,8 @@ class DitherloomRuntime:
             metadata = await self.async_render_sun({}, publish=True, send_to_frame=False, cache_provider_id=provider)
         elif provider == "moon_phase":
             metadata = await self.async_render_moon({}, publish=True, send_to_frame=False, cache_provider_id=provider)
+        elif provider == "xkcd_comic":
+            metadata = await self.async_render_xkcd({}, publish=True, send_to_frame=False, cache_provider_id=provider)
         else:
             metadata = await self.async_render_weather({}, publish=True, send_to_frame=False, cache_provider_id=provider)
         metadata["selected_provider_id"] = provider
@@ -999,6 +1071,96 @@ class DitherloomRuntime:
         await self.async_save()
         return metadata
 
+    async def async_render_xkcd(
+        self,
+        data: dict[str, Any],
+        publish: bool,
+        send_to_frame: bool,
+        cache_provider_id: str | None = None,
+    ) -> dict[str, Any]:
+        opts = self.options
+        stem = self._provider_payload_name(cache_provider_id) if cache_provider_id else self.latest_payload_name
+        artifact, comic, suitability = await self.hass.async_add_executor_job(
+            _render_xkcd_artifact_to_disk,
+            dict(data),
+            self.payload_dir,
+            stem,
+        )
+        if cache_provider_id:
+            await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.ppbin", self.payload_path())
+            await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.preview.png", self.preview_path())
+
+        metadata = dict(artifact.metadata)
+        metadata[ATTR_PAYLOAD_URL] = self.payload_url
+        metadata[ATTR_PREVIEW_URL] = self.preview_url
+        metadata["rendered_at"] = datetime.now(timezone.utc).isoformat()
+        metadata["provider_id"] = "xkcd_comic"
+        metadata["provider_name"] = "xkcd Comic"
+        metadata["card_renderer_version"] = CARD_RENDERER_VERSION
+        metadata["source"] = "xkcd"
+        metadata["source_name"] = "xkcd / Randall Munroe"
+        metadata["source_url"] = comic.comic_url
+        metadata["attribution"] = metadata.get("attribution") or "xkcd / Randall Munroe | CC BY-NC 2.5"
+        metadata["attribution_url"] = "https://xkcd.com/license.html"
+        metadata["license"] = "CC BY-NC 2.5"
+        metadata["license_url"] = "https://creativecommons.org/licenses/by-nc/2.5/"
+        metadata["data_transformations"] = metadata.get("data_transformations") or (
+            "xkcd comic art is filtered for Ditherloom's 400x300 four-colour display, "
+            "with unsuitable dense, tiny-detail, or poorly reproducible colour comics rejected."
+        )
+        metadata["xkcd_number"] = comic.number
+        metadata["xkcd_title"] = comic.title
+        metadata["xkcd_alt_text"] = comic.alt
+        metadata["xkcd_image_url"] = comic.image_url
+        metadata["xkcd_published"] = comic.published
+        metadata["xkcd_suitability"] = {
+            "suitable": suitability.suitable,
+            "score": suitability.score,
+            "reasons": list(suitability.reasons),
+            "warnings": list(suitability.warnings),
+            "panel_count": suitability.panel_count,
+            "aspect_ratio": suitability.aspect_ratio,
+            "saturated_pixel_ratio": suitability.saturated_pixel_ratio,
+            "safe_colour_pixel_ratio": suitability.safe_colour_pixel_ratio,
+            "poor_colour_pixel_ratio": suitability.poor_colour_pixel_ratio,
+            "dominant_poor_colour_families": list(suitability.dominant_poor_colour_families),
+            "black_pixel_ratio": suitability.black_pixel_ratio,
+            "ink_pixel_ratio": suitability.ink_pixel_ratio,
+            "small_detail_pixel_ratio": suitability.small_detail_pixel_ratio,
+            "fitted_art_size": list(suitability.fitted_art_size),
+            "supported_features": list(suitability.supported_features),
+            "unsupported_features": list(suitability.unsupported_features),
+        }
+        metadata["update_interval_minutes"] = self._effective_update_interval_minutes()
+        metadata["wake_window_seconds"] = self._effective_wake_window_seconds()
+        metadata["wake_window_minutes"] = self._effective_wake_window_minutes()
+        metadata["max_jobs_per_wake"] = opts.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE)
+        metadata["content_rendered_at"] = metadata["rendered_at"]
+        metadata["content_rendered_provider_id"] = metadata["provider_id"]
+        metadata["content_rendered_provider_name"] = metadata["provider_name"]
+        metadata["content_rendered_source_name"] = metadata["source_name"]
+        metadata["content_rendered_attribution"] = metadata["attribution"]
+        metadata["content_rendered_license"] = metadata["license"]
+        metadata["content_rendered_content_id"] = metadata.get(ATTR_CONTENT_ID)
+        metadata["content_rendered_crc32"] = metadata.get(ATTR_CRC32)
+        for preserved_key in PRESERVED_RUNTIME_METADATA_KEYS:
+            if preserved_key in self.last_metadata:
+                metadata[preserved_key] = self.last_metadata[preserved_key]
+
+        self.last_status = "rendered"
+        self.last_metadata = metadata
+
+        if publish:
+            await self.async_publish_job(metadata)
+            self.last_status = "published"
+        if send_to_frame:
+            await self.async_send_to_frame(artifact.packed, artifact.crc32)
+            self.last_status = "sent"
+            self.last_metadata.pop(ATTR_LAST_ERROR, None)
+
+        await self.async_save()
+        return metadata
+
     def _effective_update_interval_minutes(self) -> int:
         return (
             _positive_int(self.options.get(CONF_FRAME_INTERVAL_MINUTES))
@@ -1121,6 +1283,8 @@ class DitherloomRuntime:
             return "content-sunrise-sunset"
         if provider == "moon_phase":
             return "content-moon-phase"
+        if provider == "xkcd_comic":
+            return "content-xkcd"
         if provider == "open_meteo_weather":
             return "content-weather"
         return self.latest_payload_name

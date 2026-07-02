@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Set up Ditherloom",
-        "description": "Configure the Ditherloom frame and its repeating Home Assistant update wake window. Home Assistant reads HA slots from the Ditherloom app/frame setup. If you enable more than Weather, first connect to the Ditherloom app over Wi-Fi, configure the Home Assistant slots, save them to the frame, then come back here. Weather data: Open-Meteo (https://open-meteo.com/), CC BY 4.0. Place lookup: OpenStreetMap/Nominatim (https://www.openstreetmap.org/copyright), ODbL. {ha_lane_error}",
+        "description": "Configure the Ditherloom frame and its repeating Home Assistant update wake window. Home Assistant reads HA slots from the Ditherloom app/frame setup. If you enable more than Weather, first connect to the Ditherloom app over Wi-Fi, configure the Home Assistant slots, save them to the frame, then come back here. Weather data: Open-Meteo (https://open-meteo.com/), CC BY 4.0. Place lookup: OpenStreetMap/Nominatim (https://www.openstreetmap.org/copyright), ODbL. Optional xkcd comics are by Randall Munroe and licensed CC BY-NC 2.5 (https://xkcd.com/license.html). {ha_lane_error}",
         "data": {
           "library_id": "Library ID",
           "frame_host": "Frame Wi-Fi host or IP",
@@ -17,6 +17,7 @@
           "weather_enabled": "Enable Weather",
           "sunrise_sunset_enabled": "Enable Sunrise / Sunset",
           "moon_phase_enabled": "Enable Moon Phase",
+          "xkcd_enabled": "Enable xkcd Comic",
           "update_interval_minutes": "Repeating update interval minutes",
           "wake_window_minutes": "Wake window minutes",
           "max_jobs_per_wake": "Maximum jobs per wake",
@@ -35,6 +36,7 @@
           "weather": "Weather",
           "sun": "Sunrise / Sunset",
           "moon": "Moon Phase",
+          "xkcd": "xkcd Comic",
           "device": "Device / Connection"
         }
       },
@@ -72,6 +74,13 @@
           "weather_location": "Pick location on map",
           "latitude": "Latitude",
           "longitude": "Longitude"
+        }
+      },
+      "xkcd": {
+        "title": "xkcd Comic",
+        "description": "Each enabled Home Assistant content provider needs one explicit HA slot from the Ditherloom app/frame setup. xkcd comics are by Randall Munroe and licensed CC BY-NC 2.5; this optional provider rejects comics that are too busy or poorly reproducible on the Ditherloom display.",
+        "data": {
+          "xkcd_enabled": "Enable xkcd Comic"
         }
       },
       "device": {

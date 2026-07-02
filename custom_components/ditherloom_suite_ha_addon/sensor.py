@@ -27,6 +27,7 @@ PROVIDER_DISPLAY_NAMES = {
     "open_meteo_weather": "Open-Meteo Weather",
     "sunrise_sunset": "Sunrise / Sunset",
     "moon_phase": "Moon Phase",
+    "xkcd_comic": "xkcd Comic",
 }
 
 
@@ -203,7 +204,7 @@ class DitherloomDataAttributionSensor(DitherloomSensorBase):
 
     @property
     def native_value(self):
-        return "Open-Meteo Weather; Ditherloom local sun/moon"
+        return "Open-Meteo Weather; Ditherloom local sun/moon; xkcd"
 
     @property
     def extra_state_attributes(self):
@@ -226,7 +227,13 @@ class DitherloomDataAttributionSensor(DitherloomSensorBase):
             "moon_provider": "Ditherloom local moon calculation",
             "moon_attribution": "Moon phase is calculated locally from the configured Home Assistant location.",
             "moon_license": "Ditherloom integration code and bundled artwork licence applies; no third-party moon data service is used.",
-            "visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM.",
+            "xkcd_provider": "xkcd",
+            "xkcd_attribution": "xkcd / Randall Munroe",
+            "xkcd_attribution_url": "https://xkcd.com/license.html",
+            "xkcd_license": "CC BY-NC 2.5",
+            "xkcd_license_url": "https://creativecommons.org/licenses/by-nc/2.5/",
+            "xkcd_use": "Optional provider. Home Assistant fetches xkcd JSON and image assets, rejects unsuitable comics, and renders a local Ditherloom display payload.",
+            "visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM. xkcd cards show xkcd / Randall Munroe and CC BY-NC 2.5.",
             "audit_note": "These diagnostic attribution fields are fixed compliance metadata and do not depend on the latest render or delivery.",
         }
 

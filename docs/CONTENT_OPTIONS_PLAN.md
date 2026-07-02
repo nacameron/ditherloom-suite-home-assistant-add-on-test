@@ -354,16 +354,26 @@ Why tenth:
 
 Implementation:
 
-- Add latest/random mode.
-- Convert image safely to the Ditherloom palette.
-- Render title and alt text without overflowing.
-- Cache daily or per selected comic.
+- Add opt-in latest/random mode with optional explicit comic number for testing.
+- Convert image through the Ditherloom hybrid renderer after suitability checks.
+- Reject comics that are too tall, too small, too dense, too full of tiny
+  detail, or dependent on blue/green/cyan/purple/magenta hues the display
+  cannot reproduce well.
+- Permit warm/red/yellow/orange/brown colour when it remains legible on the
+  400x300 display.
+- Render title and visible xkcd / Randall Munroe CC BY-NC 2.5 attribution
+  without overflowing.
+- Store alt text, source URL, image URL, attribution URL, license name, license
+  URL, and suitability metrics in metadata.
+- Cache per selected/random comic on the normal Home Assistant provider refresh
+  interval.
 
 Done when:
 
 - Image conversion is readable on 400x300.
-- Alt text overflow is handled.
-- Attribution/license text is present.
+- Busy comics fail closed instead of being rendered.
+- Alt text is stored in metadata.
+- Attribution/license text is visible on-card and present in metadata.
 
 ## Provider 11: Wikimedia Today
 

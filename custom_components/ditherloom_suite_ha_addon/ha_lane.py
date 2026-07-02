@@ -11,6 +11,7 @@ from .const import (
     CONF_SUN_ENABLED,
     CONF_TARGET_SLOT,
     CONF_WEATHER_ENABLED,
+    CONF_XKCD_ENABLED,
     DEFAULT_TARGET_SLOT,
     DEVICE_SLOT_COUNT,
     MAX_HA_LANE_SLOTS,
@@ -20,6 +21,7 @@ from .const import (
 PROVIDER_WEATHER = "open_meteo_weather"
 PROVIDER_SUN = "sunrise_sunset"
 PROVIDER_MOON = "moon_phase"
+PROVIDER_XKCD = "xkcd_comic"
 
 
 @dataclass(frozen=True)
@@ -40,6 +42,8 @@ def enabled_content_providers(options: dict[str, Any]) -> list[str]:
         providers.append(PROVIDER_SUN)
     if _bool_option(options, CONF_MOON_ENABLED, False):
         providers.append(PROVIDER_MOON)
+    if _bool_option(options, CONF_XKCD_ENABLED, False):
+        providers.append(PROVIDER_XKCD)
     return providers or [PROVIDER_WEATHER]
 
 

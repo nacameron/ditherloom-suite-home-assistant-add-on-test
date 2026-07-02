@@ -19,6 +19,7 @@ from custom_components.ditherloom_suite_ha_addon.const import (
     CONF_SUN_ENABLED,
     CONF_TARGET_SLOT,
     CONF_WEATHER_ENABLED,
+    CONF_XKCD_ENABLED,
 )
 from custom_components.ditherloom_suite_ha_addon.ha_lane import (
     ha_lane_slots,
@@ -50,6 +51,22 @@ def test_slot_validation_fails_with_three_providers_and_one_slot():
     assert result.error_key == "not_enough_ha_slots"
     assert "3 enabled content providers" in result.message
     assert "Ditherloom app over Wi-Fi" in result.message
+
+
+def test_xkcd_provider_is_opt_in_and_consumes_explicit_slot():
+    options = {
+        CONF_FRAME_HA_SLOT_CSV: "443,444",
+        CONF_WEATHER_ENABLED: True,
+        CONF_XKCD_ENABLED: True,
+    }
+
+    result = validate_ha_lane(options)
+
+    assert result.valid
+    assert provider_slot_map(options) == {
+        "open_meteo_weather": 443,
+        "xkcd_comic": 444,
+    }
 
 
 def test_slot_validation_fails_with_multiple_providers_without_frame_sync():

@@ -160,3 +160,49 @@ send_moon_phase_card:
       selector:
         boolean:
       required: false
+render_xkcd_card:
+  fields:
+    xkcd_number:
+      selector:
+        number:
+          min: 1
+          mode: box
+      required: false
+    attempts:
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+      required: false
+    seed:
+      selector:
+        number:
+          min: 1
+          mode: box
+      required: false
+send_xkcd_card:
+  fields:
+    xkcd_number:
+      selector:
+        number:
+          min: 1
+          mode: box
+      required: false
+    attempts:
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+      required: false
+    seed:
+      selector:
+        number:
+          min: 1
+          mode: box
+      required: false
+    display:
+      selector:
+        boolean:
+      required: false

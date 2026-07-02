@@ -25,6 +25,7 @@ from .const import (
     CONF_WAKE_WINDOW_MINUTES,
     CONF_WEATHER_ENABLED,
     CONF_WIND_SPEED_UNIT,
+    CONF_XKCD_ENABLED,
     DEFAULT_FRAME_PORT,
     DEFAULT_DISPLAY_MODE,
     DEFAULT_MAX_JOBS_PER_WAKE,
@@ -70,6 +71,7 @@ class DitherloomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_WEATHER_ENABLED, default=True): bool,
                 vol.Optional(CONF_SUN_ENABLED, default=False): bool,
                 vol.Optional(CONF_MOON_ENABLED, default=False): bool,
+                vol.Optional(CONF_XKCD_ENABLED, default=False): bool,
                 vol.Optional(CONF_UPDATE_INTERVAL_MINUTES, default=DEFAULT_UPDATE_INTERVAL_MINUTES): int,
                 vol.Optional(CONF_WAKE_WINDOW_MINUTES, default=DEFAULT_WAKE_WINDOW_MINUTES): int,
                 vol.Optional(CONF_MAX_JOBS_PER_WAKE, default=DEFAULT_MAX_JOBS_PER_WAKE): int,
@@ -116,7 +118,7 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         return self.async_show_menu(
             step_id="init",
-            menu_options=["weather", "sun", "moon", "device"],
+            menu_options=["weather", "sun", "moon", "xkcd", "device"],
         )
 
     async def async_step_weather(self, user_input: dict[str, Any] | None = None):
@@ -199,6 +201,17 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             return self._save_options_or_show("moon", user_input, schema)
         return self.async_show_form(step_id="moon", data_schema=schema)
+
+    async def async_step_xkcd(self, user_input: dict[str, Any] | None = None):
+        data = self._data()
+        schema = vol.Schema(
+            {
+                vol.Optional(CONF_XKCD_ENABLED, default=_bool_option(data, CONF_XKCD_ENABLED, False)): bool,
+            }
+        )
+        if user_input is not None:
+            return self._save_options_or_show("xkcd", user_input, schema)
+        return self.async_show_form(step_id="xkcd", data_schema=schema)
 
     async def async_step_device(self, user_input: dict[str, Any] | None = None):
         data = {**self._entry.data, **self._entry.options}

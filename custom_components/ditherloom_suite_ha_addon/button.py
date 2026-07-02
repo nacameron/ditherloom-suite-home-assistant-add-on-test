@@ -16,6 +16,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             DitherloomRenderWeatherButton(coordinator, entry),
             DitherloomRenderSunButton(coordinator, entry),
             DitherloomRenderMoonButton(coordinator, entry),
+            DitherloomRenderXkcdButton(coordinator, entry),
         ]
     )
 
@@ -77,4 +78,20 @@ class DitherloomRenderMoonButton(DitherloomButtonBase):
             publish=False,
             send_to_frame=False,
             action="render moon phase",
+        )
+
+
+class DitherloomRenderXkcdButton(DitherloomButtonBase):
+    _attr_name = "Render xkcd preview"
+
+    def __init__(self, coordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_render_xkcd_preview"
+
+    async def async_press(self) -> None:
+        await self._coordinator.async_run_xkcd_action(
+            {},
+            publish=False,
+            send_to_frame=False,
+            action="render xkcd",
         )
