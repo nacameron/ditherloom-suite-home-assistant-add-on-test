@@ -166,7 +166,7 @@ def test_frame_awake_uses_prerendered_cache_only():
 
     assert 'async_refresh_content_payload(reason="frame_awake")' not in frame_awake_source
     assert "async_render_provider_to_cache(provider)" not in sync_jobs_source
-    assert "Pre-rendered Home Assistant content is missing or stale" in sync_jobs_source
+    assert "No deliverable Home Assistant content is ready" in sync_jobs_source
     assert "frame_awake_missing_cached_providers" in sync_jobs_source
 
 

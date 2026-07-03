@@ -283,8 +283,8 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.80"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.80")
+    if '"version": "0.1.81"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.81")
 
     for forbidden in (
         '"mode": "frame_pull"',
@@ -727,8 +727,11 @@ def check_locked_render_delivery_pathway() -> None:
         "timed out during Gateway",
         "async_send_to_frame_host",
         "manual_send_last_success_at",
-        "Pre-rendered Home Assistant content is missing or stale",
-        'self.last_status = f"{provider_id}_ready"',
+        "No deliverable Home Assistant content is ready",
+        "frame_awake_unavailable_providers",
+        "frame_awake_provider_delivery_states",
+        'self.last_status = "content_refresh_partial" if failed else f"{provider_id}_ready"',
+        "content_refresh_failed_providers",
         'self.last_status = "frame_awake_received"',
         'self.last_status = "frame_awake_sent"',
         "_frame_sync_jobs",

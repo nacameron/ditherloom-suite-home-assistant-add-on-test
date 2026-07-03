@@ -142,6 +142,51 @@ def test_frame_sync_uses_content_id_not_provider_count_or_age_resend():
     assert 'metadata["frame_synced_content_id"] = metadata.get(ATTR_CONTENT_ID)' in mark_source
 
 
+def test_provider_freshness_is_provider_specific():
+    source = _source()
+    fresh_start = source.index("def _cached_content_is_fresh")
+    fresh_end = source.index("def _xkcd_cache_matches_options", fresh_start)
+    fresh_source = source[fresh_start:fresh_end]
+    xkcd_start = source.index("def _xkcd_cache_matches_options")
+    xkcd_end = source.index("def _local_timezone", xkcd_start)
+    xkcd_source = source[xkcd_start:xkcd_end]
+
+    assert "if provider in {PROVIDER_SUN, PROVIDER_MOON}" in fresh_source
+    assert "return True" in fresh_source
+    assert "if provider == PROVIDER_XKCD" in fresh_source
+    assert "age < timedelta(minutes=self._effective_update_interval_minutes())" in fresh_source
+    assert "xkcd_mode" in xkcd_source
+    assert "xkcd_configured_number" in xkcd_source
+    assert "xkcd_random_attempts" in xkcd_source
+
+
+def test_refresh_continues_after_individual_provider_failure():
+    source = _source()
+    refresh_start = source.index("async def async_refresh_content_payload")
+    refresh_end = source.index("async def async_render_provider_to_cache", refresh_start)
+    refresh_source = source[refresh_start:refresh_end]
+
+    assert "failed: dict[str, str] = {}" in refresh_source
+    assert "except Exception as exc:" in refresh_source
+    assert "failed[provider]" in refresh_source
+    assert "continue" in refresh_source
+    assert 'self.last_status = "content_refresh_partial" if failed else' in refresh_source
+
+
+def test_frame_sync_skips_unavailable_provider_without_global_raise():
+    source = _source()
+    sync_start = source.index("async def _frame_sync_jobs")
+    sync_end = source.index("def _provider_needs_frame_sync", sync_start)
+    sync_source = source[sync_start:sync_end]
+
+    assert "unavailable: dict[str, str] = {}" in sync_source
+    assert 'unavailable[provider] = "missing"' in sync_source
+    assert 'unavailable[provider] = "stale"' in sync_source
+    assert "frame_awake_unavailable_providers" in sync_source
+    assert "raise HomeAssistantError" not in sync_source
+    assert "return jobs" in sync_source
+
+
 def test_harotation_can_apply_to_explicit_slots_without_fresh_upload_jobs():
     source = _source()
     batch_index = source.index("def _send_gateway_batch_jobs")

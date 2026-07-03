@@ -15,14 +15,17 @@ def test_sun_and_moon_cache_uses_frame_next_wake_render_target():
     assert "metadata.get(\"frame_synced_render_target_at\") != metadata.get(\"render_target_at\")" in source
 
 
-def test_sun_and_moon_are_not_daily_only_cached():
+def test_sun_moon_and_xkcd_have_provider_specific_reuse_rules():
     source = INIT.read_text(encoding="utf-8")
     cache_start = source.index("def _cached_content_is_fresh")
     cache_end = source.index("def _local_timezone", cache_start)
     cache_source = source[cache_start:cache_end]
 
-    assert 'metadata.get("date_label") == datetime.now(self._local_timezone()).strftime("%d %b").upper()' not in cache_source
-    assert "return age < timedelta(minutes=self._time_sensitive_cache_minutes())" in cache_source
+    assert "if provider in {PROVIDER_SUN, PROVIDER_MOON}" in cache_source
+    assert 'metadata.get("date_label") != target.strftime("%d %b").upper()' in cache_source
+    assert "if provider == PROVIDER_XKCD" in cache_source
+    assert "return self._xkcd_cache_matches_options(metadata)" in cache_source
+    assert "age < timedelta(minutes=self._effective_update_interval_minutes())" in cache_source
 
 
 def test_sun_and_moon_cache_is_not_limited_by_ha_rotation_interval():

@@ -97,6 +97,10 @@ PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
 CARD_RENDERER_VERSION = "luxe-0.1.71"
+PROVIDER_WEATHER = "open_meteo_weather"
+PROVIDER_SUN = "sunrise_sunset"
+PROVIDER_MOON = "moon_phase"
+PROVIDER_XKCD = "xkcd_comic"
 DISCOVERY_AUTH_MESSAGE = "Provide a Home Assistant Long-Lived Access Token."
 STALE_FRONTEND_ENTITY_NAMES = {
     "Synchronise Wi-Fi " + "wake window",
@@ -689,30 +693,61 @@ class DitherloomRuntime:
 
     async def async_refresh_content_payload(self, reason: str = "timer") -> dict[str, Any]:
         refreshed: list[str] = []
+        failed: dict[str, str] = {}
         force_prerender = reason in {"startup", "timer"}
         for provider in self._enabled_content_providers():
             metadata = await self._read_cached_metadata(provider)
             if force_prerender or metadata is None or not self._cached_content_is_fresh(provider, metadata):
-                await self.async_render_provider_to_cache(provider)
+                try:
+                    await self.async_render_provider_to_cache(provider)
+                except Exception as exc:
+                    failed[provider] = f"{type(exc).__name__}: {exc}"
+                    continue
                 refreshed.append(provider)
         selected = self._selected_content_provider()
         metadata = await self.async_activate_cached_content(selected, reason=reason)
+        if metadata is None and selected not in failed:
+            try:
+                metadata = await self.async_render_provider_to_cache(selected)
+                await self.async_activate_cached_content(selected, reason=reason)
+            except Exception as exc:
+                failed[selected] = f"{type(exc).__name__}: {exc}"
         if metadata is None:
-            metadata = await self.async_render_provider_to_cache(selected)
-            await self.async_activate_cached_content(selected, reason=reason)
+            for provider in self._enabled_content_providers():
+                metadata = await self.async_activate_cached_content(provider, reason=reason)
+                if metadata is not None:
+                    break
+        if metadata is None and failed:
+            message = "Content refresh failed for: " + "; ".join(f"{provider}: {error}" for provider, error in failed.items())
+            self.last_status = "content_refresh_failed"
+            self.last_metadata[ATTR_LAST_ERROR] = message
+            self.last_metadata["content_refresh_failed_providers"] = failed
+            self.last_metadata["content_refresh_last_failed_at"] = datetime.now(timezone.utc).isoformat()
+            await self.async_save()
+            raise HomeAssistantError(message)
         provider_id = str((metadata or {}).get("provider_id") or selected)
-        self.last_status = f"{provider_id}_ready"
+        self.last_status = "content_refresh_partial" if failed else f"{provider_id}_ready"
         self.last_metadata["content_refresh_reason"] = reason
         self.last_metadata["content_refreshed_providers"] = refreshed
+        self.last_metadata["content_refresh_failed_providers"] = failed
         self.last_metadata["content_refresh_last_success_at"] = datetime.now(timezone.utc).isoformat()
         self.last_metadata["content_refresh_interval_minutes"] = self._effective_update_interval_minutes()
         self.last_metadata["weather_refresh_reason"] = reason
         self.last_metadata["weather_refresh_last_success_at"] = self.last_metadata["content_refresh_last_success_at"]
         self.last_metadata["weather_refresh_interval_minutes"] = self.last_metadata["content_refresh_interval_minutes"]
-        self.last_metadata.pop(ATTR_LAST_ERROR, None)
+        if failed:
+            self.last_metadata[ATTR_LAST_ERROR] = (
+                "Content refresh partially failed for: "
+                + "; ".join(f"{provider}: {error}" for provider, error in failed.items())
+            )
+            self.last_metadata["content_refresh_last_failed_at"] = datetime.now(timezone.utc).isoformat()
+            self._create_notification("Ditherloom content refresh failed", str(self.last_metadata[ATTR_LAST_ERROR]))
+        else:
+            self.last_metadata.pop(ATTR_LAST_ERROR, None)
+            self.last_metadata.pop("content_refresh_last_failed_at", None)
         self._schedule_weather_refresh()
         await self.async_save()
-        return metadata
+        return metadata or {}
 
     async def async_render_provider_to_cache(self, provider: str) -> dict[str, Any]:
         if provider == "sunrise_sunset":
@@ -1337,26 +1372,31 @@ class DitherloomRuntime:
     def _cached_content_is_fresh(self, provider: str, metadata: dict[str, Any]) -> bool:
         if metadata.get("card_renderer_version") != CARD_RENDERER_VERSION:
             return False
-        if provider in {"sunrise_sunset", "moon_phase"}:
-            target = self._time_sensitive_render_target()
-            if metadata.get("date_label") != target.strftime("%d %b").upper():
-                return False
-            rendered_at = _parse_datetime(metadata.get("rendered_at"))
-            if rendered_at is None:
-                return False
-            target_at = _parse_datetime(metadata.get("render_target_at"))
-            next_wake = _parse_datetime(self.last_metadata.get("frame_next_wake_at"))
-            if next_wake is not None and next_wake.astimezone(timezone.utc) > datetime.now(timezone.utc):
-                if target_at is None:
-                    return False
-                return abs((target_at.astimezone(timezone.utc) - next_wake.astimezone(timezone.utc)).total_seconds()) < 60
-            age = datetime.now(timezone.utc) - rendered_at.astimezone(timezone.utc)
-            return age < timedelta(minutes=self._time_sensitive_cache_minutes())
         rendered_at = _parse_datetime(metadata.get("rendered_at"))
         if rendered_at is None:
             return False
+        if provider in {PROVIDER_SUN, PROVIDER_MOON}:
+            target = datetime.now(self._local_timezone())
+            if metadata.get("date_label") != target.strftime("%d %b").upper():
+                return False
+            return True
+        if provider == PROVIDER_XKCD:
+            return self._xkcd_cache_matches_options(metadata)
         age = datetime.now(timezone.utc) - rendered_at.astimezone(timezone.utc)
         return age < timedelta(minutes=self._effective_update_interval_minutes())
+
+    def _xkcd_cache_matches_options(self, metadata: dict[str, Any]) -> bool:
+        opts = self.options
+        mode = str(opts.get(CONF_XKCD_MODE, DEFAULT_XKCD_MODE))
+        if str(metadata.get("xkcd_mode", DEFAULT_XKCD_MODE)) != mode:
+            return False
+        configured_number = _positive_int(opts.get(CONF_XKCD_NUMBER))
+        if _positive_int(metadata.get("xkcd_configured_number")) != configured_number:
+            return False
+        attempts = _positive_int(opts.get(CONF_XKCD_RANDOM_ATTEMPTS)) or DEFAULT_XKCD_RANDOM_ATTEMPTS
+        if _positive_int(metadata.get("xkcd_random_attempts")) != attempts:
+            return False
+        return bool(metadata.get(ATTR_CONTENT_ID) and metadata.get(ATTR_CRC32))
 
     def _local_timezone(self):
         from zoneinfo import ZoneInfo
@@ -1369,16 +1409,23 @@ class DitherloomRuntime:
     async def _frame_sync_jobs(self) -> list[dict[str, Any]]:
         jobs: list[dict[str, Any]] = []
         slot_map = self._provider_slot_map()
-        missing_or_stale: list[str] = []
+        unavailable: dict[str, str] = {}
         for provider in self._enabled_content_providers():
             metadata = await self._read_cached_metadata(provider)
-            if metadata is None or not self._cached_content_is_fresh(provider, metadata):
-                missing_or_stale.append(provider)
+            if metadata is None:
+                unavailable[provider] = "missing"
+                continue
+            if not self._cached_content_is_fresh(provider, metadata):
+                unavailable[provider] = "stale"
                 continue
             if not self._provider_needs_frame_sync(provider, metadata):
                 continue
             stem = self._provider_payload_name(provider)
-            packed = await self.hass.async_add_executor_job((self.payload_dir / f"{stem}.ppbin").read_bytes)
+            payload_path = self.payload_dir / f"{stem}.ppbin"
+            if not payload_path.exists():
+                unavailable[provider] = "payload_missing"
+                continue
+            packed = await self.hass.async_add_executor_job(payload_path.read_bytes)
             jobs.append(
                 {
                     "provider_id": provider,
@@ -1397,17 +1444,24 @@ class DitherloomRuntime:
                     "license_url": metadata.get("license_url"),
                 }
             )
-        if missing_or_stale:
-            message = (
-                "Pre-rendered Home Assistant content is missing or stale for: "
-                + ", ".join(missing_or_stale)
-                + ". Home Assistant must render enabled content before the frame wakes."
-            )
-            self.last_status = "content_prerender_required"
-            self.last_metadata[ATTR_LAST_ERROR] = message
-            self.last_metadata["frame_awake_missing_cached_providers"] = missing_or_stale
+        queued_states = {job["provider_id"]: "queued_for_delivery" for job in jobs}
+        if unavailable:
+            self.last_metadata["frame_awake_unavailable_providers"] = unavailable
+            self.last_metadata["frame_awake_missing_cached_providers"] = [
+                provider for provider, reason in unavailable.items() if reason in {"missing", "stale"}
+            ]
+            self.last_metadata["frame_awake_provider_delivery_states"] = {**unavailable, **queued_states}
+            if not jobs:
+                self.last_status = "content_prerender_required"
+                self.last_metadata[ATTR_LAST_ERROR] = (
+                    "No deliverable Home Assistant content is ready. Provider states: "
+                    + ", ".join(f"{provider}={reason}" for provider, reason in unavailable.items())
+                )
             await self.async_save()
-            raise HomeAssistantError(message)
+        else:
+            self.last_metadata.pop("frame_awake_unavailable_providers", None)
+            self.last_metadata.pop("frame_awake_missing_cached_providers", None)
+            self.last_metadata["frame_awake_provider_delivery_states"] = queued_states
         self.last_metadata["ha_owned_slots"] = slot_map
         return jobs
 
