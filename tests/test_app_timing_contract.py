@@ -49,6 +49,18 @@ def test_content_cache_follows_app_update_interval_not_ha_rotation_interval():
     assert "force_prerender = reason in {\"startup\", \"timer\"}" in refresh_source
 
 
+def test_startup_refresh_does_not_block_integration_setup():
+    source = INIT.read_text(encoding="utf-8")
+    start_start = source.index("async def async_start")
+    start_end = source.index("async def async_save", start_start)
+    start_source = source[start_start:start_end]
+
+    assert "self.hass.async_create_task(self._async_startup_refresh())" in start_source
+    assert "await self.async_refresh_content_payload(reason=\"startup\")" not in start_source.split("async def _async_startup_refresh", 1)[0]
+    assert "async def _async_startup_refresh" in start_source
+    assert "Startup content refresh failed" in start_source
+
+
 def test_sensor_attributes_expose_distinct_timing_meanings():
     source = SENSOR.read_text(encoding="utf-8")
 

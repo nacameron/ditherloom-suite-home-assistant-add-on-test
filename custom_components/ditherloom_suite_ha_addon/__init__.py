@@ -4,6 +4,7 @@ import asyncio
 import base64
 import inspect
 import json
+import logging
 import shutil
 import socket
 from dataclasses import dataclass, field
@@ -94,6 +95,8 @@ from .const import (
     XKCD_MODE_RANDOM,
 )
 from .ha_lane import enabled_content_providers, ha_lane_slots, parse_slot_pool, provider_slot_map, slot_csv, validate_ha_lane
+
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
@@ -403,7 +406,17 @@ class DitherloomRuntime:
 
     async def async_start(self) -> None:
         self._schedule_weather_refresh()
-        await self.async_refresh_content_payload(reason="startup")
+        self.hass.async_create_task(self._async_startup_refresh())
+
+    async def _async_startup_refresh(self) -> None:
+        try:
+            await self.async_refresh_content_payload(reason="startup")
+        except Exception as exc:
+            _LOGGER.warning("Ditherloom startup content refresh failed: %s", exc)
+            self.last_status = "startup_refresh_failed"
+            self.last_metadata[ATTR_LAST_ERROR] = f"Startup content refresh failed: {type(exc).__name__}: {exc}"
+            self.last_metadata["startup_refresh_last_failed_at"] = datetime.now(timezone.utc).isoformat()
+            await self.async_save()
 
     async def async_save(self) -> None:
         await self.store.async_save(
