@@ -30,6 +30,7 @@ from .const import (
     CONF_DISPLAY_ROTATION_ENABLED,
     CONF_DISPLAY_ROTATION_HOURS,
     CONF_DISPLAY_ROTATION_MINUTES,
+    CONF_DIESEL_SWEETIES_ENABLED,
     CONF_FRAME_HA_ROTATION_ENABLED,
     CONF_FRAME_HA_ROTATION_SECONDS,
     CONF_FRAME_HA_SLOT_CSV,
@@ -45,6 +46,7 @@ from .const import (
     CONF_LONGITUDE,
     CONF_MAX_JOBS_PER_WAKE,
     CONF_MOON_ENABLED,
+    CONF_MIMI_EUNICE_ENABLED,
     CONF_SUN_ENABLED,
     CONF_TARGET_SLOT,
     CONF_TEMPERATURE_UNIT,
@@ -101,6 +103,8 @@ PROVIDER_WEATHER = "open_meteo_weather"
 PROVIDER_SUN = "sunrise_sunset"
 PROVIDER_MOON = "moon_phase"
 PROVIDER_XKCD = "xkcd_comic"
+PROVIDER_DIESEL_SWEETIES = "diesel_sweeties"
+PROVIDER_MIMI_EUNICE = "mimi_eunice"
 DISCOVERY_AUTH_MESSAGE = "Provide a Home Assistant Long-Lived Access Token."
 STALE_FRONTEND_ENTITY_NAMES = {
     "Synchronise Wi-Fi " + "wake window",
@@ -226,6 +230,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _async_remove_stale_frontend_entities(hass, entry)
 
     hass.http.register_view(DitherloomPreviewView(coordinator))
+    hass.http.register_view(DitherloomComicSampleView(coordinator))
     hass.http.register_view(DitherloomFrameAwakeView(coordinator))
     hass.http.register_view(DitherloomFrameSleepingView(coordinator))
 
@@ -756,6 +761,11 @@ class DitherloomRuntime:
             metadata = await self.async_render_moon({}, publish=False, send_to_frame=False, cache_provider_id=provider)
         elif provider == "xkcd_comic":
             metadata = await self.async_render_xkcd({}, publish=False, send_to_frame=False, cache_provider_id=provider)
+        elif provider in {
+            PROVIDER_DIESEL_SWEETIES,
+            PROVIDER_MIMI_EUNICE,
+        }:
+            metadata = await self.async_render_webcomic({}, publish=False, send_to_frame=False, cache_provider_id=provider)
         else:
             metadata = await self.async_render_weather({}, publish=False, send_to_frame=False, cache_provider_id=provider)
         metadata["selected_provider_id"] = provider
@@ -776,6 +786,11 @@ class DitherloomRuntime:
             metadata = await self.async_render_moon({}, publish=True, send_to_frame=False, cache_provider_id=provider)
         elif provider == "xkcd_comic":
             metadata = await self.async_render_xkcd({}, publish=True, send_to_frame=False, cache_provider_id=provider)
+        elif provider in {
+            PROVIDER_DIESEL_SWEETIES,
+            PROVIDER_MIMI_EUNICE,
+        }:
+            metadata = await self.async_render_webcomic({}, publish=True, send_to_frame=False, cache_provider_id=provider)
         else:
             metadata = await self.async_render_weather({}, publish=True, send_to_frame=False, cache_provider_id=provider)
         metadata["selected_provider_id"] = provider
@@ -793,6 +808,78 @@ class DitherloomRuntime:
             }
         )
         await self._write_cached_metadata(provider, metadata)
+        await self.async_save()
+        return metadata
+
+    async def async_render_webcomic(
+        self,
+        data: dict[str, Any],
+        publish: bool,
+        send_to_frame: bool,
+        cache_provider_id: str | None = None,
+    ) -> dict[str, Any]:
+        from .webcomic_provider import render_webcomic_provider
+
+        if cache_provider_id is None:
+            provider = str(data.get("provider_id") or "")
+            if provider not in {
+                PROVIDER_DIESEL_SWEETIES,
+                PROVIDER_MIMI_EUNICE,
+            }:
+                raise HomeAssistantError("Choose a supported Comics provider.")
+        else:
+            provider = cache_provider_id
+        opts = self.options
+        stem = self._provider_payload_name(cache_provider_id) if cache_provider_id else self.latest_payload_name
+        artifact, source, selection = await self.hass.async_add_executor_job(
+            render_webcomic_provider,
+            provider,
+            self.payload_dir,
+            stem,
+        )
+        if cache_provider_id:
+            await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.ppbin", self.payload_path())
+            await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.preview.png", self.preview_path())
+
+        metadata = dict(artifact.metadata)
+        metadata[ATTR_PREVIEW_URL] = self.preview_url
+        metadata["rendered_at"] = datetime.now(timezone.utc).isoformat()
+        metadata["provider_id"] = source.provider_id
+        metadata["provider_name"] = source.provider_name
+        metadata["card_renderer_version"] = CARD_RENDERER_VERSION
+        metadata["source"] = source.source_id
+        metadata["source_name"] = source.provider_name
+        metadata["source_url"] = selection.candidate.source_url
+        metadata["image_url"] = selection.candidate.image_url
+        metadata["attribution"] = source.attribution
+        metadata["attribution_url"] = source.attribution_url
+        metadata["license"] = source.license_name
+        metadata["license_url"] = source.license_url
+        metadata["comic_title"] = selection.candidate.title
+        metadata["update_interval_minutes"] = self._effective_update_interval_minutes()
+        metadata["wake_window_seconds"] = self._effective_wake_window_seconds()
+        metadata["wake_window_minutes"] = self._effective_wake_window_minutes()
+        metadata["max_jobs_per_wake"] = opts.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE)
+        metadata["content_rendered_at"] = metadata["rendered_at"]
+        metadata["content_rendered_provider_id"] = metadata["provider_id"]
+        metadata["content_rendered_provider_name"] = metadata["provider_name"]
+        metadata["content_rendered_source_name"] = metadata["source_name"]
+        metadata["content_rendered_attribution"] = metadata["attribution"]
+        metadata["content_rendered_license"] = metadata["license"]
+        metadata["content_rendered_content_id"] = metadata.get(ATTR_CONTENT_ID)
+        metadata["content_rendered_crc32"] = metadata.get(ATTR_CRC32)
+        for preserved_key in PRESERVED_RUNTIME_METADATA_KEYS:
+            if preserved_key in self.last_metadata:
+                metadata[preserved_key] = self.last_metadata[preserved_key]
+
+        self.last_status = "rendered"
+        self.last_metadata = metadata
+        if publish:
+            self.last_status = "rendered"
+        if send_to_frame:
+            await self.async_send_to_frame(artifact.packed, artifact.crc32)
+            self.last_status = "sent"
+            self.last_metadata.pop(ATTR_LAST_ERROR, None)
         await self.async_save()
         return metadata
 
@@ -1344,6 +1431,10 @@ class DitherloomRuntime:
             return "content-moon-phase"
         if provider == "xkcd_comic":
             return "content-xkcd"
+        if provider == PROVIDER_DIESEL_SWEETIES:
+            return "content-diesel-sweeties"
+        if provider == PROVIDER_MIMI_EUNICE:
+            return "content-mimi-eunice"
         if provider == "open_meteo_weather":
             return "content-weather"
         return self.latest_payload_name
@@ -1539,6 +1630,9 @@ class DitherloomRuntime:
     @property
     def preview_url(self) -> str:
         return f"/api/ditherloom/{self.entry.entry_id}/preview/{self.latest_payload_name}.preview.png"
+
+    def provider_preview_url(self, provider: str) -> str:
+        return f"/api/ditherloom/{self.entry.entry_id}/preview/{self._provider_payload_name(provider)}.preview.png"
 
     @property
     def frame_awake_url(self) -> str:
@@ -1803,8 +1897,36 @@ class DitherloomPreviewView(HomeAssistantView):
         self.name = f"api:{DOMAIN}:preview:{runtime.entry.entry_id}"
 
     async def get(self, request, filename: str):
-        path = self.runtime.preview_path()
-        if filename != path.name or not path.exists():
+        if not filename.endswith(".preview.png") or "/" in filename or "\\" in filename:
+            return self.json({"error": "not_found"}, status_code=404)
+        path = self.runtime.payload_dir / filename
+        active_path = self.runtime.preview_path()
+        if filename == active_path.name:
+            path = active_path
+        if not path.exists():
+            return self.json({"error": "not_found"}, status_code=404)
+        return web.FileResponse(
+            path,
+            headers={
+                "Content-Type": "image/png",
+                "Cache-Control": "no-store",
+            },
+        )
+
+
+class DitherloomComicSampleView(HomeAssistantView):
+    requires_auth = False
+
+    def __init__(self, runtime: DitherloomRuntime) -> None:
+        self.runtime = runtime
+        self.url = f"/api/ditherloom/{runtime.entry.entry_id}/comic-samples/{{filename}}"
+        self.name = f"api:{DOMAIN}:comic_samples:{runtime.entry.entry_id}"
+
+    async def get(self, request, filename: str):
+        if not filename.endswith(".preview.png") or "/" in filename or "\\" in filename:
+            return self.json({"error": "not_found"}, status_code=404)
+        path = Path(__file__).resolve().parent / "assets" / "comic_samples" / filename
+        if not path.exists():
             return self.json({"error": "not_found"}, status_code=404)
         return web.FileResponse(
             path,

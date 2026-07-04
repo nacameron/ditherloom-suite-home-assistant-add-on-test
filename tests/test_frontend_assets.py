@@ -30,6 +30,24 @@ def test_home_assistant_brand_assets_are_packaged():
         assert path.stat().st_size > 0
 
 
+def test_comic_sample_assets_are_packaged_at_panel_resolution():
+    sample_dir = COMPONENT / "assets" / "comic_samples"
+    for name in (
+        "xkcd.preview.png",
+        "diesel_sweeties.preview.png",
+        "mimi_eunice.preview.png",
+    ):
+        path = sample_dir / name
+        assert path.exists()
+        assert path.stat().st_size > 0
+        with Image.open(path) as image:
+            assert image.size == (400, 300)
+            colours = {colour for _count, colour in image.convert("RGB").getcolors(maxcolors=1_000_000)}
+            assert (209, 25, 32) in colours
+            if not name.startswith(("xkcd", "mimi_eunice")):
+                assert (202, 174, 62) in colours or (164, 63, 55) in colours
+
+
 def test_update_platform_accepts_artwork_sized_release_downloads():
     update_source = UPDATE.read_text(encoding="utf-8")
 
@@ -127,7 +145,7 @@ def test_backend_attribution_sensor_is_always_visible():
     assert "DitherloomDataAttributionSensor(coordinator, entry)" in sensor_source
     assert "class DitherloomDataAttributionSensor" in sensor_source
     assert 'self._attr_unique_id = f"{entry.entry_id}_data_attribution"' in sensor_source
-    assert 'return "Open-Meteo Weather; Ditherloom local sun/moon; xkcd"' in sensor_source
+    assert 'return "Open-Meteo Weather; Ditherloom local sun/moon; Comics"' in sensor_source
     assert '"weather_provider": "Open-Meteo"' in sensor_source
     assert '"weather_attribution": OPEN_METEO_ATTRIBUTION' in sensor_source
     assert '"weather_attribution_url": OPEN_METEO_ATTRIBUTION_URL' in sensor_source
@@ -143,7 +161,11 @@ def test_backend_attribution_sensor_is_always_visible():
     assert '"xkcd_provider": "xkcd"' in sensor_source
     assert '"xkcd_attribution": "xkcd / Randall Munroe"' in sensor_source
     assert '"xkcd_license": "CC BY-NC 2.5"' in sensor_source
-    assert '"visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM. xkcd cards show xkcd / Randall Munroe and CC BY-NC 2.5."' in sensor_source
+    assert '"pepper_carrot_provider": "Giant Friday"' not in sensor_source
+    assert '"irregular_webcomic_provider": "Irregular Webcomic!"' not in sensor_source
+    assert '"diesel_sweeties_provider": "Diesel Sweeties"' in sensor_source
+    assert '"mimi_eunice_provider": "Mimi & Eunice"' in sensor_source
+    assert '"visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM. Comic cards show source-specific red attribution and license text."' in sensor_source
     assert '"audit_note": "These diagnostic attribution fields are fixed compliance metadata' in sensor_source
 
 
@@ -281,7 +303,21 @@ def test_xkcd_options_and_controls_are_exposed_as_opt_in_provider():
     assert 'CONF_XKCD_RANDOM_ATTEMPTS = "xkcd_random_attempts"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
     assert 'SERVICE_RENDER_XKCD = "render_xkcd_card"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
     assert 'SERVICE_SEND_XKCD = "send_xkcd_card"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
-    assert '"xkcd", "device"' in config_source
+    assert '"comics_framework", "device"' in config_source
+    assert '"comics_framework", "xkcd", "device"' not in config_source
+    assert '"comics_pepper_carrot"' not in config_source
+    assert '"comics_irregular_webcomic"' not in config_source
+    assert '"comics_diesel_sweeties"' in config_source
+    assert '"comics_mimi_eunice"' in config_source
+    assert "async_step_comics_framework" in config_source
+    assert "async_step_comics_settings" in config_source
+    assert "async_step_comics_xkcd" in config_source
+    assert "async_step_comics_pepper_carrot" not in config_source
+    assert "async_step_comics_irregular_webcomic" not in config_source
+    assert "async_step_comics_diesel_sweeties" in config_source
+    assert "async_step_comics_mimi_eunice" in config_source
+    assert "async_step_comics" in config_source
+    assert "_comics_slot_mode_selector" in config_source
     assert "async_step_xkcd" in config_source
     assert "_xkcd_attribution_selector" in config_source
     assert 'XKCD_FORM_ENABLED = "Enable xkcd Comic"' in config_source
@@ -306,9 +342,25 @@ def test_xkcd_options_and_controls_are_exposed_as_opt_in_provider():
     assert '"xkcd_alt_text"' in init_source
     assert '"xkcd_configured_number"' in init_source
     assert '"xkcd_random_attempts"' in init_source
-    for source in (strings_source, translations_source):
-        assert '"xkcd": "xkcd Comic"' in source
-        assert '"xkcd_comic": "xkcd Comic"' in source
+    translations_en_gb_source = (COMPONENT / "translations" / "en-GB.json").read_text(encoding="utf-8")
+    for source in (strings_source, translations_source, translations_en_gb_source):
+        assert '"comics_framework": "Comics"' in source
+        assert '"comics_settings": "Comics enabled"' in source
+        assert '"comics_xkcd": "xkcd Comic"' in source
+        assert '"comics_pepper_carrot": "Giant Friday"' not in source
+        assert '"comics_irregular_webcomic": "Irregular Webcomic!"' not in source
+        assert '"comics_diesel_sweeties": "Diesel Sweeties"' in source
+        assert '"comics_mimi_eunice": "Mimi & Eunice"' in source
+        assert '"comics": "Comics"' in source
+        assert '"title": "Comics enabled"' in source
+        assert "Each comic source, including xkcd Comic and future comic providers, has its own page in this Comics section." in source
+        assert "Comic-provider settings, including xkcd Comic, live on their own pages in this Comics section" in source
+        assert '"menu_options": {' in source
+        assert '"comics_enabled": "Enable Comics framework"' in source
+        assert '"comics_slot_mode": "Comic slot mode"' in source
+        assert '"comics_xkcd": {' in source
+        assert '"xkcd": {' in source
+        assert '"title": "xkcd Comic"' in source
         assert '"xkcd_enabled": "Enable xkcd Comic"' in source
         assert '"xkcd_attribution_notice": "Attribution"' in source
         assert '"xkcd_mode": "Comic selection"' in source
@@ -318,6 +370,11 @@ def test_xkcd_options_and_controls_are_exposed_as_opt_in_provider():
         assert "CC BY-NC 2.5" in source
         assert "Comics are by Randall Munroe and licensed CC BY-NC 2.5" in source
         assert "Ditherloom displays this attribution on rendered xkcd cards and stores it in metadata." in source
+        assert "Sample rendered for Ditherloom" in source
+        assert "{pepper_carrot_sample_image}" not in source
+        assert "{irregular_webcomic_sample_image}" not in source
+        assert "{diesel_sweeties_sample_image}" in source
+        assert "{mimi_eunice_sample_image}" in source
 
 
 def test_sun_moon_cards_use_source_attribution_label():
@@ -353,6 +410,29 @@ def test_provider_attribution_metadata_is_recorded_for_backend_compliance():
     assert '"frame_content_last_delivered_licenses"' in init_source
 
 
+def test_comics_samples_and_webcomic_rendering_keep_colour_and_red_attribution():
+    config_source = (COMPONENT / "config_flow.py").read_text(encoding="utf-8")
+    init_source = INIT.read_text(encoding="utf-8")
+    webcomic_source = (COMPONENT / "webcomic_provider.py").read_text(encoding="utf-8")
+
+    assert "DitherloomComicSampleView(coordinator)" in init_source
+    assert "/comic-samples/{{filename}}" in init_source
+    assert '"Cache-Control": "no-store"' in init_source
+    assert "_comic_sample_markdown" in config_source
+    assert "?v={INTEGRATION_VERSION}" in config_source
+    assert "![{label} Ditherloom sample]" in config_source
+    assert '"requirements": ["segno==1.6.6"]' in (COMPONENT / "manifest.json").read_text(encoding="utf-8")
+    assert "_atkinson_dither_to_display_preview" in webcomic_source
+    assert "_draw_right_attribution(base, draw, source, candidate.source_url)" in webcomic_source
+    assert "segno.make(source_url" in webcomic_source
+    assert '"qr_url": candidate.source_url' in webcomic_source
+    assert "RIGHT_ATTRIBUTION_LINE_X" in webcomic_source
+    assert "_draw_left_fitted_text" in webcomic_source
+    assert "_is_protected_comic_white" in webcomic_source
+    assert "protected as clean panel white" in webcomic_source
+    assert "palette[code]" in webcomic_source
+
+
 def test_third_party_notices_include_font_and_dependency_compliance_details():
     notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
     dependency_snapshot = (ROOT / "docs" / "DEPENDENCY_LICENSE_SNAPSHOT.md")
@@ -372,6 +452,7 @@ def test_third_party_notices_include_font_and_dependency_compliance_details():
         "| pillow | 11.0.0 | HPND / MIT-CMU style Pillow license |",
         "| paho-mqtt | 2.1.0 | EPL-2.0 OR BSD-3-Clause |",
         "| python-multipart | 0.0.20 | Apache-2.0 |",
+        "| segno | 1.6.6 | BSD-3-Clause |",
         "| pytest | 8.3.4 | MIT |",
         "| Barlow / Barlow Condensed | SIL Open Font License 1.1 |",
         "| DejaVu fonts | Bitstream Vera / Arev / public-domain DejaVu changes |",

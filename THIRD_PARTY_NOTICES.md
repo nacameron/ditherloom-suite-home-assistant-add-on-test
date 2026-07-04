@@ -14,6 +14,7 @@ The current prototype uses these Python packages:
 | Pillow | 11.0.0 | HPND / MIT-CMU style Pillow license | https://github.com/python-pillow/Pillow |
 | Eclipse Paho MQTT | 2.1.0 | EPL-2.0 OR BSD-3-Clause | https://eclipse.dev/paho/ |
 | python-multipart | 0.0.20 | Apache-2.0 | https://github.com/Kludex/python-multipart |
+| Segno | 1.6.6 | BSD-3-Clause | https://github.com/heuer/segno/ |
 | pytest | 8.3.4 | MIT | https://docs.pytest.org/ |
 
 Transitive dependencies are installed by Python packaging tools and retain their
@@ -111,4 +112,45 @@ https://xkcd.com/
 https://xkcd.com/json.html
 https://xkcd.com/license.html
 https://creativecommons.org/licenses/by-nc/2.5/
+```
+
+## Optional Comics Framework Content
+
+The optional Comics framework can fetch comic feeds and image assets from
+source-specific publishers when a user explicitly enables that provider and has
+configured enough Home Assistant slots on the Ditherloom device. These comics
+are not owned by the Ditherloom project. Each rendered comic card includes
+source-specific red attribution and license text, and rendered metadata stores
+the source URL, image URL, attribution URL, license name, and license URL. For
+non-xkcd Comics framework providers, the rendered right-hand attribution strip
+also includes a per-comic QR code generated from that rendered comic's exact
+source page URL.
+
+All comic sources pass through the shared Ditherloom Comics suitability selector
+and 400 x 300 hybrid renderer before they can be cached for delivery. Bundled
+settings-page samples are static 400 x 300 Atkinson-filtered colour previews
+with undithered panel-safe red attribution and source QR code. Unsuitable
+content fails closed instead of being rendered unreadably on the device.
+
+### Diesel Sweeties
+
+Diesel Sweeties comics are by R. Stevens and are licensed CC BY-NC 2.5.
+
+Sources:
+
+```text
+https://www.dieselsweeties.com/
+https://creativecommons.org/licenses/by-nc/2.5/
+```
+
+### Mimi & Eunice
+
+Mimi & Eunice cartoons are by Nina Paley and are licensed CC BY-SA.
+
+Sources:
+
+```text
+https://mimiandeunice.com/
+https://mimiandeunice.com/about/
+https://creativecommons.org/licenses/by-sa/3.0/
 ```

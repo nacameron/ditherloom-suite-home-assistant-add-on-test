@@ -15,6 +15,8 @@ from custom_components.ditherloom_suite_ha_addon.const import (
     CONF_FRAME_HA_SLOT_CSV,
     CONF_FRAME_HA_SLOT_POOL,
     CONF_FRAME_RESERVED_SLOT,
+    CONF_DIESEL_SWEETIES_ENABLED,
+    CONF_MIMI_EUNICE_ENABLED,
     CONF_MOON_ENABLED,
     CONF_SUN_ENABLED,
     CONF_TARGET_SLOT,
@@ -66,6 +68,24 @@ def test_xkcd_provider_is_opt_in_and_consumes_explicit_slot():
     assert provider_slot_map(options) == {
         "open_meteo_weather": 443,
         "xkcd_comic": 444,
+    }
+
+
+def test_comic_providers_are_opt_in_and_consume_explicit_slots():
+    options = {
+        CONF_FRAME_HA_SLOT_CSV: "441,442,443",
+        CONF_WEATHER_ENABLED: True,
+        CONF_DIESEL_SWEETIES_ENABLED: True,
+        CONF_MIMI_EUNICE_ENABLED: True,
+    }
+
+    result = validate_ha_lane(options)
+
+    assert result.valid
+    assert provider_slot_map(options) == {
+        "open_meteo_weather": 441,
+        "diesel_sweeties": 442,
+        "mimi_eunice": 443,
     }
 
 

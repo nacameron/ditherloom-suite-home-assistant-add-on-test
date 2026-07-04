@@ -7,6 +7,8 @@ from .const import (
     CONF_FRAME_HA_SLOT_CSV,
     CONF_FRAME_HA_SLOT_POOL,
     CONF_FRAME_RESERVED_SLOT,
+    CONF_DIESEL_SWEETIES_ENABLED,
+    CONF_MIMI_EUNICE_ENABLED,
     CONF_MOON_ENABLED,
     CONF_SUN_ENABLED,
     CONF_TARGET_SLOT,
@@ -22,6 +24,8 @@ PROVIDER_WEATHER = "open_meteo_weather"
 PROVIDER_SUN = "sunrise_sunset"
 PROVIDER_MOON = "moon_phase"
 PROVIDER_XKCD = "xkcd_comic"
+PROVIDER_DIESEL_SWEETIES = "diesel_sweeties"
+PROVIDER_MIMI_EUNICE = "mimi_eunice"
 
 
 @dataclass(frozen=True)
@@ -44,6 +48,10 @@ def enabled_content_providers(options: dict[str, Any]) -> list[str]:
         providers.append(PROVIDER_MOON)
     if _bool_option(options, CONF_XKCD_ENABLED, False):
         providers.append(PROVIDER_XKCD)
+    if _bool_option(options, CONF_DIESEL_SWEETIES_ENABLED, False):
+        providers.append(PROVIDER_DIESEL_SWEETIES)
+    if _bool_option(options, CONF_MIMI_EUNICE_ENABLED, False):
+        providers.append(PROVIDER_MIMI_EUNICE)
     return providers or [PROVIDER_WEATHER]
 
 

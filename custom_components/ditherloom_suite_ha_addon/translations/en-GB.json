@@ -39,8 +39,8 @@
           "weather": "Weather",
           "sun": "Sunrise / Sunset",
           "moon": "Moon Phase",
-          "xkcd": "xkcd Comic",
-          "xkcd_comic": "xkcd Comic",
+          "comics": "Comics",
+          "comics_framework": "Comics",
           "device": "Device / Connection"
         }
       },
@@ -80,9 +80,79 @@
           "longitude": "Longitude"
         }
       },
+      "comics_framework": {
+        "title": "Comics",
+        "description": "Comics enabled contains the shared framework settings. Each comic source, including xkcd Comic and future comic providers, has its own page in this Comics section.",
+        "menu_options": {
+          "comics_settings": "Comics enabled",
+          "comics_xkcd": "xkcd Comic",
+          "comics_diesel_sweeties": "Diesel Sweeties",
+          "comics_mimi_eunice": "Mimi & Eunice"
+        }
+      },
+      "comics_settings": {
+        "title": "Comics enabled",
+        "description": "Comics is the shared framework for comic sources. Current source registry: {comics_sources}. {comics_status} Every comic source must pass through the intelligent selector and Ditherloom 400x300 render contract before it can be cached for delivery. Comic-provider settings, including xkcd Comic, live on their own pages in this Comics section while still using their proven provider paths.",
+        "data": {
+          "comics_enabled": "Enable Comics framework",
+          "comics_slot_mode": "Comic slot mode"
+        },
+        "data_description": {
+          "comics_enabled": "Enables the shared Comics framework. xkcd Comic remains on the proven xkcd_comic provider, cache, render, and delivery path.",
+          "comics_slot_mode": "Alternate mode uses one HA slot for the Comics family. Per-comic mode will require one explicit Ditherloom HA slot for each enabled comic source."
+        }
+      },
+      "comics": {
+        "title": "Comics",
+        "description": "Comics enabled contains the shared framework settings. Each comic source, including xkcd Comic and future comic providers, has its own page in this Comics section.",
+        "menu_options": {
+          "comics_settings": "Comics enabled",
+          "comics_xkcd": "xkcd Comic",
+          "comics_diesel_sweeties": "Diesel Sweeties",
+          "comics_mimi_eunice": "Mimi & Eunice"
+        }
+      },
+      "comics_xkcd": {
+        "title": "xkcd Comic",
+        "description": "xkcd Comic is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. Comics are by Randall Munroe and licensed CC BY-NC 2.5 (https://xkcd.com/license.html). Ditherloom filters out comics that are too busy, too tall, have more than three panels, or use colours the display cannot reproduce clearly. Sample rendered for Ditherloom: {xkcd_sample_image}",
+        "data": {
+          "xkcd_enabled": "Enable xkcd Comic",
+          "xkcd_attribution_notice": "Attribution",
+          "xkcd_mode": "Comic selection",
+          "xkcd_number": "Fixed comic number",
+          "xkcd_random_attempts": "Random search attempts"
+        },
+        "data_description": {
+          "xkcd_enabled": "When enabled, xkcd joins the HA-owned content rotation and consumes one explicit HA slot.",
+          "xkcd_attribution_notice": "xkcd comics are by Randall Munroe and licensed CC BY-NC 2.5. Ditherloom displays this attribution on rendered xkcd cards and stores it in metadata.",
+          "xkcd_mode": "Random searches for a suitable landscape comic. Latest uses the newest comic only if it passes the display filter. Fixed always tries the comic number below.",
+          "xkcd_number": "Only used when Comic selection is Fixed comic number. Unsuitable comics fail closed instead of rendering unreadable content.",
+          "xkcd_random_attempts": "Maximum random comics to test before failing closed. Higher values improve selection quality but may take longer."
+        }
+      },
+      "comics_diesel_sweeties": {
+        "title": "Diesel Sweeties",
+        "description": "Diesel Sweeties is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. Comics are by R. Stevens and licensed CC BY-NC 2.5 (https://creativecommons.org/licenses/by-nc/2.5/). Ditherloom filters candidates through the shared Comics intelligent selector and 400x300 hybrid renderer before caching them for delivery. Sample rendered for Ditherloom: {diesel_sweeties_sample_image}",
+        "data": {
+          "diesel_sweeties_enabled": "Enable Diesel Sweeties"
+        },
+        "data_description": {
+          "diesel_sweeties_enabled": "When enabled, Diesel Sweeties joins the HA-owned content rotation and consumes one explicit HA slot. Rendered cards include red Diesel Sweeties / R. Stevens | CC BY-NC attribution and store full license metadata."
+        }
+      },
+      "comics_mimi_eunice": {
+        "title": "Mimi & Eunice",
+        "description": "Mimi & Eunice is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. Cartoons are by Nina Paley and licensed CC BY-SA (https://mimiandeunice.com/about/). Ditherloom filters candidates through the shared Comics intelligent selector and 400x300 hybrid renderer before caching them for delivery. Sample rendered for Ditherloom: {mimi_eunice_sample_image}",
+        "data": {
+          "mimi_eunice_enabled": "Enable Mimi & Eunice"
+        },
+        "data_description": {
+          "mimi_eunice_enabled": "When enabled, Mimi & Eunice joins the HA-owned content rotation and consumes one explicit HA slot. Rendered cards include red Mimi & Eunice / Nina Paley | CC BY-SA attribution and store full license metadata."
+        }
+      },
       "xkcd": {
         "title": "xkcd Comic",
-        "description": "xkcd Comic is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. Comics are by Randall Munroe and licensed CC BY-NC 2.5 (https://xkcd.com/license.html). Ditherloom filters out comics that are too busy, too tall, have more than three panels, or use colours the display cannot reproduce clearly.",
+        "description": "xkcd Comic is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. Comics are by Randall Munroe and licensed CC BY-NC 2.5 (https://xkcd.com/license.html). Ditherloom filters out comics that are too busy, too tall, have more than three panels, or use colours the display cannot reproduce clearly. Sample rendered for Ditherloom: {xkcd_sample_image}",
         "data": {
           "xkcd_enabled": "Enable xkcd Comic",
           "xkcd_attribution_notice": "Attribution",
@@ -100,7 +170,7 @@
       },
       "xkcd_comic": {
         "title": "xkcd Comic",
-        "description": "xkcd Comic is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. Comics are by Randall Munroe and licensed CC BY-NC 2.5 (https://xkcd.com/license.html). Ditherloom filters out comics that are too busy, too tall, have more than three panels, or use colours the display cannot reproduce clearly.",
+        "description": "xkcd Comic is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. Comics are by Randall Munroe and licensed CC BY-NC 2.5 (https://xkcd.com/license.html). Ditherloom filters out comics that are too busy, too tall, have more than three panels, or use colours the display cannot reproduce clearly. Sample rendered for Ditherloom: {xkcd_sample_image}",
         "data": {
           "xkcd_enabled": "Enable xkcd Comic",
           "xkcd_attribution_notice": "Attribution",

@@ -16,6 +16,7 @@ the Home Assistant add-on image, or the packaged runtime.
 | pillow | 11.0.0 | HPND / MIT-CMU style Pillow license | https://github.com/python-pillow/Pillow |
 | paho-mqtt | 2.1.0 | EPL-2.0 OR BSD-3-Clause | https://eclipse.dev/paho/ |
 | python-multipart | 0.0.20 | Apache-2.0 | https://github.com/Kludex/python-multipart |
+| segno | 1.6.6 | BSD-3-Clause | https://github.com/heuer/segno/ |
 | pytest | 8.3.4 | MIT | https://docs.pytest.org/ |
 
 ## Installed Transitive Dependencies Observed In `.venv`

@@ -11,6 +11,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
+from .comics_registry import comics_framework_attributes
 from .open_meteo import (
     NOMINATIM_ATTRIBUTION,
     NOMINATIM_ATTRIBUTION_URL,
@@ -38,6 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             DitherloomStatusSensor(coordinator, entry),
             DitherloomFrameScheduleSensor(coordinator, entry),
             DitherloomDataAttributionSensor(coordinator, entry),
+            DitherloomComicsFrameworkSensor(coordinator, entry),
         ]
     )
 
@@ -204,7 +206,7 @@ class DitherloomDataAttributionSensor(DitherloomSensorBase):
 
     @property
     def native_value(self):
-        return "Open-Meteo Weather; Ditherloom local sun/moon; xkcd"
+        return "Open-Meteo Weather; Ditherloom local sun/moon; Comics"
 
     @property
     def extra_state_attributes(self):
@@ -233,9 +235,39 @@ class DitherloomDataAttributionSensor(DitherloomSensorBase):
             "xkcd_license": "CC BY-NC 2.5",
             "xkcd_license_url": "https://creativecommons.org/licenses/by-nc/2.5/",
             "xkcd_use": "Optional provider. Home Assistant fetches xkcd JSON and image assets, rejects unsuitable comics, and renders a local Ditherloom display payload.",
-            "visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM. xkcd cards show xkcd / Randall Munroe and CC BY-NC 2.5.",
+            "diesel_sweeties_provider": "Diesel Sweeties",
+            "diesel_sweeties_attribution": "Diesel Sweeties / R. Stevens",
+            "diesel_sweeties_attribution_url": "https://www.dieselsweeties.com/",
+            "diesel_sweeties_license": "CC BY-NC",
+            "diesel_sweeties_license_url": "https://creativecommons.org/licenses/by-nc/2.5/",
+            "mimi_eunice_provider": "Mimi & Eunice",
+            "mimi_eunice_attribution": "Mimi & Eunice / Nina Paley",
+            "mimi_eunice_attribution_url": "https://mimiandeunice.com/about/",
+            "mimi_eunice_license": "CC BY-SA",
+            "mimi_eunice_license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+            "comics_use": "Optional comic providers fetch source comic feeds/assets, reject unsuitable candidates, and render local Ditherloom display payloads through the shared Comics selector.",
+            "visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM. Comic cards show source-specific red attribution and license text.",
             "audit_note": "These diagnostic attribution fields are fixed compliance metadata and do not depend on the latest render or delivery.",
         }
+
+
+class DitherloomComicsFrameworkSensor(DitherloomSensorBase):
+    _attr_name = "Comics framework"
+
+    def __init__(self, coordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_comics_framework"
+
+    @property
+    def native_value(self):
+        attrs = comics_framework_attributes({**self._entry.data, **self._entry.options})
+        if attrs["comics_enabled"]:
+            return "enabled"
+        return "disabled"
+
+    @property
+    def extra_state_attributes(self):
+        return comics_framework_attributes({**self._entry.data, **self._entry.options})
 
 
 def _parse_iso_datetime(value) -> datetime | None:

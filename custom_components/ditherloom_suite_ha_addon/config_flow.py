@@ -9,6 +9,11 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    COMICS_SLOT_MODE_ALTERNATE,
+    COMICS_SLOT_MODE_PER_SOURCE,
+    CONF_COMICS_ENABLED,
+    CONF_COMICS_SLOT_MODE,
+    CONF_DIESEL_SWEETIES_ENABLED,
     CONF_FRAME_HOST,
     CONF_FRAME_PORT,
     CONF_DISPLAY_MODE,
@@ -18,6 +23,7 @@ from .const import (
     CONF_LONGITUDE,
     CONF_MAX_JOBS_PER_WAKE,
     CONF_MOON_ENABLED,
+    CONF_MIMI_EUNICE_ENABLED,
     CONF_SUN_ENABLED,
     CONF_TOPIC_BASE,
     CONF_TEMPERATURE_UNIT,
@@ -32,6 +38,7 @@ from .const import (
     CONF_XKCD_RANDOM_ATTEMPTS,
     DEFAULT_XKCD_MODE,
     DEFAULT_XKCD_RANDOM_ATTEMPTS,
+    DEFAULT_COMICS_SLOT_MODE,
     DEFAULT_FRAME_PORT,
     DEFAULT_DISPLAY_MODE,
     DEFAULT_MAX_JOBS_PER_WAKE,
@@ -42,6 +49,7 @@ from .const import (
     DISPLAY_MODE_COLOUR,
     DISPLAY_MODE_MONO,
     DOMAIN,
+    INTEGRATION_VERSION,
     CONF_WEATHER_LOCATION,
     TEMPERATURE_UNIT_CELSIUS,
     TEMPERATURE_UNIT_FAHRENHEIT,
@@ -51,6 +59,7 @@ from .const import (
     XKCD_MODE_LATEST,
     XKCD_MODE_RANDOM,
 )
+from .comics_registry import comics_framework_attributes
 from .ha_lane import validate_ha_lane
 
 XKCD_FORM_ENABLED = "Enable xkcd Comic"
@@ -58,6 +67,8 @@ XKCD_FORM_ATTRIBUTION = "Attribution - xkcd / Randall Munroe | CC BY-NC 2.5"
 XKCD_FORM_MODE = "Comic selection"
 XKCD_FORM_NUMBER = "Fixed comic number"
 XKCD_FORM_ATTEMPTS = "Random search attempts"
+DIESEL_SWEETIES_FORM_ENABLED = "Enable Diesel Sweeties"
+MIMI_EUNICE_FORM_ENABLED = "Enable Mimi & Eunice"
 
 
 class DitherloomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -136,7 +147,7 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         return self.async_show_menu(
             step_id="init",
-            menu_options=["weather", "sun", "moon", "xkcd", "device"],
+            menu_options=["weather", "sun", "moon", "comics_framework", "device"],
         )
 
     async def async_step_weather(self, user_input: dict[str, Any] | None = None):
@@ -220,7 +231,40 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
             return self._save_options_or_show("moon", user_input, schema)
         return self.async_show_form(step_id="moon", data_schema=schema)
 
-    async def async_step_xkcd(self, user_input: dict[str, Any] | None = None):
+    async def async_step_comics_framework(self, user_input: dict[str, Any] | None = None):
+        return self.async_show_menu(
+            step_id="comics_framework",
+            menu_options=[
+                "comics_settings",
+                "comics_xkcd",
+                "comics_diesel_sweeties",
+                "comics_mimi_eunice",
+            ],
+        )
+
+    async def async_step_comics_settings(self, user_input: dict[str, Any] | None = None):
+        data = self._data()
+        schema = vol.Schema(
+            {
+                vol.Optional(CONF_COMICS_ENABLED, default=_bool_option(data, CONF_COMICS_ENABLED, False)): bool,
+                vol.Optional(
+                    CONF_COMICS_SLOT_MODE,
+                    default=data.get(CONF_COMICS_SLOT_MODE, DEFAULT_COMICS_SLOT_MODE),
+                ): _comics_slot_mode_selector(),
+            }
+        )
+        if user_input is not None:
+            return self._save_options_or_show("comics_settings", user_input, schema)
+        return self.async_show_form(
+            step_id="comics_settings",
+            data_schema=schema,
+            description_placeholders=self._comics_description_placeholders(data),
+        )
+
+    async def async_step_comics(self, user_input: dict[str, Any] | None = None):
+        return await self.async_step_comics_framework(user_input)
+
+    async def async_step_comics_xkcd(self, user_input: dict[str, Any] | None = None):
         data = self._data()
         schema = vol.Schema(
             {
@@ -242,24 +286,42 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
             raw_number = str(user_input.get(XKCD_FORM_NUMBER) or "").strip()
             if raw_number and CONF_XKCD_NUMBER not in internal_input:
                 return self.async_show_form(
-                    step_id="xkcd",
+                    step_id="comics_xkcd",
                     data_schema=schema,
                     errors={XKCD_FORM_NUMBER: "xkcd_number_invalid"},
+                    description_placeholders=self._comics_description_placeholders(data),
                 )
             if internal_input.get(CONF_XKCD_MODE) == XKCD_MODE_FIXED and not internal_input.get(CONF_XKCD_NUMBER):
                 return self.async_show_form(
-                    step_id="xkcd",
+                    step_id="comics_xkcd",
                     data_schema=schema,
                     errors={XKCD_FORM_NUMBER: "xkcd_number_required"},
+                    description_placeholders=self._comics_description_placeholders(data),
                 )
-            return self._save_options_or_show("xkcd", internal_input, schema)
+            return self._save_options_or_show("comics_xkcd", internal_input, schema)
         return self.async_show_form(
-            step_id="xkcd",
+            step_id="comics_xkcd",
             data_schema=schema,
-            description_placeholders={
-                "xkcd_attribution": "xkcd / Randall Munroe | CC BY-NC 2.5",
-                "xkcd_license_url": "https://xkcd.com/license.html",
-            },
+            description_placeholders=self._comics_description_placeholders(data),
+        )
+
+    async def async_step_xkcd(self, user_input: dict[str, Any] | None = None):
+        return await self.async_step_comics_xkcd(user_input)
+
+    async def async_step_comics_diesel_sweeties(self, user_input: dict[str, Any] | None = None):
+        return self._comic_provider_form(
+            "comics_diesel_sweeties",
+            DIESEL_SWEETIES_FORM_ENABLED,
+            CONF_DIESEL_SWEETIES_ENABLED,
+            user_input,
+        )
+
+    async def async_step_comics_mimi_eunice(self, user_input: dict[str, Any] | None = None):
+        return self._comic_provider_form(
+            "comics_mimi_eunice",
+            MIMI_EUNICE_FORM_ENABLED,
+            CONF_MIMI_EUNICE_ENABLED,
+            user_input,
         )
 
     async def async_step_device(self, user_input: dict[str, Any] | None = None):
@@ -313,6 +375,34 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
             )
         return self._save_options(user_input)
 
+    def _comic_provider_form(
+        self,
+        step_id: str,
+        form_key: str,
+        option_key: str,
+        user_input: dict[str, Any] | None,
+    ):
+        data = self._data()
+        schema = vol.Schema(
+            {
+                vol.Optional(form_key, default=_bool_option(data, option_key, False)): bool,
+            }
+        )
+        if user_input is not None:
+            internal_input = {option_key: bool(user_input.get(form_key, False))}
+            return self._save_options_or_show(step_id, internal_input, schema)
+        return self.async_show_form(
+            step_id=step_id,
+            data_schema=schema,
+            description_placeholders=self._comics_description_placeholders(data),
+        )
+
+    def _comics_description_placeholders(self, data: dict[str, Any]) -> dict[str, str]:
+        return {
+            **_comics_description_placeholders(data),
+            **_comic_sample_placeholders(self._entry.entry_id),
+        }
+
 
 def _apply_picked_location(data: dict[str, Any]) -> None:
     picked_location = data.get(CONF_WEATHER_LOCATION)
@@ -362,6 +452,14 @@ def _xkcd_form_to_options(user_input: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+def _comics_form_to_options(user_input: dict[str, Any]) -> dict[str, Any]:
+    return {
+        CONF_COMICS_ENABLED: bool(user_input.get(CONF_COMICS_ENABLED, False)),
+        CONF_COMICS_SLOT_MODE: user_input.get(CONF_COMICS_SLOT_MODE, DEFAULT_COMICS_SLOT_MODE),
+        **_xkcd_form_to_options(user_input),
+    }
+
+
 def _xkcd_number_text(value: Any) -> str:
     number = _positive_int_or_none(value)
     return "" if number is None else str(number)
@@ -388,6 +486,18 @@ def _xkcd_mode_selector() -> selector.SelectSelector:
     )
 
 
+def _comics_slot_mode_selector() -> selector.SelectSelector:
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=[
+                {"value": COMICS_SLOT_MODE_ALTERNATE, "label": "Alternate enabled comics in one HA slot"},
+                {"value": COMICS_SLOT_MODE_PER_SOURCE, "label": "One HA slot per enabled comic"},
+            ],
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
 def _xkcd_attribution_selector() -> selector.SelectSelector:
     return selector.SelectSelector(
         selector.SelectSelectorConfig(
@@ -400,3 +510,40 @@ def _xkcd_attribution_selector() -> selector.SelectSelector:
             mode=selector.SelectSelectorMode.DROPDOWN,
         )
     )
+
+
+def _comic_source_summary(data: dict[str, Any]) -> str:
+    sources = comics_framework_attributes(data)["available_comic_sources"]
+    names = [str(source["name"]) for source in sources if source.get("implemented")]
+    if not names:
+        return "No comic sources are implemented yet."
+    return ", ".join(names)
+
+
+def _comic_framework_status(data: dict[str, Any]) -> str:
+    attrs = comics_framework_attributes(data)
+    if attrs["comics_enabled"]:
+        return "Comics framework enabled. xkcd settings are managed inside Comics and still use the xkcd_comic delivery provider."
+    return "Comics framework is disabled. xkcd settings are still managed inside Comics and still use the xkcd_comic delivery provider."
+
+
+def _comics_description_placeholders(data: dict[str, Any]) -> dict[str, str]:
+    return {
+        "comics_sources": _comic_source_summary(data),
+        "comics_status": _comic_framework_status(data),
+        "xkcd_attribution": "xkcd / Randall Munroe | CC BY-NC 2.5",
+        "xkcd_license_url": "https://xkcd.com/license.html",
+    }
+
+
+def _comic_sample_placeholders(entry_id: str) -> dict[str, str]:
+    return {
+        "xkcd_sample_image": _comic_sample_markdown(entry_id, "xkcd", "xkcd Comic"),
+        "diesel_sweeties_sample_image": _comic_sample_markdown(entry_id, "diesel_sweeties", "Diesel Sweeties"),
+        "mimi_eunice_sample_image": _comic_sample_markdown(entry_id, "mimi_eunice", "Mimi & Eunice"),
+    }
+
+
+def _comic_sample_markdown(entry_id: str, sample_id: str, label: str) -> str:
+    path = f"/api/ditherloom/{entry_id}/comic-samples/{sample_id}.preview.png?v={INTEGRATION_VERSION}"
+    return f"![{label} Ditherloom sample]({path}) [Open sample]({path})"
