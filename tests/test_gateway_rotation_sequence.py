@@ -154,10 +154,32 @@ def test_provider_freshness_is_provider_specific():
     assert "if provider in {PROVIDER_SUN, PROVIDER_MOON}" in fresh_source
     assert "return True" in fresh_source
     assert "if provider == PROVIDER_XKCD" in fresh_source
+    assert "if not self._xkcd_cache_matches_options(metadata):" in fresh_source
+    assert "if mode == XKCD_MODE_FIXED:" in fresh_source
     assert "age < timedelta(minutes=self._effective_update_interval_minutes())" in fresh_source
     assert "xkcd_mode" in xkcd_source
     assert "xkcd_configured_number" in xkcd_source
     assert "xkcd_random_attempts" in xkcd_source
+
+
+def test_successful_delivery_prepares_comic_successor_cache_without_resend_loop():
+    source = _source()
+    delivery_start = source.index("async def async_deliver_cached_content_to_announced_frame")
+    delivery_end = source.index("async def async_deliver_cached_weather_to_announced_frame", delivery_start)
+    delivery_source = source[delivery_start:delivery_end]
+    helper_start = source.index("async def _refresh_delivered_comic_successors")
+    helper_end = source.index("def _time_sensitive_cache_minutes", helper_start)
+    helper_source = source[helper_start:helper_end]
+
+    assert "COMIC_SUCCESSOR_PROVIDERS = {PROVIDER_XKCD, PROVIDER_DIESEL_SWEETIES, PROVIDER_MIMI_EUNICE}" in source
+    assert "self.hass.async_create_task(self._refresh_delivered_comic_successors(delivered_jobs, synced_at))" in delivery_source
+    assert "previous_status = self.last_status" in helper_source
+    assert "previous_metadata = dict(self.last_metadata)" in helper_source
+    assert "rendered_successor = await self.async_render_provider_to_cache(provider)" in helper_source
+    assert "self.last_status = previous_status" in helper_source
+    assert "self.last_metadata = previous_metadata" in helper_source
+    assert "rendered_successor.get(ATTR_CONTENT_ID) == delivered_content_id" in helper_source
+    assert "rendered_successor[\"frame_synced_content_id\"] = delivered_content_id" in helper_source
 
 
 def test_refresh_continues_after_individual_provider_failure():

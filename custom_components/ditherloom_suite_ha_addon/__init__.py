@@ -98,13 +98,14 @@ from .ha_lane import enabled_content_providers, ha_lane_slots, parse_slot_pool, 
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
-CARD_RENDERER_VERSION = "luxe-0.1.71"
+CARD_RENDERER_VERSION = "luxe-0.1.89-comics-successor-cache"
 PROVIDER_WEATHER = "open_meteo_weather"
 PROVIDER_SUN = "sunrise_sunset"
 PROVIDER_MOON = "moon_phase"
 PROVIDER_XKCD = "xkcd_comic"
 PROVIDER_DIESEL_SWEETIES = "diesel_sweeties"
 PROVIDER_MIMI_EUNICE = "mimi_eunice"
+COMIC_SUCCESSOR_PROVIDERS = {PROVIDER_XKCD, PROVIDER_DIESEL_SWEETIES, PROVIDER_MIMI_EUNICE}
 DISCOVERY_AUTH_MESSAGE = "Provide a Home Assistant Long-Lived Access Token."
 STALE_FRONTEND_ENTITY_NAMES = {
     "Synchronise Wi-Fi " + "wake window",
@@ -659,6 +660,7 @@ class DitherloomRuntime:
             self.last_metadata["frame_sleeping_expected_after_completion"] = True
             if gateway_status.get("ha_rotation"):
                 self.last_metadata["ha_rotation"] = gateway_status["ha_rotation"]
+            self.hass.async_create_task(self._refresh_delivered_comic_successors(delivered_jobs, synced_at))
             self.last_metadata.pop(ATTR_LAST_ERROR, None)
         except Exception as exc:
             self.last_status = "frame_awake_send_failed"
@@ -1472,7 +1474,13 @@ class DitherloomRuntime:
                 return False
             return True
         if provider == PROVIDER_XKCD:
-            return self._xkcd_cache_matches_options(metadata)
+            if not self._xkcd_cache_matches_options(metadata):
+                return False
+            mode = str(self.options.get(CONF_XKCD_MODE, DEFAULT_XKCD_MODE))
+            if mode == XKCD_MODE_FIXED:
+                return True
+            age = datetime.now(timezone.utc) - rendered_at.astimezone(timezone.utc)
+            return age < timedelta(minutes=self._effective_update_interval_minutes())
         age = datetime.now(timezone.utc) - rendered_at.astimezone(timezone.utc)
         return age < timedelta(minutes=self._effective_update_interval_minutes())
 
@@ -1579,6 +1587,43 @@ class DitherloomRuntime:
         if provider in {"sunrise_sunset", "moon_phase"}:
             metadata["frame_synced_render_target_at"] = metadata.get("render_target_at")
         await self._write_cached_metadata(provider, metadata)
+
+    async def _refresh_delivered_comic_successors(self, delivered_jobs: list[dict[str, Any]], synced_at: str) -> None:
+        refreshed: list[str] = []
+        failed: dict[str, str] = {}
+        for job in delivered_jobs:
+            provider = str(job.get("provider_id") or "")
+            if provider not in COMIC_SUCCESSOR_PROVIDERS:
+                continue
+            previous_status = self.last_status
+            previous_metadata = dict(self.last_metadata)
+            delivered_content_id = job.get("content_id")
+            delivered_crc32 = job.get("crc32")
+            try:
+                rendered_successor = await self.async_render_provider_to_cache(provider)
+                self.last_status = previous_status
+                self.last_metadata = previous_metadata
+                if (
+                    rendered_successor.get(ATTR_CONTENT_ID) == delivered_content_id
+                    or str(rendered_successor.get(ATTR_CRC32)) == str(delivered_crc32)
+                ):
+                    rendered_successor["frame_synced_at"] = synced_at
+                    rendered_successor["frame_synced_crc32"] = delivered_crc32
+                    rendered_successor["frame_synced_content_id"] = delivered_content_id
+                    await self._write_cached_metadata(provider, rendered_successor)
+                refreshed.append(provider)
+            except Exception as exc:
+                self.last_status = previous_status
+                self.last_metadata = previous_metadata
+                failed[provider] = f"{type(exc).__name__}: {exc}"
+        if refreshed or failed:
+            self.last_metadata["comic_successor_refresh_last_at"] = datetime.now(timezone.utc).isoformat()
+            self.last_metadata["comic_successor_refresh_providers"] = refreshed
+            if failed:
+                self.last_metadata["comic_successor_refresh_failed"] = failed
+            else:
+                self.last_metadata.pop("comic_successor_refresh_failed", None)
+            await self.async_save()
 
     def _time_sensitive_cache_minutes(self) -> int:
         return max(1, self._effective_update_interval_minutes() + self._effective_wake_window_minutes())
