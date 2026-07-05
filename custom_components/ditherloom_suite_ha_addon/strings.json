@@ -216,7 +216,6 @@
   "error": {
     "not_enough_ha_slots": "Not enough explicit HA slots are configured.",
     "frame_ha_slots_not_synced": "Home Assistant has not received the frame HA slot setup yet.",
-    "too_many_ha_slots": "Home Assistant supports up to 8 explicit HA slots.",
     "ha_lane_invalid": "Home Assistant slot lane configuration is invalid.",
     "xkcd_number_required": "Choose a comic number when xkcd selection is fixed.",
     "xkcd_number_invalid": "Enter a whole comic number greater than zero, or leave this blank unless Comic selection is fixed."

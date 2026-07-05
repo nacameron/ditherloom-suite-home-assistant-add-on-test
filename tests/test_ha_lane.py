@@ -215,15 +215,43 @@ def test_slot_pool_parsing_supports_commas_and_ranges():
     assert parse_slot_pool("443,444-446,443") == [443, 444, 445, 446]
 
 
-def test_up_to_eight_ha_slots_are_accepted():
+def test_more_than_eight_ha_slots_are_accepted_when_within_physical_capacity():
     result = validate_ha_lane({CONF_FRAME_RESERVED_SLOT: 439, CONF_FRAME_HA_SLOT_POOL: "440-446"})
 
     assert result.valid
     assert ha_lane_slots({CONF_FRAME_HA_SLOT_CSV: "439,440-446"}) == [439, 440, 441, 442, 443, 444, 445, 446]
 
 
-def test_more_than_eight_ha_slots_are_rejected():
+def test_reserved_slots_can_span_the_full_physical_capacity():
+    result = validate_ha_lane({CONF_FRAME_HA_SLOT_CSV: "1-446"})
+
+    assert result.valid
+    assert result.slot_count == 446
+    assert ha_lane_slots({CONF_FRAME_HA_SLOT_CSV: "1,2-446"})[0] == 1
+    assert ha_lane_slots({CONF_FRAME_HA_SLOT_CSV: "1,2-446"})[-1] == 446
+
+
+def test_slots_outside_physical_capacity_are_ignored():
+    result = validate_ha_lane({CONF_FRAME_RESERVED_SLOT: 438, CONF_FRAME_HA_SLOT_POOL: "439-447"})
+
+    assert result.valid
+    assert 447 not in ha_lane_slots({CONF_FRAME_RESERVED_SLOT: 438, CONF_FRAME_HA_SLOT_POOL: "439-447"})
+
+
+def test_configured_reserved_capacity_stays_separate_from_active_provider_slots():
     result = validate_ha_lane({CONF_FRAME_RESERVED_SLOT: 438, CONF_FRAME_HA_SLOT_POOL: "439-446"})
 
-    assert not result.valid
-    assert result.error_key == "too_many_ha_slots"
+    assert result.valid
+    assert result.slot_count == 9
+    assert ha_lane_slots({CONF_FRAME_RESERVED_SLOT: 438, CONF_FRAME_HA_SLOT_POOL: "439-446"}) == [
+        438,
+        439,
+        440,
+        441,
+        442,
+        443,
+        444,
+        445,
+        446,
+    ]
+    assert active_provider_slots({CONF_FRAME_RESERVED_SLOT: 438, CONF_FRAME_HA_SLOT_POOL: "439-446"}) == [438]

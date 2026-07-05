@@ -85,7 +85,6 @@ from .const import (
     DEVICE_WIFI_COMMAND_MAX_CHARS,
     DOMAIN,
     INTEGRATION_VERSION,
-    MAX_HA_LANE_SLOTS,
     SERVICE_RENDER_MOON,
     SERVICE_RENDER_SUN,
     SERVICE_RENDER_WEATHER,
@@ -2401,8 +2400,6 @@ def _send_gateway_batch_jobs(
         raise ValueError(f"Display slot must be between 1 and {DEVICE_SLOT_COUNT}, got {display_slot}")
     ha_rotation_enabled = bool(ha_rotation and ha_rotation.get("enabled"))
     ha_rotation_slots = sorted(set(int(slot) for slot in (ha_rotation or {}).get("slots", [])))
-    if len(ha_rotation_slots) > MAX_HA_LANE_SLOTS:
-        raise ValueError(f"HA rotation supports up to {MAX_HA_LANE_SLOTS} HA-owned slots")
     for slot in ha_rotation_slots:
         if slot < 1 or slot > DEVICE_SLOT_COUNT:
             raise ValueError(f"HA rotation slot must be between 1 and {DEVICE_SLOT_COUNT}, got {slot}")
@@ -2480,8 +2477,6 @@ def _parse_harotation_response(response: str) -> dict[str, Any]:
 def _set_gateway_ha_rotation(sock_file, seconds: int, slots: list[int]) -> None:
     if not slots:
         raise RuntimeError("HA rotation requires at least one HA-owned slot")
-    if len(slots) > MAX_HA_LANE_SLOTS:
-        raise RuntimeError(f"HA rotation supports up to {MAX_HA_LANE_SLOTS} HA-owned slots")
     for slot in slots:
         _ensure_gateway_slot_is_ha(sock_file, slot)
     command = f"HAROTATION on {max(60, int(seconds))} {slot_csv(slots)}"

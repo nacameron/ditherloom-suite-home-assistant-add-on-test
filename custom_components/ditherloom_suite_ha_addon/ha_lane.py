@@ -20,7 +20,6 @@ from .const import (
     CONF_XKCD_ENABLED,
     DEFAULT_TARGET_SLOT,
     DEVICE_SLOT_COUNT,
-    MAX_HA_LANE_SLOTS,
 )
 
 
@@ -140,14 +139,6 @@ def validate_ha_lane(options: dict[str, Any]) -> HaLaneValidation:
             ),
             enabled_count=len(providers),
             slot_count=0,
-        )
-    if len(slots) > MAX_HA_LANE_SLOTS:
-        return HaLaneValidation(
-            valid=False,
-            error_key="too_many_ha_slots",
-            message=f"Home Assistant supports up to {MAX_HA_LANE_SLOTS} explicit HA slots.",
-            enabled_count=len(providers),
-            slot_count=len(slots),
         )
     if len(slots) < len(providers):
         reserved = _slot_int(options.get(CONF_FRAME_RESERVED_SLOT, options.get(CONF_TARGET_SLOT)), DEFAULT_TARGET_SLOT)
