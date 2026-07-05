@@ -141,11 +141,15 @@ def select_suitable_xkcd(
     attempts: int = 25,
     seed: int | None = None,
     timeout: int = 15,
+    exclude_numbers: set[int] | None = None,
 ) -> tuple[XkcdComic, Image.Image, XkcdSuitability]:
     rng = random.Random(seed)
+    excluded = exclude_numbers or set()
     best: tuple[XkcdComic, Image.Image, XkcdSuitability] | None = None
     for _ in range(max(1, attempts)):
         number = rng.randint(1, latest_number)
+        if number in excluded:
+            continue
         comic = fetch_xkcd_comic(number, timeout=timeout)
         image = download_comic_image(comic, timeout=timeout)
         suitability = analyze_xkcd_image(image)

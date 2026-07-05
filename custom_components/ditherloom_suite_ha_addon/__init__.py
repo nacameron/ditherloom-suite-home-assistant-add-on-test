@@ -5,10 +5,12 @@ import base64
 import inspect
 import json
 import logging
+import re
 import shutil
 import socket
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable
 
@@ -18,7 +20,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import async_track_point_in_time, async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
@@ -27,6 +29,8 @@ from .const import (
     ATTR_CRC32,
     ATTR_LAST_ERROR,
     ATTR_PREVIEW_URL,
+    CONF_ASTROLOGY_ENABLED,
+    CONF_ASTROLOGY_SIGNS,
     CONF_DISPLAY_MODE,
     CONF_DISPLAY_ROTATION_ENABLED,
     CONF_DISPLAY_ROTATION_HOURS,
@@ -86,28 +90,31 @@ from .const import (
     SERVICE_RENDER_SUN,
     SERVICE_RENDER_WEATHER,
     SERVICE_RENDER_XKCD,
+    SERVICE_RENDER_ASTROLOGY,
     SERVICE_SEND_MOON,
     SERVICE_SEND_SUN,
     SERVICE_SEND_WEATHER,
     SERVICE_SEND_XKCD,
+    SERVICE_SEND_ASTROLOGY,
     XKCD_MODE_FIXED,
     XKCD_MODE_LATEST,
     XKCD_MODE_RANDOM,
 )
-from .ha_lane import enabled_content_providers, ha_lane_slots, parse_slot_pool, provider_slot_map, slot_csv, validate_ha_lane
+from .ha_lane import active_provider_slots, enabled_content_providers, ha_lane_slots, parse_slot_pool, provider_slot_map, slot_csv, validate_ha_lane
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
-CARD_RENDERER_VERSION = "luxe-0.1.89-comics-successor-cache"
+CARD_RENDERER_VERSION = "luxe-0.1.99-astrology-kalam-safezones"
 PROVIDER_WEATHER = "open_meteo_weather"
 PROVIDER_SUN = "sunrise_sunset"
 PROVIDER_MOON = "moon_phase"
 PROVIDER_XKCD = "xkcd_comic"
 PROVIDER_DIESEL_SWEETIES = "diesel_sweeties"
 PROVIDER_MIMI_EUNICE = "mimi_eunice"
+PROVIDER_ASTROLOGY = "daily_astrology"
 COMIC_SUCCESSOR_PROVIDERS = {PROVIDER_XKCD, PROVIDER_DIESEL_SWEETIES, PROVIDER_MIMI_EUNICE}
 DISCOVERY_AUTH_MESSAGE = "Provide a Home Assistant Long-Lived Access Token."
 STALE_FRONTEND_ENTITY_NAMES = {
@@ -120,7 +127,12 @@ PRESERVED_RUNTIME_METADATA_KEYS = (
     "frame_sleeping",
     "frame_awake_last_received_at",
     "frame_awake_last_success_at",
+    "frame_awake_last_completion_command",
+    "frame_awake_last_completion_sent_at",
+    "frame_awake_last_completion_response",
+    "frame_awake_last_completion_ok",
     "frame_sleeping_last_received_at",
+    "frame_sleeping_expected_after_completion",
     "frame_next_wake_at",
     "frame_content_last_delivered_at",
     "frame_content_last_delivered_count",
@@ -175,10 +187,17 @@ def _render_xkcd_artifact_to_disk(data: dict[str, Any], payload_dir: Path, stem:
     from .xkcd_provider import DEFAULT_RANDOM_ATTEMPTS, analyze_xkcd_image, fetch_xkcd_comic, download_comic_image, render_xkcd_card, select_suitable_xkcd
 
     number = _positive_int(data.get("xkcd_number") or data.get("comic_number") or data.get("number"))
+    excluded_numbers = {
+        parsed
+        for value in data.get("exclude_xkcd_numbers", [])
+        if (parsed := _positive_int(value)) is not None
+    }
     mode = str(data.get("xkcd_mode") or data.get("mode") or (XKCD_MODE_FIXED if number is not None else XKCD_MODE_RANDOM)).lower()
     if mode == XKCD_MODE_FIXED and number is None:
         raise ValueError("xkcd fixed comic mode needs a comic number.")
     if number is not None:
+        if number in excluded_numbers:
+            raise ValueError(f"xkcd #{number} was already delivered and is stale for this frame slot.")
         comic = fetch_xkcd_comic(number)
         source = download_comic_image(comic)
         suitability = analyze_xkcd_image(source)
@@ -186,6 +205,8 @@ def _render_xkcd_artifact_to_disk(data: dict[str, Any], payload_dir: Path, stem:
             raise ValueError(f"xkcd #{number} is not suitable for Ditherloom: {', '.join(suitability.reasons)}")
     elif mode == XKCD_MODE_LATEST:
         comic = fetch_xkcd_comic()
+        if comic.number in excluded_numbers:
+            raise ValueError(f"Latest xkcd #{comic.number} was already delivered and is stale for this frame slot.")
         source = download_comic_image(comic)
         suitability = analyze_xkcd_image(source)
         if not suitability.suitable:
@@ -196,6 +217,7 @@ def _render_xkcd_artifact_to_disk(data: dict[str, Any], payload_dir: Path, stem:
             latest.number,
             attempts=_positive_int(data.get("attempts")) or DEFAULT_RANDOM_ATTEMPTS,
             seed=_positive_int(data.get("seed")),
+            exclude_numbers=excluded_numbers,
         )
         if not suitability.suitable:
             raise ValueError(f"No suitable xkcd comic found after the configured attempts: {', '.join(suitability.reasons)}")
@@ -262,6 +284,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_send_xkcd(call: ServiceCall) -> None:
         await _handle_xkcd_service(coordinator, call, publish=True, send_to_frame=True, action="send xkcd")
 
+    async def handle_render_astrology(call: ServiceCall) -> None:
+        await _handle_astrology_service(coordinator, call, publish=False, send_to_frame=False, action="render astrology")
+
+    async def handle_send_astrology(call: ServiceCall) -> None:
+        await _handle_astrology_service(coordinator, call, publish=True, send_to_frame=True, action="send astrology")
+
     hass.services.async_register(DOMAIN, SERVICE_RENDER_WEATHER, handle_render_weather)
     hass.services.async_register(DOMAIN, SERVICE_SEND_WEATHER, handle_send_weather)
     hass.services.async_register(DOMAIN, SERVICE_RENDER_SUN, handle_render_sun)
@@ -270,6 +298,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, SERVICE_SEND_MOON, handle_send_moon)
     hass.services.async_register(DOMAIN, SERVICE_RENDER_XKCD, handle_render_xkcd)
     hass.services.async_register(DOMAIN, SERVICE_SEND_XKCD, handle_send_xkcd)
+    hass.services.async_register(DOMAIN, SERVICE_RENDER_ASTROLOGY, handle_render_astrology)
+    hass.services.async_register(DOMAIN, SERVICE_SEND_ASTROLOGY, handle_send_astrology)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
@@ -311,6 +341,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
     if coordinator:
         coordinator.async_cancel_weather_refresh()
+        coordinator.async_cancel_astrology_daily_refresh()
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
@@ -377,6 +408,21 @@ async def _handle_xkcd_service(
     )
 
 
+async def _handle_astrology_service(
+    coordinator: "DitherloomRuntime",
+    call: ServiceCall,
+    publish: bool,
+    send_to_frame: bool,
+    action: str,
+) -> None:
+    await coordinator.async_run_astrology_action(
+        dict(call.data),
+        publish=publish,
+        send_to_frame=send_to_frame,
+        action=action,
+    )
+
+
 @dataclass
 class DitherloomRuntime:
     hass: HomeAssistant
@@ -387,6 +433,7 @@ class DitherloomRuntime:
     last_metadata: dict[str, Any] = field(default_factory=dict)
     latest_payload_name: str = "weather-current"
     _weather_refresh_unsub: CALLBACK_TYPE | None = field(default=None, init=False, repr=False)
+    _astrology_daily_refresh_unsub: CALLBACK_TYPE | None = field(default=None, init=False, repr=False)
     _weather_refresh_running: bool = field(default=False, init=False, repr=False)
     _listeners: list[Callable[[], None]] = field(default_factory=list, init=False, repr=False)
 
@@ -406,6 +453,7 @@ class DitherloomRuntime:
 
     async def async_start(self) -> None:
         self._schedule_weather_refresh()
+        self._schedule_astrology_daily_refresh()
         self.hass.async_create_task(self._async_startup_refresh())
 
     async def _async_startup_refresh(self) -> None:
@@ -500,6 +548,23 @@ class DitherloomRuntime:
     ) -> dict[str, Any]:
         try:
             return await self.async_render_xkcd(data, publish=publish, send_to_frame=send_to_frame)
+        except Exception as exc:
+            message = f"Ditherloom {action} failed: {type(exc).__name__}: {exc}"
+            self.last_status = "error"
+            self.last_metadata[ATTR_LAST_ERROR] = message
+            await self.async_save()
+            self._create_notification(f"Ditherloom {action} failed", message)
+            raise HomeAssistantError(message) from exc
+
+    async def async_run_astrology_action(
+        self,
+        data: dict[str, Any],
+        publish: bool,
+        send_to_frame: bool,
+        action: str,
+    ) -> dict[str, Any]:
+        try:
+            return await self.async_render_astrology(data, publish=publish, send_to_frame=send_to_frame)
         except Exception as exc:
             message = f"Ditherloom {action} failed: {type(exc).__name__}: {exc}"
             self.last_status = "error"
@@ -673,6 +738,7 @@ class DitherloomRuntime:
             self.last_metadata["frame_sleeping_expected_after_completion"] = True
             if gateway_status.get("ha_rotation"):
                 self.last_metadata["ha_rotation"] = gateway_status["ha_rotation"]
+            self._record_delivered_comic_exclusions(delivered_jobs)
             self.hass.async_create_task(self._refresh_delivered_comic_successors(delivered_jobs, synced_at))
             self.last_metadata.pop(ATTR_LAST_ERROR, None)
         except Exception as exc:
@@ -770,17 +836,20 @@ class DitherloomRuntime:
         return metadata or {}
 
     async def async_render_provider_to_cache(self, provider: str) -> dict[str, Any]:
+        render_data = self._comic_render_exclusion_data(provider)
         if provider == "sunrise_sunset":
             metadata = await self.async_render_sun({}, publish=False, send_to_frame=False, cache_provider_id=provider)
         elif provider == "moon_phase":
             metadata = await self.async_render_moon({}, publish=False, send_to_frame=False, cache_provider_id=provider)
         elif provider == "xkcd_comic":
-            metadata = await self.async_render_xkcd({}, publish=False, send_to_frame=False, cache_provider_id=provider)
+            metadata = await self.async_render_xkcd(render_data, publish=False, send_to_frame=False, cache_provider_id=provider)
         elif provider in {
             PROVIDER_DIESEL_SWEETIES,
             PROVIDER_MIMI_EUNICE,
         }:
-            metadata = await self.async_render_webcomic({}, publish=False, send_to_frame=False, cache_provider_id=provider)
+            metadata = await self.async_render_webcomic(render_data, publish=False, send_to_frame=False, cache_provider_id=provider)
+        elif provider == PROVIDER_ASTROLOGY:
+            metadata = await self.async_render_astrology({}, publish=False, send_to_frame=False, cache_provider_id=provider)
         else:
             metadata = await self.async_render_weather({}, publish=False, send_to_frame=False, cache_provider_id=provider)
         metadata["selected_provider_id"] = provider
@@ -806,6 +875,8 @@ class DitherloomRuntime:
             PROVIDER_MIMI_EUNICE,
         }:
             metadata = await self.async_render_webcomic({}, publish=True, send_to_frame=False, cache_provider_id=provider)
+        elif provider == PROVIDER_ASTROLOGY:
+            metadata = await self.async_render_astrology({}, publish=True, send_to_frame=False, cache_provider_id=provider)
         else:
             metadata = await self.async_render_weather({}, publish=True, send_to_frame=False, cache_provider_id=provider)
         metadata["selected_provider_id"] = provider
@@ -846,11 +917,15 @@ class DitherloomRuntime:
             provider = cache_provider_id
         opts = self.options
         stem = self._provider_payload_name(cache_provider_id) if cache_provider_id else self.latest_payload_name
+        excluded_urls = {str(url) for url in data.get("exclude_source_urls", []) if str(url).strip()}
         artifact, source, selection = await self.hass.async_add_executor_job(
-            render_webcomic_provider,
-            provider,
-            self.payload_dir,
-            stem,
+            partial(
+                render_webcomic_provider,
+                provider,
+                self.payload_dir,
+                stem,
+                excluded_source_urls=excluded_urls,
+            )
         )
         if cache_provider_id:
             await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.ppbin", self.payload_path())
@@ -917,8 +992,82 @@ class DitherloomRuntime:
         metadata["selected_provider_reason"] = reason
         metadata["selected_provider_cache"] = "cached"
         metadata["activated_at"] = datetime.now(timezone.utc).isoformat()
+        for preserved_key in PRESERVED_RUNTIME_METADATA_KEYS:
+            if preserved_key in self.last_metadata:
+                metadata[preserved_key] = self.last_metadata[preserved_key]
         self.last_status = "rendered"
         self.last_metadata = metadata
+        await self.async_save()
+        return metadata
+
+    async def async_render_astrology(
+        self,
+        data: dict[str, Any],
+        publish: bool,
+        send_to_frame: bool,
+        cache_provider_id: str | None = None,
+    ) -> dict[str, Any]:
+        from .astrology_provider import ASTROLOGY_PROVIDER_ID, normalize_signs, render_astrology_provider
+
+        if cache_provider_id is not None and cache_provider_id != ASTROLOGY_PROVIDER_ID:
+            raise HomeAssistantError("Choose the supported Astrology provider.")
+        opts = self.options
+        stem = self._provider_payload_name(cache_provider_id) if cache_provider_id else self.latest_payload_name
+        signs = normalize_signs(data.get(CONF_ASTROLOGY_SIGNS) or opts.get(CONF_ASTROLOGY_SIGNS))
+        interval_minutes = self._effective_update_interval_minutes()
+        render_now = datetime.now(self._local_timezone())
+        artifact, card = await self.hass.async_add_executor_job(
+            partial(
+                render_astrology_provider,
+                self.payload_dir,
+                stem,
+                signs=signs,
+                interval_minutes=interval_minutes,
+                now=render_now,
+            )
+        )
+        if cache_provider_id:
+            await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.ppbin", self.payload_path())
+            await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.preview.png", self.preview_path())
+
+        metadata = dict(artifact.metadata)
+        metadata[ATTR_PREVIEW_URL] = self.preview_url
+        metadata["rendered_at"] = datetime.now(timezone.utc).isoformat()
+        metadata["provider_id"] = ASTROLOGY_PROVIDER_ID
+        metadata["provider_name"] = "Daily Astrology"
+        metadata["card_renderer_version"] = CARD_RENDERER_VERSION
+        metadata["astrology_enabled_signs"] = signs
+        metadata["astrology_sign"] = card.sign
+        metadata["astrology_sign_name"] = card.sign_name
+        metadata["astrology_date_label"] = card.date_label
+        metadata["astrology_moon_phase"] = card.moon_phase
+        metadata["astrology_skyfield_status"] = card.skyfield_status
+        metadata["astrology_headline"] = card.headline
+        metadata["astrology_body"] = card.body
+        metadata["update_interval_minutes"] = interval_minutes
+        metadata["wake_window_seconds"] = self._effective_wake_window_seconds()
+        metadata["wake_window_minutes"] = self._effective_wake_window_minutes()
+        metadata["max_jobs_per_wake"] = opts.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE)
+        metadata["content_rendered_at"] = metadata["rendered_at"]
+        metadata["content_rendered_provider_id"] = metadata["provider_id"]
+        metadata["content_rendered_provider_name"] = metadata["provider_name"]
+        metadata["content_rendered_source_name"] = metadata["source_name"]
+        metadata["content_rendered_attribution"] = metadata["attribution"]
+        metadata["content_rendered_license"] = metadata["license"]
+        metadata["content_rendered_content_id"] = metadata.get(ATTR_CONTENT_ID)
+        metadata["content_rendered_crc32"] = metadata.get(ATTR_CRC32)
+        for preserved_key in PRESERVED_RUNTIME_METADATA_KEYS:
+            if preserved_key in self.last_metadata:
+                metadata[preserved_key] = self.last_metadata[preserved_key]
+
+        self.last_status = "rendered"
+        self.last_metadata = metadata
+        if publish:
+            self.last_status = "rendered"
+        if send_to_frame:
+            await self.async_send_to_frame(artifact.packed, artifact.crc32)
+            self.last_status = "sent"
+            self.last_metadata.pop(ATTR_LAST_ERROR, None)
         await self.async_save()
         return metadata
 
@@ -1346,8 +1495,17 @@ class DitherloomRuntime:
     def _enabled_content_providers(self) -> list[str]:
         return enabled_content_providers(self.options)
 
-    def _ha_owned_slots(self) -> list[int]:
+    def _configured_ha_slots(self) -> list[int]:
         return ha_lane_slots(self.options)
+
+    def _ha_owned_slots(self) -> list[int]:
+        return self._configured_ha_slots()
+
+    def _active_provider_slots(self) -> list[int]:
+        try:
+            return active_provider_slots(self.options)
+        except ValueError:
+            return self._configured_ha_slots()
 
     def _ha_slot_csv(self) -> str:
         return slot_csv(self._ha_owned_slots())
@@ -1357,6 +1515,9 @@ class DitherloomRuntime:
         return slots[0] if slots else int(self.options.get(CONF_TARGET_SLOT, DEFAULT_TARGET_SLOT))
 
     def _configured_reserved_slot(self) -> int:
+        configured_slots = self._configured_ha_slots()
+        if configured_slots:
+            return configured_slots[0]
         return (
             _positive_int(self.options.get(CONF_FRAME_RESERVED_SLOT))
             or _positive_int(self.options.get(CONF_TARGET_SLOT))
@@ -1364,9 +1525,6 @@ class DitherloomRuntime:
         )
 
     def _ha_slot_pool_text(self) -> str:
-        options = self.options
-        if options.get(CONF_FRAME_HA_SLOT_POOL):
-            return str(options.get(CONF_FRAME_HA_SLOT_POOL))
         slots = self._ha_owned_slots()
         return slot_csv(slots[1:]) if len(slots) > 1 else ""
 
@@ -1411,8 +1569,7 @@ class DitherloomRuntime:
         return max(60, legacy_minutes * 60)
 
     def _ha_rotation_config(self) -> dict[str, Any]:
-        provider_slots = sorted(set(self._provider_slot_map().values()))
-        return {"enabled": self._ha_rotation_enabled(), "seconds": self._ha_rotation_seconds(), "slots": provider_slots}
+        return {"enabled": self._ha_rotation_enabled(), "seconds": self._ha_rotation_seconds(), "slots": self._active_provider_slots()}
 
     def _time_sensitive_render_target(self, data: dict[str, Any] | None = None) -> datetime:
         explicit = _parse_datetime((data or {}).get("render_target_at") or (data or {}).get("renderTargetAt"))
@@ -1450,6 +1607,8 @@ class DitherloomRuntime:
             return "content-diesel-sweeties"
         if provider == PROVIDER_MIMI_EUNICE:
             return "content-mimi-eunice"
+        if provider == PROVIDER_ASTROLOGY:
+            return "content-daily-astrology"
         if provider == "open_meteo_weather":
             return "content-weather"
         return self.latest_payload_name
@@ -1489,11 +1648,33 @@ class DitherloomRuntime:
         if provider == PROVIDER_XKCD:
             if not self._xkcd_cache_matches_options(metadata):
                 return False
+            if self._comic_cache_was_delivered(provider, metadata):
+                return False
             mode = str(self.options.get(CONF_XKCD_MODE, DEFAULT_XKCD_MODE))
             if mode == XKCD_MODE_FIXED:
                 return True
             age = datetime.now(timezone.utc) - rendered_at.astimezone(timezone.utc)
             return age < timedelta(minutes=self._effective_update_interval_minutes())
+        if provider in COMIC_SUCCESSOR_PROVIDERS and self._comic_cache_was_delivered(provider, metadata):
+            return False
+        if provider == PROVIDER_ASTROLOGY:
+            from .astrology_provider import normalize_signs
+
+            if list(metadata.get("astrology_enabled_signs") or []) != normalize_signs(self.options.get(CONF_ASTROLOGY_SIGNS)):
+                return False
+            target = datetime.now(self._local_timezone())
+            if metadata.get("astrology_date") != target.date().isoformat():
+                return False
+            from .astrology_provider import selected_sign_for_time
+
+            current_sign = selected_sign_for_time(
+                normalize_signs(self.options.get(CONF_ASTROLOGY_SIGNS)),
+                target.replace(tzinfo=None),
+                self._effective_update_interval_minutes(),
+            )
+            if metadata.get("astrology_sign") != current_sign:
+                return False
+            return True
         age = datetime.now(timezone.utc) - rendered_at.astimezone(timezone.utc)
         return age < timedelta(minutes=self._effective_update_interval_minutes())
 
@@ -1509,6 +1690,96 @@ class DitherloomRuntime:
         if _positive_int(metadata.get("xkcd_random_attempts")) != attempts:
             return False
         return bool(metadata.get(ATTR_CONTENT_ID) and metadata.get(ATTR_CRC32))
+
+    def _comic_cache_was_delivered(self, provider: str, metadata: dict[str, Any]) -> bool:
+        if provider not in COMIC_SUCCESSOR_PROVIDERS:
+            return False
+        content_id = metadata.get(ATTR_CONTENT_ID)
+        source_url = metadata.get("source_url")
+        exclusions = self._comic_render_exclusion_data(provider)
+        return bool(
+            (content_id and content_id in exclusions.get("exclude_content_ids", []))
+            or (source_url and source_url in exclusions.get("exclude_source_urls", []))
+        )
+
+    def _comic_render_exclusion_data(self, provider: str) -> dict[str, Any]:
+        if provider not in COMIC_SUCCESSOR_PROVIDERS:
+            return {}
+        content_ids: list[str] = []
+        source_urls: list[str] = []
+        xkcd_numbers: list[int] = []
+
+        def add_job(job: dict[str, Any]) -> None:
+            if str(job.get("provider_id") or "") != provider:
+                return
+            content_id = str(job.get("content_id") or "").strip()
+            source_url = str(job.get("source_url") or "").strip()
+            if content_id and content_id not in content_ids:
+                content_ids.append(content_id)
+            if source_url and source_url not in source_urls:
+                source_urls.append(source_url)
+            if provider == PROVIDER_XKCD:
+                number = _xkcd_number_from_url(source_url) or _xkcd_number_from_content_id(content_id)
+                if number is not None and number not in xkcd_numbers:
+                    xkcd_numbers.append(number)
+
+        exclusions = self.last_metadata.get("comic_delivery_exclusions")
+        if isinstance(exclusions, dict):
+            provider_exclusions = exclusions.get(provider)
+            if isinstance(provider_exclusions, dict):
+                for content_id in provider_exclusions.get("content_ids") or []:
+                    text = str(content_id).strip()
+                    if text and text not in content_ids:
+                        content_ids.append(text)
+                for source_url in provider_exclusions.get("source_urls") or []:
+                    text = str(source_url).strip()
+                    if text and text not in source_urls:
+                        source_urls.append(text)
+                for number in provider_exclusions.get("xkcd_numbers") or []:
+                    parsed = _positive_int(number)
+                    if parsed is not None and parsed not in xkcd_numbers:
+                        xkcd_numbers.append(parsed)
+
+        for job in self.last_metadata.get("frame_awake_last_delivered_jobs") or []:
+            if isinstance(job, dict):
+                add_job(job)
+
+        return {
+            "exclude_content_ids": content_ids[-20:],
+            "exclude_source_urls": source_urls[-20:],
+            "exclude_xkcd_numbers": xkcd_numbers[-20:],
+        }
+
+    def _record_delivered_comic_exclusions(self, delivered_jobs: list[dict[str, Any]]) -> None:
+        exclusions = dict(self.last_metadata.get("comic_delivery_exclusions") or {})
+        for provider in COMIC_SUCCESSOR_PROVIDERS:
+            current = dict(exclusions.get(provider) or {})
+            content_ids = [str(value) for value in current.get("content_ids") or [] if str(value).strip()]
+            source_urls = [str(value) for value in current.get("source_urls") or [] if str(value).strip()]
+            xkcd_numbers = [
+                number
+                for value in current.get("xkcd_numbers") or []
+                if (number := _positive_int(value)) is not None
+            ]
+            for job in delivered_jobs:
+                if str(job.get("provider_id") or "") != provider:
+                    continue
+                content_id = str(job.get("content_id") or "").strip()
+                source_url = str(job.get("source_url") or "").strip()
+                if content_id and content_id not in content_ids:
+                    content_ids.append(content_id)
+                if source_url and source_url not in source_urls:
+                    source_urls.append(source_url)
+                if provider == PROVIDER_XKCD:
+                    number = _xkcd_number_from_url(source_url) or _xkcd_number_from_content_id(content_id)
+                    if number is not None and number not in xkcd_numbers:
+                        xkcd_numbers.append(number)
+            exclusions[provider] = {
+                "content_ids": content_ids[-20:],
+                "source_urls": source_urls[-20:],
+                "xkcd_numbers": xkcd_numbers[-20:],
+            }
+        self.last_metadata["comic_delivery_exclusions"] = exclusions
 
     def _local_timezone(self):
         from zoneinfo import ZoneInfo
@@ -1615,7 +1886,7 @@ class DitherloomRuntime:
             try:
                 rendered_successor = await self.async_render_provider_to_cache(provider)
                 self.last_status = previous_status
-                self.last_metadata = previous_metadata
+                self.last_metadata = self._preserve_current_runtime_metadata(previous_metadata)
                 if (
                     rendered_successor.get(ATTR_CONTENT_ID) == delivered_content_id
                     or str(rendered_successor.get(ATTR_CRC32)) == str(delivered_crc32)
@@ -1627,7 +1898,7 @@ class DitherloomRuntime:
                 refreshed.append(provider)
             except Exception as exc:
                 self.last_status = previous_status
-                self.last_metadata = previous_metadata
+                self.last_metadata = self._preserve_current_runtime_metadata(previous_metadata)
                 failed[provider] = f"{type(exc).__name__}: {exc}"
         if refreshed or failed:
             self.last_metadata["comic_successor_refresh_last_at"] = datetime.now(timezone.utc).isoformat()
@@ -1638,6 +1909,13 @@ class DitherloomRuntime:
                 self.last_metadata.pop("comic_successor_refresh_failed", None)
             await self.async_save()
 
+    def _preserve_current_runtime_metadata(self, metadata: dict[str, Any]) -> dict[str, Any]:
+        preserved = dict(metadata)
+        for key in PRESERVED_RUNTIME_METADATA_KEYS:
+            if key in self.last_metadata:
+                preserved[key] = self.last_metadata[key]
+        return preserved
+
     def _time_sensitive_cache_minutes(self) -> int:
         return max(1, self._effective_update_interval_minutes() + self._effective_wake_window_minutes())
 
@@ -1646,6 +1924,11 @@ class DitherloomRuntime:
             self._weather_refresh_unsub()
             self._weather_refresh_unsub = None
 
+    def async_cancel_astrology_daily_refresh(self) -> None:
+        if self._astrology_daily_refresh_unsub:
+            self._astrology_daily_refresh_unsub()
+            self._astrology_daily_refresh_unsub = None
+
     def _schedule_weather_refresh(self) -> None:
         interval_minutes = self._effective_update_interval_minutes()
         interval = timedelta(minutes=interval_minutes)
@@ -1653,6 +1936,33 @@ class DitherloomRuntime:
         self.last_metadata["weather_refresh_interval_minutes"] = interval_minutes
         self.last_metadata["weather_refresh_next_at"] = (datetime.now(timezone.utc) + interval).isoformat()
         self._weather_refresh_unsub = async_track_time_interval(self.hass, self._handle_weather_refresh, interval)
+
+    def _schedule_astrology_daily_refresh(self) -> None:
+        self.async_cancel_astrology_daily_refresh()
+        now = datetime.now(self._local_timezone())
+        next_at = now.replace(hour=0, minute=2, second=0, microsecond=0)
+        if next_at <= now:
+            next_at = next_at + timedelta(days=1)
+        self.last_metadata["astrology_daily_refresh_next_at"] = next_at.isoformat()
+        self._astrology_daily_refresh_unsub = async_track_point_in_time(
+            self.hass,
+            self._handle_astrology_daily_refresh,
+            next_at.astimezone(timezone.utc),
+        )
+
+    async def _handle_astrology_daily_refresh(self, now: datetime) -> None:
+        try:
+            if PROVIDER_ASTROLOGY in self._enabled_content_providers():
+                await self.async_render_provider_to_cache(PROVIDER_ASTROLOGY)
+                self.last_metadata["astrology_daily_refresh_last_at"] = now.isoformat()
+                await self.async_save()
+        except Exception as exc:
+            self.last_status = "astrology_daily_refresh_failed"
+            self.last_metadata[ATTR_LAST_ERROR] = f"Daily Astrology refresh failed: {type(exc).__name__}: {exc}"
+            self.last_metadata["astrology_daily_refresh_last_failed_at"] = now.isoformat()
+            await self.async_save()
+        finally:
+            self._schedule_astrology_daily_refresh()
 
     async def _handle_weather_refresh(self, now: datetime) -> None:
         if self._weather_refresh_running:
@@ -1933,12 +2243,19 @@ async def _store_frame_provided_ha_config(hass: HomeAssistant, entry: ConfigEntr
 
 
 def _frame_provided_ha_config(options: dict[str, Any]) -> dict[str, Any]:
-    slots = ha_lane_slots(options)
-    reserved = _positive_int(options.get(CONF_FRAME_RESERVED_SLOT))
+    configured_slots = ha_lane_slots(options)
+    try:
+        active_slots = active_provider_slots(options)
+    except ValueError:
+        active_slots = configured_slots
+    slots = configured_slots
+    reserved = slots[0] if slots else _positive_int(options.get(CONF_FRAME_RESERVED_SLOT))
     return {
-        "reservedSlot": reserved if reserved is not None else (slots[0] if slots else None),
-        "haSlotPool": str(options.get(CONF_FRAME_HA_SLOT_POOL) or slot_csv(slots[1:])),
+        "reservedSlot": reserved,
+        "haSlotPool": slot_csv(slots[1:]) if len(slots) > 1 else "",
         "haSlotCsv": slot_csv(slots),
+        "configuredHaSlotCsv": slot_csv(configured_slots),
+        "activeProviderSlotCsv": slot_csv(active_slots),
         "intervalMinutes": _positive_int(options.get(CONF_FRAME_INTERVAL_MINUTES)),
         "haRotationEnabled": _bool_option(options, CONF_FRAME_HA_ROTATION_ENABLED, False),
         "haRotationSeconds": _positive_int(options.get(CONF_FRAME_HA_ROTATION_SECONDS)) or DEFAULT_HA_ROTATION_SECONDS,
@@ -2259,6 +2576,22 @@ def _positive_int(value: Any) -> int | None:
     except (TypeError, ValueError):
         return None
     return parsed if parsed > 0 else None
+
+
+def _xkcd_number_from_url(value: Any) -> int | None:
+    text = str(value or "")
+    match = re.search(r"xkcd\.com/(\d+)/?", text)
+    if not match:
+        return None
+    return _positive_int(match.group(1))
+
+
+def _xkcd_number_from_content_id(value: Any) -> int | None:
+    text = str(value or "")
+    match = re.search(r"xkcd_(\d+)", text)
+    if not match:
+        return None
+    return _positive_int(match.group(1))
 
 
 def _bool_option(data: dict[str, Any], key: str, default: bool) -> bool:

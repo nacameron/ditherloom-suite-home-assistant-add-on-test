@@ -206,3 +206,47 @@ send_xkcd_card:
       selector:
         boolean:
       required: false
+render_astrology_card:
+  fields:
+    astrology_signs:
+      selector:
+        select:
+          multiple: true
+          options:
+            - aries
+            - taurus
+            - gemini
+            - cancer
+            - leo
+            - virgo
+            - libra
+            - scorpio
+            - sagittarius
+            - capricorn
+            - aquarius
+            - pisces
+      required: false
+send_astrology_card:
+  fields:
+    astrology_signs:
+      selector:
+        select:
+          multiple: true
+          options:
+            - aries
+            - taurus
+            - gemini
+            - cancer
+            - leo
+            - virgo
+            - libra
+            - scorpio
+            - sagittarius
+            - capricorn
+            - aquarius
+            - pisces
+      required: false
+    display:
+      selector:
+        boolean:
+      required: false

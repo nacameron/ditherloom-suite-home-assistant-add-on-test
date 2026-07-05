@@ -15,6 +15,8 @@ The current prototype uses these Python packages:
 | Eclipse Paho MQTT | 2.1.0 | EPL-2.0 OR BSD-3-Clause | https://eclipse.dev/paho/ |
 | python-multipart | 0.0.20 | Apache-2.0 | https://github.com/Kludex/python-multipart |
 | Segno | 1.6.6 | BSD-3-Clause | https://github.com/heuer/segno/ |
+| Skyfield | 1.54 | MIT | https://rhodesmill.org/skyfield/ |
+| jplephem | 2.24 | MIT | https://github.com/brandon-rhodes/python-jplephem |
 | pytest | 8.3.4 | MIT | https://docs.pytest.org/ |
 
 Transitive dependencies are installed by Python packaging tools and retain their
@@ -40,23 +42,31 @@ components. They retain their original licenses and notices.
 
 ## Fonts
 
-The Home Assistant integration bundles Barlow Condensed font files for stable
-400 x 300 e-ink card rendering across Home Assistant hosts.
+The Home Assistant integration bundles Barlow Condensed and Kalam font files for
+stable 400 x 300 e-ink card rendering across Home Assistant hosts.
 
 | Component | License | Project |
 | --- | --- | --- |
 | Barlow / Barlow Condensed | SIL Open Font License 1.1 | https://github.com/jpt/barlow |
+| Kalam | SIL Open Font License 1.1 | https://github.com/google/fonts/tree/main/ofl/kalam |
 
 The bundled Barlow license text is packaged at:
 
 ```text
 custom_components/ditherloom_suite_ha_addon/assets/fonts/OFL-Barlow.txt
+custom_components/ditherloom_suite_ha_addon/assets/fonts/OFL-Kalam.txt
 ```
 
 Barlow copyright notice:
 
 ```text
 Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
+```
+
+Kalam copyright notice:
+
+```text
+Copyright (c) 2014, Indian Type Foundry (info@indiantypefoundry.com).
 ```
 
 The add-on Dockerfile may also install DejaVu fonts through the base image
@@ -153,4 +163,24 @@ Sources:
 https://mimiandeunice.com/
 https://mimiandeunice.com/about/
 https://creativecommons.org/licenses/by-sa/3.0/
+```
+
+## Optional Daily Astrology Content
+
+Daily Astrology uses Ditherloom-owned/generated horoscope wording and bundled
+sign artwork supplied for the Ditherloom project. It does not fetch or embed
+third-party horoscope copy.
+
+When available, the provider uses Skyfield and jplephem to calculate planetary
+and lunar positions from JPL/NASA ephemeris data. Skyfield and jplephem remain
+under their MIT licenses. JPL/NASA ephemeris data remains NASA/JPL work under
+its source distribution terms; the Ditherloom project does not claim copyright
+over that data or over Skyfield/jplephem.
+
+Sources:
+
+```text
+https://rhodesmill.org/skyfield/
+https://github.com/brandon-rhodes/python-jplephem
+https://naif.jpl.nasa.gov/naif/data.html
 ```

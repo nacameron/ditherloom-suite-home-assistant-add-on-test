@@ -29,6 +29,7 @@ PROVIDER_DISPLAY_NAMES = {
     "sunrise_sunset": "Sunrise / Sunset",
     "moon_phase": "Moon Phase",
     "xkcd_comic": "xkcd Comic",
+    "daily_astrology": "Daily Astrology",
 }
 
 
@@ -206,7 +207,7 @@ class DitherloomDataAttributionSensor(DitherloomSensorBase):
 
     @property
     def native_value(self):
-        return "Open-Meteo Weather; Ditherloom local sun/moon; Comics"
+        return "Open-Meteo Weather; Ditherloom local sun/moon; Comics; Daily Astrology"
 
     @property
     def extra_state_attributes(self):
@@ -246,7 +247,19 @@ class DitherloomDataAttributionSensor(DitherloomSensorBase):
             "mimi_eunice_license": "CC BY-SA",
             "mimi_eunice_license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
             "comics_use": "Optional comic providers fetch source comic feeds/assets, reject unsuitable candidates, and render local Ditherloom display payloads through the shared Comics selector.",
-            "visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM. Comic cards show source-specific red attribution and license text.",
+            "astrology_provider": "Ditherloom local astrology",
+            "astrology_attribution": "Ditherloom Astrology; planetary data by NASA/JPL via Skyfield",
+            "astrology_attribution_url": "local://ditherloom/astrology",
+            "astrology_license": "Ditherloom artwork/text; Skyfield and jplephem MIT; NASA/JPL ephemeris data retained under source terms",
+            "astrology_license_url": "local://ditherloom/astrology",
+            "astrology_skyfield": "Skyfield MIT licensed Python astronomy library",
+            "astrology_skyfield_url": "https://rhodesmill.org/skyfield/",
+            "astrology_jplephem": "jplephem MIT licensed JPL ephemeris reader",
+            "astrology_jplephem_url": "https://github.com/brandon-rhodes/python-jplephem",
+            "astrology_ephemeris": "JPL/NASA ephemeris data used for planetary and lunar positions; Ditherloom does not claim copyright over NASA/JPL data.",
+            "astrology_ephemeris_url": "https://naif.jpl.nasa.gov/naif/data.html",
+            "astrology_use": "Optional provider. Home Assistant renders bundled Ditherloom sign artwork with Ditherloom-generated daily horoscope text informed by Skyfield/JPL planetary and lunar positions when available. No external horoscope service or scraped horoscope text is used.",
+            "visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM. Comic cards show source-specific red attribution and license text. Astrology cards show DITHERLOOM; backend metadata attributes Skyfield, jplephem, and NASA/JPL ephemeris data.",
             "audit_note": "These diagnostic attribution fields are fixed compliance metadata and do not depend on the latest render or delivery.",
         }
 

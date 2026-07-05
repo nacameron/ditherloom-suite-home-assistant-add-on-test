@@ -41,6 +41,7 @@
           "moon": "Moon Phase",
           "comics": "Comics",
           "comics_framework": "Comics",
+          "astrology": "Daily Astrology",
           "device": "Device / Connection"
         }
       },
@@ -148,6 +149,18 @@
         },
         "data_description": {
           "mimi_eunice_enabled": "When enabled, Mimi & Eunice joins the HA-owned content rotation and consumes one explicit HA slot. Rendered cards include red Mimi & Eunice / Nina Paley | CC BY-SA attribution and store full license metadata."
+        }
+      },
+      "astrology": {
+        "title": "Daily Astrology",
+        "description": "Daily Astrology is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. It uses bundled Ditherloom sign artwork and Ditherloom-generated horoscope text informed by Skyfield/JPL planetary and lunar positions when available. Skyfield and jplephem are MIT licensed; JPL/NASA ephemeris data remains NASA/JPL work and is not claimed by Ditherloom. No external horoscope service, account, or scraped text is used. Select one or more star signs to rotate through this provider.",
+        "data": {
+          "astrology_enabled": "Enable Daily Astrology",
+          "astrology_signs": "Star signs"
+        },
+        "data_description": {
+          "astrology_enabled": "When enabled, Daily Astrology joins the HA-owned content rotation and consumes one explicit HA slot.",
+          "astrology_signs": "Choose one or more signs. When multiple signs are selected, Ditherloom rotates the selected sign each refresh interval."
         }
       },
       "xkcd": {

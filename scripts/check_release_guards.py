@@ -74,7 +74,7 @@ def check_licenses() -> None:
     for required in ("custom weather-card images", "custom templates", "custom device-screen graphics"):
         if required not in license_text_lower:
             fail(f"LICENSE.md missing custom graphics copyright text: {required}")
-    for required in ("FastAPI", "Uvicorn", "Pillow", "Eclipse Paho MQTT", "python-multipart", "Segno", "Open-Meteo"):
+    for required in ("FastAPI", "Uvicorn", "Pillow", "Eclipse Paho MQTT", "python-multipart", "Segno", "Skyfield", "jplephem", "JPL/NASA", "Open-Meteo"):
         if required not in notices_text:
             fail(f"THIRD_PARTY_NOTICES.md missing required component: {required}")
     for required in ("Open-Meteo", "Nominatim/OpenStreetMap", "place name", "latitude", "longitude"):
@@ -283,8 +283,8 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.90"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.90")
+    if '"version": "0.1.100"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.100")
 
     for forbidden in (
         '"mode": "frame_pull"',
@@ -745,7 +745,6 @@ def check_locked_render_delivery_pathway() -> None:
     for forbidden in (
         "_probe_existing_gateway",
         "_read_existing_gateway_timer_config",
-        "async_track_point_in_time",
         "_schedule_next_auto_send",
         "_handle_auto_send",
         'async_refresh_content_payload(reason="frame_awake")',

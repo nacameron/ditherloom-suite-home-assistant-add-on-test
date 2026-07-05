@@ -11,6 +11,8 @@ from homeassistant.helpers import selector
 from .const import (
     COMICS_SLOT_MODE_ALTERNATE,
     COMICS_SLOT_MODE_PER_SOURCE,
+    CONF_ASTROLOGY_ENABLED,
+    CONF_ASTROLOGY_SIGNS,
     CONF_COMICS_ENABLED,
     CONF_COMICS_SLOT_MODE,
     CONF_DIESEL_SWEETIES_ENABLED,
@@ -60,7 +62,8 @@ from .const import (
     XKCD_MODE_RANDOM,
 )
 from .comics_registry import comics_framework_attributes
-from .ha_lane import validate_ha_lane
+from .ha_lane import sanitize_provider_options, validate_ha_lane
+from .astrology_provider import SIGN_NAMES, SIGN_ORDER
 
 XKCD_FORM_ENABLED = "Enable xkcd Comic"
 XKCD_FORM_ATTRIBUTION = "Attribution - xkcd / Randall Munroe | CC BY-NC 2.5"
@@ -147,14 +150,15 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         return self.async_show_menu(
             step_id="init",
-            menu_options=["weather", "sun", "moon", "comics_framework", "device"],
+            menu_options=["weather", "sun", "moon", "comics_framework", "astrology", "device"],
         )
 
     async def async_step_weather(self, user_input: dict[str, Any] | None = None):
         data = self._data()
+        normalized = sanitize_provider_options(data)
         schema = vol.Schema(
             {
-                vol.Optional(CONF_WEATHER_ENABLED, default=_bool_option(data, CONF_WEATHER_ENABLED, True)): bool,
+                vol.Optional(CONF_WEATHER_ENABLED, default=_bool_option(normalized, CONF_WEATHER_ENABLED, True)): bool,
                 vol.Optional(CONF_LOCATION_NAME, default=data.get(CONF_LOCATION_NAME, "Home")): str,
                 vol.Optional(
                     CONF_WEATHER_LOCATION,
@@ -324,6 +328,25 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
             user_input,
         )
 
+    async def async_step_astrology(self, user_input: dict[str, Any] | None = None):
+        data = self._data()
+        schema = vol.Schema(
+            {
+                vol.Optional(CONF_ASTROLOGY_ENABLED, default=_bool_option(data, CONF_ASTROLOGY_ENABLED, False)): bool,
+                vol.Optional(
+                    CONF_ASTROLOGY_SIGNS,
+                    default=_selected_astrology_signs(data),
+                ): _astrology_sign_selector(),
+            }
+        )
+        if user_input is not None:
+            normalized = {
+                CONF_ASTROLOGY_ENABLED: bool(user_input.get(CONF_ASTROLOGY_ENABLED, False)),
+                CONF_ASTROLOGY_SIGNS: _selected_astrology_signs(user_input),
+            }
+            return self._save_options_or_show("astrology", normalized, schema)
+        return self.async_show_form(step_id="astrology", data_schema=schema)
+
     async def async_step_device(self, user_input: dict[str, Any] | None = None):
         data = {**self._entry.data, **self._entry.options}
         schema = vol.Schema(
@@ -360,11 +383,12 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
         data = {**self._entry.options}
         _apply_picked_location(user_input)
         data.update(user_input)
+        data = sanitize_provider_options(data)
         return self.async_create_entry(title="", data=data)
 
     def _save_options_or_show(self, step_id: str, user_input: dict[str, Any], schema: vol.Schema):
         _apply_picked_location(user_input)
-        candidate = {**self._data(), **user_input}
+        candidate = sanitize_provider_options({**self._data(), **user_input})
         validation = validate_ha_lane(candidate)
         if not validation.valid:
             return self.async_show_form(
@@ -496,6 +520,28 @@ def _comics_slot_mode_selector() -> selector.SelectSelector:
             mode=selector.SelectSelectorMode.DROPDOWN,
         )
     )
+
+
+def _astrology_sign_selector() -> selector.SelectSelector:
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=[{"value": sign, "label": SIGN_NAMES[sign]} for sign in SIGN_ORDER],
+            mode=selector.SelectSelectorMode.DROPDOWN,
+            multiple=True,
+        )
+    )
+
+
+def _selected_astrology_signs(data: dict[str, Any]) -> list[str]:
+    raw = data.get(CONF_ASTROLOGY_SIGNS)
+    if isinstance(raw, str):
+        values = [part.strip().lower() for part in raw.replace(";", ",").split(",")]
+    elif isinstance(raw, (list, tuple, set)):
+        values = [str(part).strip().lower() for part in raw]
+    else:
+        values = []
+    signs = [sign for sign in SIGN_ORDER if sign in set(values)]
+    return signs or ["aries"]
 
 
 def _xkcd_attribution_selector() -> selector.SelectSelector:

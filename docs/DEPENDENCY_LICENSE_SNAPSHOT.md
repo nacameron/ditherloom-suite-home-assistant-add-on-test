@@ -1,6 +1,6 @@
 # Dependency License Snapshot
 
-Snapshot date: 2026-07-02
+Snapshot date: 2026-07-05
 
 This file records the Python dependency/license set used for the current
 Ditherloom Suite Home Assistant Add On release check. Regenerate this from the
@@ -17,6 +17,8 @@ the Home Assistant add-on image, or the packaged runtime.
 | paho-mqtt | 2.1.0 | EPL-2.0 OR BSD-3-Clause | https://eclipse.dev/paho/ |
 | python-multipart | 0.0.20 | Apache-2.0 | https://github.com/Kludex/python-multipart |
 | segno | 1.6.6 | BSD-3-Clause | https://github.com/heuer/segno/ |
+| skyfield | 1.54 | MIT | https://rhodesmill.org/skyfield/ |
+| jplephem | 2.24 | MIT | https://github.com/brandon-rhodes/python-jplephem |
 | pytest | 8.3.4 | MIT | https://docs.pytest.org/ |
 
 ## Installed Transitive Dependencies Observed In `.venv`
@@ -50,3 +52,5 @@ the Home Assistant add-on image, or the packaged runtime.
 | Home Assistant base image | Home Assistant and bundled system component notices apply | https://github.com/home-assistant/docker-base |
 | DejaVu fonts | Bitstream Vera / Arev / public-domain DejaVu changes | https://dejavu-fonts.github.io/License.html |
 | Barlow / Barlow Condensed | SIL Open Font License 1.1 | https://github.com/jpt/barlow |
+| Kalam | SIL Open Font License 1.1 | https://github.com/google/fonts/tree/main/ofl/kalam |
+| JPL/NASA ephemeris data | NASA/JPL source terms apply; Ditherloom does not claim ownership | https://naif.jpl.nasa.gov/naif/data.html |

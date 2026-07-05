@@ -34,6 +34,7 @@ from custom_components.ditherloom_suite_ha_addon.const import (
     CONF_COMICS_SLOT_MODE,
     CONF_DIESEL_SWEETIES_ENABLED,
     CONF_MIMI_EUNICE_ENABLED,
+    CONF_WEATHER_ENABLED,
     CONF_XKCD_ENABLED,
 )
 from custom_components.ditherloom_suite_ha_addon.ha_lane import enabled_content_providers
@@ -50,6 +51,7 @@ def test_comics_registry_keeps_xkcd_on_existing_delivery_provider():
     options = {
         CONF_COMICS_ENABLED: True,
         CONF_COMICS_SLOT_MODE: COMICS_SLOT_MODE_ALTERNATE,
+        CONF_WEATHER_ENABLED: True,
         CONF_XKCD_ENABLED: True,
     }
 

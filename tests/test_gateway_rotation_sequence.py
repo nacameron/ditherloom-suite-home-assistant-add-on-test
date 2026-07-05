@@ -68,6 +68,22 @@ def test_frame_awake_success_metadata_requires_recorded_completion():
     assert "self.last_metadata[\"frame_awake_last_completion_ok\"] = bool(completion.get(\"ok\"))" in delivery_source
 
 
+def test_completion_proof_survives_later_content_refresh():
+    source = _source()
+    preserved_start = source.index("PRESERVED_RUNTIME_METADATA_KEYS = (")
+    preserved_end = source.index("def _render_weather_artifact_to_disk", preserved_start)
+    preserved_source = source[preserved_start:preserved_end]
+
+    for key in (
+        "frame_awake_last_completion_command",
+        "frame_awake_last_completion_sent_at",
+        "frame_awake_last_completion_response",
+        "frame_awake_last_completion_ok",
+        "frame_sleeping_expected_after_completion",
+    ):
+        assert key in preserved_source
+
+
 def test_frame_awake_reports_no_jobs_before_waiting_for_gateway_delivery():
     source = _source()
     awake_start = source.index("async def async_handle_frame_awake")
@@ -155,6 +171,8 @@ def test_provider_freshness_is_provider_specific():
     assert "return True" in fresh_source
     assert "if provider == PROVIDER_XKCD" in fresh_source
     assert "if not self._xkcd_cache_matches_options(metadata):" in fresh_source
+    assert "if self._comic_cache_was_delivered(provider, metadata):" in fresh_source
+    assert "if provider in COMIC_SUCCESSOR_PROVIDERS and self._comic_cache_was_delivered(provider, metadata):" in fresh_source
     assert "if mode == XKCD_MODE_FIXED:" in fresh_source
     assert "age < timedelta(minutes=self._effective_update_interval_minutes())" in fresh_source
     assert "xkcd_mode" in xkcd_source
@@ -177,9 +195,38 @@ def test_successful_delivery_prepares_comic_successor_cache_without_resend_loop(
     assert "previous_metadata = dict(self.last_metadata)" in helper_source
     assert "rendered_successor = await self.async_render_provider_to_cache(provider)" in helper_source
     assert "self.last_status = previous_status" in helper_source
-    assert "self.last_metadata = previous_metadata" in helper_source
+    assert "self.last_metadata = self._preserve_current_runtime_metadata(previous_metadata)" in helper_source
+    assert "def _preserve_current_runtime_metadata" in helper_source
+    assert "for key in PRESERVED_RUNTIME_METADATA_KEYS" in helper_source
     assert "rendered_successor.get(ATTR_CONTENT_ID) == delivered_content_id" in helper_source
     assert "rendered_successor[\"frame_synced_content_id\"] = delivered_content_id" in helper_source
+    assert "self._record_delivered_comic_exclusions(delivered_jobs)" in delivery_source
+
+
+def test_comic_renders_exclude_recently_delivered_content():
+    source = _source()
+    render_cache_start = source.index("async def async_render_provider_to_cache")
+    render_cache_end = source.index("async def async_render_selected_content", render_cache_start)
+    render_cache_source = source[render_cache_start:render_cache_end]
+    webcomic_start = source.index("async def async_render_webcomic")
+    webcomic_end = source.index("async def async_activate_cached_content", webcomic_start)
+    webcomic_source = source[webcomic_start:webcomic_end]
+    xkcd_start = source.index("def _render_xkcd_artifact_to_disk")
+    xkcd_end = source.index("STALE_FRONTEND_ENTITY_UNIQUE_ID_SUFFIXES", xkcd_start)
+    xkcd_source = source[xkcd_start:xkcd_end]
+    exclusions_start = source.index("def _comic_render_exclusion_data")
+    exclusions_end = source.index("def _local_timezone", exclusions_start)
+    exclusions_source = source[exclusions_start:exclusions_end]
+
+    assert "render_data = self._comic_render_exclusion_data(provider)" in render_cache_source
+    assert "await self.async_render_xkcd(render_data" in render_cache_source
+    assert "await self.async_render_webcomic(render_data" in render_cache_source
+    assert "excluded_source_urls=excluded_urls" in webcomic_source
+    assert "exclude_xkcd_numbers" in xkcd_source
+    assert "xkcd fixed comic mode needs a comic number" in xkcd_source
+    assert "already delivered and is stale for this frame slot" in xkcd_source
+    assert "comic_delivery_exclusions" in exclusions_source
+    assert "frame_awake_last_delivered_jobs" in exclusions_source
 
 
 def test_refresh_continues_after_individual_provider_failure():
@@ -240,6 +287,24 @@ def test_harotation_slots_are_populated_enabled_provider_slots_in_physical_order
     batch_end = source.index("with socket.create_connection", batch_start)
     batch_source = source[batch_start:batch_end]
 
-    assert "provider_slots = sorted(set(self._provider_slot_map().values()))" in config_source
-    assert '"slots": provider_slots' in config_source
+    assert '"slots": self._active_provider_slots()' in config_source
     assert "ha_rotation_slots = sorted(set(int(slot) for slot in (ha_rotation or {}).get(\"slots\", [])))" in batch_source
+
+
+def test_discovery_reports_configured_slots_and_active_provider_slots_separately():
+    source = _source()
+    owned_start = source.index("def _ha_owned_slots")
+    owned_end = source.index("def _ha_slot_csv", owned_start)
+    owned_source = source[owned_start:owned_end]
+    rotation_start = source.index("def _ha_rotation_config")
+    rotation_end = source.index("def _time_sensitive_render_target", rotation_start)
+    rotation_source = source[rotation_start:rotation_end]
+    frame_config_start = source.index("def _frame_provided_ha_config")
+    frame_config_end = source.index("class DitherloomPreviewView", frame_config_start)
+    frame_config_source = source[frame_config_start:frame_config_end]
+
+    assert "return self._configured_ha_slots()" in owned_source
+    assert '"slots": self._active_provider_slots()' in rotation_source
+    assert "active_provider_slots(options)" in frame_config_source
+    assert '"configuredHaSlotCsv": slot_csv(configured_slots)' in frame_config_source
+    assert '"activeProviderSlotCsv": slot_csv(active_slots)' in frame_config_source

@@ -12,21 +12,27 @@ ditherloom_package.__path__ = [str(ROOT / "custom_components" / "ditherloom_suit
 sys.modules.setdefault("custom_components.ditherloom_suite_ha_addon", ditherloom_package)
 
 from custom_components.ditherloom_suite_ha_addon.const import (
+    CONF_COMICS_ENABLED,
     CONF_FRAME_HA_SLOT_CSV,
     CONF_FRAME_HA_SLOT_POOL,
     CONF_FRAME_RESERVED_SLOT,
     CONF_DIESEL_SWEETIES_ENABLED,
+    CONF_IRREGULAR_WEBCOMIC_ENABLED,
     CONF_MIMI_EUNICE_ENABLED,
     CONF_MOON_ENABLED,
+    CONF_PEPPER_CARROT_ENABLED,
     CONF_SUN_ENABLED,
     CONF_TARGET_SLOT,
     CONF_WEATHER_ENABLED,
     CONF_XKCD_ENABLED,
 )
 from custom_components.ditherloom_suite_ha_addon.ha_lane import (
+    active_provider_slots,
+    enabled_content_providers,
     ha_lane_slots,
     parse_slot_pool,
     provider_slot_map,
+    sanitize_provider_options,
     validate_ha_lane,
 )
 
@@ -74,6 +80,7 @@ def test_xkcd_provider_is_opt_in_and_consumes_explicit_slot():
 def test_comic_providers_are_opt_in_and_consume_explicit_slots():
     options = {
         CONF_FRAME_HA_SLOT_CSV: "441,442,443",
+        CONF_COMICS_ENABLED: True,
         CONF_WEATHER_ENABLED: True,
         CONF_DIESEL_SWEETIES_ENABLED: True,
         CONF_MIMI_EUNICE_ENABLED: True,
@@ -87,6 +94,76 @@ def test_comic_providers_are_opt_in_and_consume_explicit_slots():
         "diesel_sweeties": 442,
         "mimi_eunice": 443,
     }
+
+
+def test_disabled_comic_providers_release_previously_configured_slots():
+    options = {
+        CONF_FRAME_HA_SLOT_CSV: "441,442,443,444",
+        CONF_WEATHER_ENABLED: True,
+        CONF_XKCD_ENABLED: False,
+        CONF_DIESEL_SWEETIES_ENABLED: False,
+        CONF_MIMI_EUNICE_ENABLED: False,
+    }
+
+    assert ha_lane_slots(options) == [441, 442, 443, 444]
+    assert provider_slot_map(options) == {"open_meteo_weather": 441}
+    assert active_provider_slots(options) == [441]
+
+
+def test_comics_framework_disabled_releases_saved_comic_flags():
+    options = {
+        CONF_FRAME_HA_SLOT_CSV: "438,439,440,441,442,443,444,445",
+        CONF_COMICS_ENABLED: False,
+        CONF_WEATHER_ENABLED: True,
+        CONF_SUN_ENABLED: True,
+        CONF_MOON_ENABLED: True,
+        CONF_XKCD_ENABLED: True,
+        CONF_DIESEL_SWEETIES_ENABLED: True,
+        CONF_MIMI_EUNICE_ENABLED: True,
+    }
+
+    assert enabled_content_providers(options) == ["open_meteo_weather", "sunrise_sunset", "moon_phase"]
+    assert validate_ha_lane(options).valid
+    assert active_provider_slots(options) == [438, 439, 440]
+
+
+def test_missing_weather_flag_does_not_consume_hidden_slot_when_other_providers_are_enabled():
+    options = {
+        CONF_FRAME_HA_SLOT_CSV: "438,439,440,441,442,443",
+        CONF_COMICS_ENABLED: True,
+        CONF_SUN_ENABLED: True,
+        CONF_MOON_ENABLED: True,
+        CONF_XKCD_ENABLED: True,
+        CONF_DIESEL_SWEETIES_ENABLED: True,
+        CONF_MIMI_EUNICE_ENABLED: True,
+    }
+
+    assert enabled_content_providers(options) == [
+        "sunrise_sunset",
+        "moon_phase",
+        "xkcd_comic",
+        "diesel_sweeties",
+        "mimi_eunice",
+    ]
+    assert validate_ha_lane(options).valid
+
+
+def test_missing_weather_flag_still_falls_back_to_weather_when_no_other_provider_is_enabled():
+    assert enabled_content_providers({CONF_FRAME_HA_SLOT_CSV: "438"}) == ["open_meteo_weather"]
+    assert validate_ha_lane({CONF_FRAME_HA_SLOT_CSV: "438"}).valid
+
+
+def test_retired_comic_flags_are_ignored_for_slots():
+    options = {
+        CONF_FRAME_HA_SLOT_CSV: "438,439,440",
+        CONF_WEATHER_ENABLED: True,
+        CONF_PEPPER_CARROT_ENABLED: True,
+        CONF_IRREGULAR_WEBCOMIC_ENABLED: True,
+    }
+
+    assert sanitize_provider_options(options)[CONF_PEPPER_CARROT_ENABLED] is False
+    assert sanitize_provider_options(options)[CONF_IRREGULAR_WEBCOMIC_ENABLED] is False
+    assert provider_slot_map(options) == {"open_meteo_weather": 438}
 
 
 def test_slot_validation_fails_with_multiple_providers_without_frame_sync():

@@ -103,9 +103,19 @@ WEBCOMIC_SOURCES: dict[str, WebcomicSource] = {
 }
 
 
-def render_webcomic_provider(provider_id: str, output_dir: Path, stem: str) -> tuple[RenderArtifact, WebcomicSource, Any]:
+def render_webcomic_provider(
+    provider_id: str,
+    output_dir: Path,
+    stem: str,
+    *,
+    excluded_source_urls: set[str] | None = None,
+) -> tuple[RenderArtifact, WebcomicSource, Any]:
     source = WEBCOMIC_SOURCES[provider_id]
     candidates = expand_webcomic_candidates(source, fetch_webcomic_candidates(source, limit=source.candidate_limit))
+    excluded_urls = excluded_source_urls or set()
+    candidates = [candidate for candidate in candidates if candidate.source_url not in excluded_urls]
+    if not candidates:
+        raise RuntimeError(f"{source.provider_name} has no fresh unused candidates in the current feed")
     selection = select_best_comic_candidate(candidates, analyzer=_source_analyzer(source))
     if not selection.suitability.suitable:
         reasons = "; ".join(selection.suitability.reasons) or "no suitable display candidate"

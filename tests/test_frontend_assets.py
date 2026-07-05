@@ -48,6 +48,29 @@ def test_comic_sample_assets_are_packaged_at_panel_resolution():
                 assert (202, 174, 62) in colours or (164, 63, 55) in colours
 
 
+def test_astrology_sign_assets_are_packaged_at_panel_resolution():
+    sample_dir = COMPONENT / "assets" / "astrology_art"
+    for name in (
+        "astro_aries.png",
+        "astro_taurus.png",
+        "astro_gemini.png",
+        "astro_cancer.png",
+        "astro_leo.png",
+        "astro_virgo.png",
+        "astro_libra.png",
+        "astro_scorpio.png",
+        "astro_sagittarius.png",
+        "astro_capricorn.png",
+        "astro_aquarius.png",
+        "astro_pisces.png",
+    ):
+        path = sample_dir / name
+        assert path.exists()
+        assert path.stat().st_size > 0
+        with Image.open(path) as image:
+            assert image.size == (400, 300)
+
+
 def test_update_platform_accepts_artwork_sized_release_downloads():
     update_source = UPDATE.read_text(encoding="utf-8")
 
@@ -145,7 +168,7 @@ def test_backend_attribution_sensor_is_always_visible():
     assert "DitherloomDataAttributionSensor(coordinator, entry)" in sensor_source
     assert "class DitherloomDataAttributionSensor" in sensor_source
     assert 'self._attr_unique_id = f"{entry.entry_id}_data_attribution"' in sensor_source
-    assert 'return "Open-Meteo Weather; Ditherloom local sun/moon; Comics"' in sensor_source
+    assert 'return "Open-Meteo Weather; Ditherloom local sun/moon; Comics; Daily Astrology"' in sensor_source
     assert '"weather_provider": "Open-Meteo"' in sensor_source
     assert '"weather_attribution": OPEN_METEO_ATTRIBUTION' in sensor_source
     assert '"weather_attribution_url": OPEN_METEO_ATTRIBUTION_URL' in sensor_source
@@ -165,16 +188,36 @@ def test_backend_attribution_sensor_is_always_visible():
     assert '"irregular_webcomic_provider": "Irregular Webcomic!"' not in sensor_source
     assert '"diesel_sweeties_provider": "Diesel Sweeties"' in sensor_source
     assert '"mimi_eunice_provider": "Mimi & Eunice"' in sensor_source
-    assert '"visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM. Comic cards show source-specific red attribution and license text."' in sensor_source
+    assert '"astrology_attribution": "Ditherloom Astrology; planetary data by NASA/JPL via Skyfield"' in sensor_source
+    assert '"astrology_license": "Ditherloom artwork/text; Skyfield and jplephem MIT; NASA/JPL ephemeris data retained under source terms"' in sensor_source
+    assert '"astrology_skyfield": "Skyfield MIT licensed Python astronomy library"' in sensor_source
+    assert '"astrology_jplephem": "jplephem MIT licensed JPL ephemeris reader"' in sensor_source
+    assert '"astrology_ephemeris": "JPL/NASA ephemeris data used for planetary and lunar positions; Ditherloom does not claim copyright over NASA/JPL data."' in sensor_source
+    assert '"visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM. Comic cards show source-specific red attribution and license text. Astrology cards show DITHERLOOM; backend metadata attributes Skyfield, jplephem, and NASA/JPL ephemeris data."' in sensor_source
     assert '"audit_note": "These diagnostic attribution fields are fixed compliance metadata' in sensor_source
 
 
 def test_renderer_cache_is_versioned():
     init_source = (ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py").read_text(encoding="utf-8")
     assert "CARD_RENDERER_VERSION" in init_source
-    assert 'CARD_RENDERER_VERSION = "luxe-0.1.89-comics-successor-cache"' in init_source
+    assert 'CARD_RENDERER_VERSION = "luxe-0.1.99-astrology-kalam-safezones"' in init_source
     assert 'metadata["card_renderer_version"] = CARD_RENDERER_VERSION' in init_source
     assert 'metadata.get("card_renderer_version") != CARD_RENDERER_VERSION' in init_source
+
+
+def test_astrology_cache_refreshes_by_local_day_not_generic_interval_only():
+    init_source = (ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py").read_text(encoding="utf-8")
+    fresh_start = init_source.index("def _cached_content_is_fresh")
+    fresh_end = init_source.index("def _xkcd_cache_matches_options", fresh_start)
+    fresh_source = init_source[fresh_start:fresh_end]
+
+    assert "async_track_point_in_time" in init_source
+    assert "self._schedule_astrology_daily_refresh()" in init_source
+    assert "def async_cancel_astrology_daily_refresh" in init_source
+    assert 'next_at = now.replace(hour=0, minute=2, second=0, microsecond=0)' in init_source
+    assert "if metadata.get(\"astrology_date\") != target.date().isoformat():" in fresh_source
+    assert "selected_sign_for_time(" in fresh_source
+    assert "return True" in fresh_source
 
 
 def test_frame_awake_uses_prerendered_cache_only():
@@ -240,6 +283,8 @@ def test_luxe_renderer_uses_bundled_font_and_protected_text_threshold():
     assert (fonts_dir / "BarlowCondensed-Bold.otf").exists()
     assert (fonts_dir / "BarlowCondensed-Regular.otf").exists()
     assert (fonts_dir / "OFL-Barlow.txt").exists()
+    assert (fonts_dir / "Kalam-Regular.ttf").exists()
+    assert (fonts_dir / "OFL-Kalam.txt").exists()
     assert 'FONT_DIR = Path(__file__).resolve().parents[1] / "assets" / "fonts"' in cards_source
     assert 'str(FONT_DIR / "BarlowCondensed-Bold.otf")' in cards_source
     assert 'str(FONT_DIR / "BarlowCondensed-Regular.otf")' in cards_source
@@ -303,7 +348,7 @@ def test_xkcd_options_and_controls_are_exposed_as_opt_in_provider():
     assert 'CONF_XKCD_RANDOM_ATTEMPTS = "xkcd_random_attempts"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
     assert 'SERVICE_RENDER_XKCD = "render_xkcd_card"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
     assert 'SERVICE_SEND_XKCD = "send_xkcd_card"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
-    assert '"comics_framework", "device"' in config_source
+    assert '"comics_framework", "astrology", "device"' in config_source
     assert '"comics_framework", "xkcd", "device"' not in config_source
     assert '"comics_pepper_carrot"' not in config_source
     assert '"comics_irregular_webcomic"' not in config_source
@@ -345,6 +390,7 @@ def test_xkcd_options_and_controls_are_exposed_as_opt_in_provider():
     translations_en_gb_source = (COMPONENT / "translations" / "en-GB.json").read_text(encoding="utf-8")
     for source in (strings_source, translations_source, translations_en_gb_source):
         assert '"comics_framework": "Comics"' in source
+        assert '"astrology": "Daily Astrology"' in source
         assert '"comics_settings": "Comics enabled"' in source
         assert '"comics_xkcd": "xkcd Comic"' in source
         assert '"comics_pepper_carrot": "Giant Friday"' not in source
@@ -375,6 +421,8 @@ def test_xkcd_options_and_controls_are_exposed_as_opt_in_provider():
         assert "{irregular_webcomic_sample_image}" not in source
         assert "{diesel_sweeties_sample_image}" in source
         assert "{mimi_eunice_sample_image}" in source
+        assert "Skyfield and jplephem are MIT licensed" in source
+        assert "JPL/NASA ephemeris data remains NASA/JPL work and is not claimed by Ditherloom" in source
 
 
 def test_sun_moon_cards_use_source_attribution_label():
@@ -421,7 +469,10 @@ def test_comics_samples_and_webcomic_rendering_keep_colour_and_red_attribution()
     assert "_comic_sample_markdown" in config_source
     assert "?v={INTEGRATION_VERSION}" in config_source
     assert "![{label} Ditherloom sample]" in config_source
-    assert '"requirements": ["segno==1.6.6"]' in (COMPONENT / "manifest.json").read_text(encoding="utf-8")
+    manifest_source = (COMPONENT / "manifest.json").read_text(encoding="utf-8")
+    assert '"segno==1.6.6"' in manifest_source
+    assert '"skyfield==1.54"' in manifest_source
+    assert '"jplephem==2.24"' in manifest_source
     assert "_atkinson_dither_to_display_preview" in webcomic_source
     assert "_draw_right_attribution(base, draw, source, candidate.source_url)" in webcomic_source
     assert "segno.make(source_url" in webcomic_source
@@ -440,6 +491,7 @@ def test_third_party_notices_include_font_and_dependency_compliance_details():
     assert "docs/DEPENDENCY_LICENSE_SNAPSHOT.md" in notices
     assert dependency_snapshot.exists()
     assert "Copyright 2017 The Barlow Project Authors" in notices
+    assert "Copyright (c) 2014, Indian Type Foundry" in notices
     assert "SIL Open Font License 1.1" in notices
     assert "Fonts are (c) Bitstream" in notices
     assert "Glyphs imported from Arev fonts are (c) Tavmjong Bah" in notices
@@ -453,8 +505,12 @@ def test_third_party_notices_include_font_and_dependency_compliance_details():
         "| paho-mqtt | 2.1.0 | EPL-2.0 OR BSD-3-Clause |",
         "| python-multipart | 0.0.20 | Apache-2.0 |",
         "| segno | 1.6.6 | BSD-3-Clause |",
+        "| skyfield | 1.54 | MIT |",
+        "| jplephem | 2.24 | MIT |",
         "| pytest | 8.3.4 | MIT |",
         "| Barlow / Barlow Condensed | SIL Open Font License 1.1 |",
+        "| Kalam | SIL Open Font License 1.1 |",
         "| DejaVu fonts | Bitstream Vera / Arev / public-domain DejaVu changes |",
+        "| JPL/NASA ephemeris data | NASA/JPL source terms apply; Ditherloom does not claim ownership |",
     ):
         assert required in snapshot

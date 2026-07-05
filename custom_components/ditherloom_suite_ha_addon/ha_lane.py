@@ -4,12 +4,16 @@ from dataclasses import dataclass
 from typing import Any
 
 from .const import (
+    CONF_COMICS_ENABLED,
     CONF_FRAME_HA_SLOT_CSV,
     CONF_FRAME_HA_SLOT_POOL,
     CONF_FRAME_RESERVED_SLOT,
+    CONF_ASTROLOGY_ENABLED,
     CONF_DIESEL_SWEETIES_ENABLED,
+    CONF_IRREGULAR_WEBCOMIC_ENABLED,
     CONF_MIMI_EUNICE_ENABLED,
     CONF_MOON_ENABLED,
+    CONF_PEPPER_CARROT_ENABLED,
     CONF_SUN_ENABLED,
     CONF_TARGET_SLOT,
     CONF_WEATHER_ENABLED,
@@ -26,6 +30,17 @@ PROVIDER_MOON = "moon_phase"
 PROVIDER_XKCD = "xkcd_comic"
 PROVIDER_DIESEL_SWEETIES = "diesel_sweeties"
 PROVIDER_MIMI_EUNICE = "mimi_eunice"
+PROVIDER_ASTROLOGY = "daily_astrology"
+
+RETIRED_COMIC_PROVIDER_FLAGS = (
+    CONF_PEPPER_CARROT_ENABLED,
+    CONF_IRREGULAR_WEBCOMIC_ENABLED,
+)
+ACTIVE_COMIC_PROVIDER_FLAGS = (
+    CONF_XKCD_ENABLED,
+    CONF_DIESEL_SWEETIES_ENABLED,
+    CONF_MIMI_EUNICE_ENABLED,
+)
 
 
 @dataclass(frozen=True)
@@ -39,8 +54,9 @@ class HaLaneValidation:
 
 
 def enabled_content_providers(options: dict[str, Any]) -> list[str]:
+    options = sanitize_provider_options(options)
     providers: list[str] = []
-    if _bool_option(options, CONF_WEATHER_ENABLED, True):
+    if _bool_option(options, CONF_WEATHER_ENABLED, False):
         providers.append(PROVIDER_WEATHER)
     if _bool_option(options, CONF_SUN_ENABLED, False):
         providers.append(PROVIDER_SUN)
@@ -52,7 +68,33 @@ def enabled_content_providers(options: dict[str, Any]) -> list[str]:
         providers.append(PROVIDER_DIESEL_SWEETIES)
     if _bool_option(options, CONF_MIMI_EUNICE_ENABLED, False):
         providers.append(PROVIDER_MIMI_EUNICE)
+    if _bool_option(options, CONF_ASTROLOGY_ENABLED, False):
+        providers.append(PROVIDER_ASTROLOGY)
     return providers or [PROVIDER_WEATHER]
+
+
+def sanitize_provider_options(options: dict[str, Any]) -> dict[str, Any]:
+    sanitized = dict(options)
+    for key in RETIRED_COMIC_PROVIDER_FLAGS:
+        sanitized[key] = False
+    if CONF_COMICS_ENABLED in sanitized and not _bool_option(sanitized, CONF_COMICS_ENABLED, False):
+        for key in ACTIVE_COMIC_PROVIDER_FLAGS:
+            sanitized[key] = False
+    if CONF_WEATHER_ENABLED not in sanitized and _has_explicit_non_weather_provider(sanitized):
+        sanitized[CONF_WEATHER_ENABLED] = False
+    return sanitized
+
+
+def _has_explicit_non_weather_provider(options: dict[str, Any]) -> bool:
+    keys = (
+        CONF_SUN_ENABLED,
+        CONF_MOON_ENABLED,
+        CONF_XKCD_ENABLED,
+        CONF_DIESEL_SWEETIES_ENABLED,
+        CONF_MIMI_EUNICE_ENABLED,
+        CONF_ASTROLOGY_ENABLED,
+    )
+    return any(_bool_option(options, key, False) for key in keys)
 
 
 def ha_lane_slots(options: dict[str, Any]) -> list[int]:
@@ -78,6 +120,10 @@ def provider_slot_map(options: dict[str, Any]) -> dict[str, int]:
     providers = enabled_content_providers(options)
     slots = ha_lane_slots(options)
     return dict(zip(providers, slots))
+
+
+def active_provider_slots(options: dict[str, Any]) -> list[int]:
+    return sorted(set(provider_slot_map(options).values()))
 
 
 def validate_ha_lane(options: dict[str, Any]) -> HaLaneValidation:
