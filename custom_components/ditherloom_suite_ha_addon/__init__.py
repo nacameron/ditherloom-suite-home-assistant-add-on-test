@@ -60,7 +60,9 @@ from .const import (
     CONF_WEATHER_LOCATION,
     CONF_WAKE_WINDOW_MINUTES,
     CONF_WAKE_WINDOW_SECONDS,
+    CONF_WEATHER_7_DAY_ENABLED,
     CONF_WEATHER_ENABLED,
+    CONF_WEATHER_TODAY_TOMORROW_ENABLED,
     CONF_WIND_SPEED_UNIT,
     CONF_XKCD_ENABLED,
     CONF_XKCD_MODE,
@@ -106,8 +108,10 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
-CARD_RENDERER_VERSION = "luxe-0.1.99-astrology-kalam-safezones"
+CARD_RENDERER_VERSION = "luxe-0.1.102-weather-forecast-cards"
 PROVIDER_WEATHER = "open_meteo_weather"
+PROVIDER_WEATHER_TODAY_TOMORROW = "open_meteo_today_tomorrow"
+PROVIDER_WEATHER_7_DAY = "open_meteo_7_day_forecast"
 PROVIDER_SUN = "sunrise_sunset"
 PROVIDER_MOON = "moon_phase"
 PROVIDER_XKCD = "xkcd_comic"
@@ -149,12 +153,20 @@ PRESERVED_RUNTIME_METADATA_KEYS = (
 )
 
 
-def _render_weather_artifact_to_disk(card_data: Any, display_mode: str, payload_dir: Path, stem: str) -> Any:
-    from .renderer import render_modern_weather_card, render_to_artifact
+def _render_weather_artifact_to_disk(card_data: Any, display_mode: str, payload_dir: Path, stem: str, variant: str = PROVIDER_WEATHER) -> Any:
+    from .renderer import render_modern_weather_card, render_seven_day_weather_card, render_to_artifact, render_today_tomorrow_weather_card
     from .renderer.pack import write_artifact
 
-    image = render_modern_weather_card(card_data, colour_mode=display_mode)
-    artifact = render_to_artifact(image, "weather_current", [card_data.source_entity_id])
+    if variant == PROVIDER_WEATHER_TODAY_TOMORROW:
+        image = render_today_tomorrow_weather_card(card_data, colour_mode=display_mode)
+        template_name = "weather_today_tomorrow"
+    elif variant == PROVIDER_WEATHER_7_DAY:
+        image = render_seven_day_weather_card(card_data, colour_mode=display_mode)
+        template_name = "weather_7_day_forecast"
+    else:
+        image = render_modern_weather_card(card_data, colour_mode=display_mode)
+        template_name = "weather_current"
+    artifact = render_to_artifact(image, template_name, [card_data.source_entity_id])
     write_artifact(artifact, payload_dir, stem)
     return artifact
 
@@ -849,8 +861,10 @@ class DitherloomRuntime:
             metadata = await self.async_render_webcomic(render_data, publish=False, send_to_frame=False, cache_provider_id=provider)
         elif provider == PROVIDER_ASTROLOGY:
             metadata = await self.async_render_astrology({}, publish=False, send_to_frame=False, cache_provider_id=provider)
-        else:
+        elif provider in {PROVIDER_WEATHER, PROVIDER_WEATHER_TODAY_TOMORROW, PROVIDER_WEATHER_7_DAY}:
             metadata = await self.async_render_weather({}, publish=False, send_to_frame=False, cache_provider_id=provider)
+        else:
+            metadata = await self.async_render_weather({}, publish=False, send_to_frame=False, cache_provider_id=PROVIDER_WEATHER)
         metadata["selected_provider_id"] = provider
         metadata["display_rotation_enabled"] = self._display_rotation_enabled()
         metadata["display_rotation_interval_minutes"] = self._display_rotation_interval_minutes()
@@ -876,8 +890,10 @@ class DitherloomRuntime:
             metadata = await self.async_render_webcomic({}, publish=True, send_to_frame=False, cache_provider_id=provider)
         elif provider == PROVIDER_ASTROLOGY:
             metadata = await self.async_render_astrology({}, publish=True, send_to_frame=False, cache_provider_id=provider)
-        else:
+        elif provider in {PROVIDER_WEATHER, PROVIDER_WEATHER_TODAY_TOMORROW, PROVIDER_WEATHER_7_DAY}:
             metadata = await self.async_render_weather({}, publish=True, send_to_frame=False, cache_provider_id=provider)
+        else:
+            metadata = await self.async_render_weather({}, publish=True, send_to_frame=False, cache_provider_id=PROVIDER_WEATHER)
         metadata["selected_provider_id"] = provider
         metadata["display_rotation_enabled"] = self._display_rotation_enabled()
         metadata["display_rotation_interval_minutes"] = self._display_rotation_interval_minutes()
@@ -1088,6 +1104,7 @@ class DitherloomRuntime:
             OPEN_METEO_LICENSE,
             OPEN_METEO_LICENSE_URL,
             fetch_open_meteo_card,
+            fetch_open_meteo_forecast,
         )
 
         opts = self.options
@@ -1103,14 +1120,26 @@ class DitherloomRuntime:
 
         temperature_unit = str(data.get(CONF_TEMPERATURE_UNIT) or opts.get(CONF_TEMPERATURE_UNIT, DEFAULT_TEMPERATURE_UNIT))
         wind_speed_unit = str(data.get(CONF_WIND_SPEED_UNIT) or opts.get(CONF_WIND_SPEED_UNIT, DEFAULT_WIND_SPEED_UNIT))
-        card_data = await self.hass.async_add_executor_job(
-            fetch_open_meteo_card,
-            latitude,
-            longitude,
-            location,
-            temperature_unit,
-            wind_speed_unit,
-        )
+        provider_id = cache_provider_id or PROVIDER_WEATHER
+        if provider_id in {PROVIDER_WEATHER_TODAY_TOMORROW, PROVIDER_WEATHER_7_DAY}:
+            card_data = await self.hass.async_add_executor_job(
+                fetch_open_meteo_forecast,
+                latitude,
+                longitude,
+                location,
+                temperature_unit,
+                wind_speed_unit,
+                7,
+            )
+        else:
+            card_data = await self.hass.async_add_executor_job(
+                fetch_open_meteo_card,
+                latitude,
+                longitude,
+                location,
+                temperature_unit,
+                wind_speed_unit,
+            )
         display_mode = str(data.get(CONF_DISPLAY_MODE) or opts.get(CONF_DISPLAY_MODE, DEFAULT_DISPLAY_MODE))
         stem = self._provider_payload_name(cache_provider_id) if cache_provider_id else self.latest_payload_name
         artifact = await self.hass.async_add_executor_job(
@@ -1119,6 +1148,7 @@ class DitherloomRuntime:
             display_mode,
             self.payload_dir,
             stem,
+            provider_id,
         )
         if cache_provider_id:
             await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.ppbin", self.payload_path())
@@ -1134,8 +1164,9 @@ class DitherloomRuntime:
         metadata["display_mode"] = display_mode
         metadata["temperature_unit"] = temperature_unit
         metadata["wind_speed_unit"] = wind_speed_unit
-        metadata["provider_id"] = "open_meteo_weather"
-        metadata["provider_name"] = "Open-Meteo Weather"
+        metadata["provider_id"] = provider_id
+        metadata["provider_name"] = _weather_provider_name(provider_id)
+        metadata["weather_card_variant"] = provider_id
         metadata["card_renderer_version"] = CARD_RENDERER_VERSION
         metadata["source"] = "open_meteo"
         metadata["source_name"] = "Open-Meteo"
@@ -1610,6 +1641,10 @@ class DitherloomRuntime:
             return "content-daily-astrology"
         if provider == "open_meteo_weather":
             return "content-weather"
+        if provider == PROVIDER_WEATHER_TODAY_TOMORROW:
+            return "content-weather-today-tomorrow"
+        if provider == PROVIDER_WEATHER_7_DAY:
+            return "content-weather-7-day"
         return self.latest_payload_name
 
     def _cached_metadata_path(self, provider: str) -> Path:
@@ -2591,6 +2626,14 @@ def _xkcd_number_from_content_id(value: Any) -> int | None:
 
 def _bool_option(data: dict[str, Any], key: str, default: bool) -> bool:
     return bool(data[key]) if key in data else default
+
+
+def _weather_provider_name(provider_id: str) -> str:
+    if provider_id == PROVIDER_WEATHER_TODAY_TOMORROW:
+        return "Today / Tomorrow Weather"
+    if provider_id == PROVIDER_WEATHER_7_DAY:
+        return "7-Day Weather Forecast"
+    return "Current Weather"
 
 
 def _parse_datetime(value: Any) -> datetime | None:

@@ -16,7 +16,9 @@ from .const import (
     CONF_PEPPER_CARROT_ENABLED,
     CONF_SUN_ENABLED,
     CONF_TARGET_SLOT,
+    CONF_WEATHER_7_DAY_ENABLED,
     CONF_WEATHER_ENABLED,
+    CONF_WEATHER_TODAY_TOMORROW_ENABLED,
     CONF_XKCD_ENABLED,
     DEFAULT_TARGET_SLOT,
     DEVICE_SLOT_COUNT,
@@ -24,6 +26,8 @@ from .const import (
 
 
 PROVIDER_WEATHER = "open_meteo_weather"
+PROVIDER_WEATHER_TODAY_TOMORROW = "open_meteo_today_tomorrow"
+PROVIDER_WEATHER_7_DAY = "open_meteo_7_day_forecast"
 PROVIDER_SUN = "sunrise_sunset"
 PROVIDER_MOON = "moon_phase"
 PROVIDER_XKCD = "xkcd_comic"
@@ -57,6 +61,10 @@ def enabled_content_providers(options: dict[str, Any]) -> list[str]:
     providers: list[str] = []
     if _bool_option(options, CONF_WEATHER_ENABLED, False):
         providers.append(PROVIDER_WEATHER)
+    if _bool_option(options, CONF_WEATHER_TODAY_TOMORROW_ENABLED, False):
+        providers.append(PROVIDER_WEATHER_TODAY_TOMORROW)
+    if _bool_option(options, CONF_WEATHER_7_DAY_ENABLED, False):
+        providers.append(PROVIDER_WEATHER_7_DAY)
     if _bool_option(options, CONF_SUN_ENABLED, False):
         providers.append(PROVIDER_SUN)
     if _bool_option(options, CONF_MOON_ENABLED, False):
@@ -88,6 +96,8 @@ def _has_explicit_non_weather_provider(options: dict[str, Any]) -> bool:
     keys = (
         CONF_SUN_ENABLED,
         CONF_MOON_ENABLED,
+        CONF_WEATHER_TODAY_TOMORROW_ENABLED,
+        CONF_WEATHER_7_DAY_ENABLED,
         CONF_XKCD_ENABLED,
         CONF_DIESEL_SWEETIES_ENABLED,
         CONF_MIMI_EUNICE_ENABLED,

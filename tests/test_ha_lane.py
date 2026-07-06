@@ -23,7 +23,9 @@ from custom_components.ditherloom_suite_ha_addon.const import (
     CONF_PEPPER_CARROT_ENABLED,
     CONF_SUN_ENABLED,
     CONF_TARGET_SLOT,
+    CONF_WEATHER_7_DAY_ENABLED,
     CONF_WEATHER_ENABLED,
+    CONF_WEATHER_TODAY_TOMORROW_ENABLED,
     CONF_XKCD_ENABLED,
 )
 from custom_components.ditherloom_suite_ha_addon.ha_lane import (
@@ -74,6 +76,27 @@ def test_xkcd_provider_is_opt_in_and_consumes_explicit_slot():
     assert provider_slot_map(options) == {
         "open_meteo_weather": 443,
         "xkcd_comic": 444,
+    }
+
+
+def test_weather_subcards_are_separate_slot_providers():
+    options = {
+        CONF_FRAME_HA_SLOT_CSV: "440,441,442",
+        CONF_WEATHER_ENABLED: True,
+        CONF_WEATHER_TODAY_TOMORROW_ENABLED: True,
+        CONF_WEATHER_7_DAY_ENABLED: True,
+    }
+
+    assert validate_ha_lane(options).valid
+    assert enabled_content_providers(options) == [
+        "open_meteo_weather",
+        "open_meteo_today_tomorrow",
+        "open_meteo_7_day_forecast",
+    ]
+    assert provider_slot_map(options) == {
+        "open_meteo_weather": 440,
+        "open_meteo_today_tomorrow": 441,
+        "open_meteo_7_day_forecast": 442,
     }
 
 

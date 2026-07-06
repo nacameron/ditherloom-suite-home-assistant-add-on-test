@@ -8,7 +8,7 @@ from functools import lru_cache
 from datetime import datetime
 from typing import Any, Dict
 
-from .renderer.cards import WeatherCardData
+from .renderer.cards import ForecastDayData, WeatherCardData, WeatherForecastData
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"
@@ -175,6 +175,84 @@ def fetch_open_meteo_card(
     )
 
 
+def fetch_open_meteo_forecast(
+    latitude: str,
+    longitude: str,
+    location: str,
+    temperature_unit: str = "celsius",
+    wind_speed_unit: str = "kmh",
+    days: int = 7,
+) -> WeatherForecastData:
+    latitude, longitude = _normalise_coordinates(latitude, longitude)
+    resolved_location = location.strip() or _reverse_location_name(latitude, longitude) or "Open-Meteo"
+    temperature_unit = _temperature_unit(temperature_unit)
+    wind_speed_unit = _wind_speed_unit(wind_speed_unit)
+    temperature_suffix = "F" if temperature_unit == "fahrenheit" else "C"
+    params = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "current": ",".join(["temperature_2m", "weather_code", "is_day"]),
+        "daily": ",".join(
+            [
+                "weather_code",
+                "temperature_2m_max",
+                "temperature_2m_min",
+                "precipitation_probability_max",
+            ]
+        ),
+        "timezone": "auto",
+        "forecast_days": str(max(2, min(7, int(days)))),
+        "temperature_unit": temperature_unit,
+        "wind_speed_unit": wind_speed_unit,
+        "precipitation_unit": "mm",
+    }
+    url = f"{OPEN_METEO_URL}?{urllib.parse.urlencode(params)}"
+    with urllib.request.urlopen(url, timeout=12) as response:
+        payload: Dict[str, Any] = json.loads(response.read().decode("utf-8"))
+
+    current = payload.get("current", {})
+    daily = payload.get("daily", {})
+    times = list(daily.get("time") or [])
+    codes = list(daily.get("weather_code") or [])
+    highs = list(daily.get("temperature_2m_max") or [])
+    lows = list(daily.get("temperature_2m_min") or [])
+    rain = list(daily.get("precipitation_probability_max") or [])
+    forecast_days: list[ForecastDayData] = []
+    for index, date_value in enumerate(times[:7]):
+        code = _list_item(codes, index, 0)
+        forecast_days.append(
+            ForecastDayData(
+                date_label=_date_label(date_value),
+                condition=_condition_text(int(code or 0), 1),
+                high=_round_text(_list_item(highs, index)),
+                low=_round_text(_list_item(lows, index)),
+                rain=_percent(_list_item(rain, index)),
+                unit=temperature_suffix,
+            )
+        )
+    while len(forecast_days) < 7:
+        forecast_days.append(
+            ForecastDayData(
+                date_label="--",
+                condition="Weather",
+                high="--",
+                low="--",
+                rain="--",
+                unit=temperature_suffix,
+            )
+        )
+    updated = current.get("time") or datetime.now().strftime("%H:%M")
+    if "T" in updated:
+        updated = updated.split("T", 1)[1]
+    return WeatherForecastData(
+        location=resolved_location,
+        days=tuple(forecast_days[:7]),
+        updated=updated,
+        source_entity_id="open_meteo.direct",
+        attribution=f"{OPEN_METEO_ATTRIBUTION} {NOMINATIM_ATTRIBUTION if not location.strip() else ''}".strip(),
+    )
+
+
 _COORDINATE_RE = re.compile(r"([+-]?\d+(?:\.\d+)?)")
 
 
@@ -262,6 +340,18 @@ def _first(value: Any) -> Any:
     if isinstance(value, list) and value:
         return value[0]
     return value
+
+
+def _list_item(values: list[Any], index: int, default: Any = None) -> Any:
+    return values[index] if index < len(values) else default
+
+
+def _date_label(value: Any) -> str:
+    try:
+        parsed = datetime.fromisoformat(str(value)).date()
+    except ValueError:
+        return str(value or "--")[:6]
+    return parsed.strftime("%d %b").lstrip("0")
 
 
 def _round_text(value: Any, digits: int = 0) -> str:

@@ -25,7 +25,9 @@ from .open_meteo import (
 )
 
 PROVIDER_DISPLAY_NAMES = {
-    "open_meteo_weather": "Open-Meteo Weather",
+    "open_meteo_weather": "Current Weather",
+    "open_meteo_today_tomorrow": "Today / Tomorrow Weather",
+    "open_meteo_7_day_forecast": "7-Day Weather Forecast",
     "sunrise_sunset": "Sunrise / Sunset",
     "moon_phase": "Moon Phase",
     "xkcd_comic": "xkcd Comic",

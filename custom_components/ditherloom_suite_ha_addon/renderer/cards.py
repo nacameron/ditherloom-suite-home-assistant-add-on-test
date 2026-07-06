@@ -79,6 +79,25 @@ class WeatherCardData:
 
 
 @dataclass(frozen=True)
+class ForecastDayData:
+    date_label: str = "Today"
+    condition: str = "Sunny"
+    high: str = "26"
+    low: str = "16"
+    rain: str = "10%"
+    unit: str = "C"
+
+
+@dataclass(frozen=True)
+class WeatherForecastData:
+    location: str = "Home"
+    days: tuple[ForecastDayData, ...] = ()
+    updated: str = "Now"
+    source_entity_id: str = "weather.home"
+    attribution: str = "Weather data by Open-Meteo.com."
+
+
+@dataclass(frozen=True)
 class SunCardData:
     location: str = "Home"
     date_label: str = "TODAY"
@@ -309,7 +328,7 @@ def _load_weather_art(name: str) -> Image.Image | None:
         return None
     image = Image.open(path).convert("RGB")
     image = ImageEnhance.Color(image).enhance(1.2)
-    image = ImageEnhance.Contrast(image).enhance(1.15)
+    image = ImageEnhance.Contrast(image).enhance(1.2)
     return image
 
 
@@ -477,6 +496,24 @@ def _draw_luxe_text_right(
     font = _fit_ui_font(value, max(1, x2 - x1 - 4), size, bold=bold, min_size=min_size, max_height=max(1, y2 - y1 - 2))
     left, top, right, bottom = font.getbbox(value)
     _draw_solid_palette_text_clipped(draw, (x2 - (right - left) - left, y1 - top), value, font, fill, box)
+
+
+def _draw_luxe_text_center(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    text: str,
+    size: int,
+    bold: bool,
+    fill: tuple[int, int, int],
+    min_size: int = 7,
+) -> None:
+    x1, y1, x2, y2 = box
+    value = str(text)
+    font = _fit_ui_font(value, max(1, x2 - x1 - 4), size, bold=bold, min_size=min_size, max_height=max(1, y2 - y1 - 2))
+    left, top, right, bottom = font.getbbox(value)
+    text_width = right - left
+    text_x = x1 + ((x2 - x1) - text_width) / 2 - left
+    _draw_solid_palette_text_clipped(draw, (text_x, y1 - top), value, font, fill, box)
 
 
 def _draw_solid_palette_text(
@@ -662,6 +699,53 @@ def render_modern_weather_card(data: WeatherCardData, colour_mode: str = COLOUR_
     return image
 
 
+def render_today_tomorrow_weather_card(data: WeatherForecastData, colour_mode: str = COLOUR_MODE_COLOUR) -> Image.Image:
+    days = _forecast_days(data)
+    today = days[0]
+    tomorrow = days[1]
+    left_art = _load_weather_art(_template_slug_for_condition(today.condition)) or _load_weather_art("sunny_day")
+    right_art = _load_weather_art(_template_slug_for_condition(tomorrow.condition)) or _load_weather_art("sunny_day")
+    image = Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
+    if left_art is not None:
+        _paste_cover(image, left_art, (0, 0, WIDTH, HEIGHT))
+    if right_art is not None:
+        right_image = Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
+        _paste_cover(right_image, right_art, (0, 0, WIDTH, HEIGHT))
+        mask = Image.new("L", (WIDTH, HEIGHT), 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.polygon([(0, HEIGHT), (WIDTH, 0), (WIDTH, HEIGHT)], fill=255)
+        image.paste(right_image, (0, 0), mask)
+    draw = ImageDraw.Draw(image)
+    diagonal = (0, HEIGHT - 1, WIDTH - 1, 0)
+    draw.line(diagonal, fill=_rgb("red"), width=10)
+    draw.line(diagonal, fill=_rgb("yellow"), width=6)
+    _draw_weather_split_day(draw, (18, 112, 178, 206), "TODAY", today, align="left")
+    _draw_weather_split_day(draw, (214, 112, 382, 206), "TOMORROW", tomorrow, align="right")
+    _draw_luxe_text_left(draw, (18, 14, 192, 40), (data.location or "Weather").upper(), 28, LUXE_TEXT_BOLD, _rgb("black"), 15)
+    _draw_luxe_text_right(draw, (248, 260, 382, 286), _source_label(data.attribution), 16, LUXE_TEXT_BOLD, _rgb("red"), 10)
+    if _is_mono(colour_mode):
+        return ImageOps.grayscale(image).convert("RGB")
+    return image
+
+
+def render_seven_day_weather_card(data: WeatherForecastData, colour_mode: str = COLOUR_MODE_COLOUR) -> Image.Image:
+    border = _load_weather_art("forecast_7_day_border")
+    if border is None:
+        image = Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
+    else:
+        image = _cover_image(border, WIDTH, HEIGHT)
+    draw = ImageDraw.Draw(image)
+    _draw_luxe_text_center(draw, (62, 24, 338, 50), (data.location or "7-Day Forecast").upper(), 28, LUXE_TEXT_BOLD, _rgb("black"), 15)
+    y = 62
+    for day in _forecast_days(data)[:7]:
+        _draw_forecast_row(draw, (72, y, 328, y + 25), day)
+        y += 27
+    _draw_luxe_text_center(draw, (122, 255, 278, 276), _source_label(data.attribution), 15, LUXE_TEXT_BOLD, _rgb("red"), 9)
+    if _is_mono(colour_mode):
+        return ImageOps.grayscale(image).convert("RGB")
+    return image
+
+
 def _render_luxe_weather_card(data: WeatherCardData) -> Image.Image:
     image = Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
     _paste_luxe_weather_art(image, _template_slug_for_data(data))
@@ -698,18 +782,60 @@ def _render_luxe_weather_card(data: WeatherCardData) -> Image.Image:
     return image
 
 
-def _paste_luxe_weather_art(image: Image.Image, slug: str) -> None:
-    artwork = _load_weather_art(slug) or _load_weather_art("sunny_day")
-    if artwork is None:
-        return
-    scale = max(WIDTH / artwork.width, HEIGHT / artwork.height)
+def _forecast_days(data: WeatherForecastData) -> tuple[ForecastDayData, ...]:
+    days = tuple(data.days)
+    if len(days) >= 7:
+        return days
+    filler = ForecastDayData(date_label="--", condition="Weather", high="--", low="--", rain="--")
+    return days + (filler,) * (7 - len(days))
+
+
+def _template_slug_for_condition(condition: str) -> str:
+    card = WeatherCardData(condition=condition)
+    return _template_slug_for_data(card)
+
+
+def _paste_cover(base: Image.Image, artwork: Image.Image, box: tuple[int, int, int, int]) -> None:
+    base.paste(_cover_image(artwork, box[2] - box[0], box[3] - box[1]), (box[0], box[1]))
+
+
+def _cover_image(artwork: Image.Image, target_w: int, target_h: int) -> Image.Image:
+    scale = max(target_w / artwork.width, target_h / artwork.height)
     resized = artwork.resize(
         (max(1, int(round(artwork.width * scale))), max(1, int(round(artwork.height * scale)))),
         Image.Resampling.LANCZOS,
     )
-    left = max(0, (resized.width - WIDTH) // 2)
-    top = max(0, (resized.height - HEIGHT) // 2)
-    image.paste(resized.crop((left, top, left + WIDTH, top + HEIGHT)), (0, 0))
+    left = max(0, (resized.width - target_w) // 2)
+    top = max(0, (resized.height - target_h) // 2)
+    return resized.crop((left, top, left + target_w, top + target_h))
+
+
+def _draw_weather_split_day(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], label: str, day: ForecastDayData, align: str) -> None:
+    x1, y1, x2, y2 = box
+    temp = f"{_weather_temperature_text(day.high, day.unit)} / {_weather_temperature_text(day.low, day.unit)}"
+    if align == "right":
+        _draw_luxe_text_right(draw, (x1, y1, x2, y1 + 23), label, 23, LUXE_TEXT_BOLD, _rgb("red"), 14)
+        _draw_luxe_text_right(draw, (x1, y1 + 24, x2, y1 + 55), temp, 30, LUXE_TEXT_BOLD, _rgb("black"), 18)
+        _draw_luxe_text_right(draw, (x1, y1 + 58, x2, y2), day.condition, 22, LUXE_TEXT_BOLD, _rgb("black"), 12)
+    else:
+        _draw_luxe_text_left(draw, (x1, y1, x2, y1 + 23), label, 24, LUXE_TEXT_BOLD, _rgb("red"), 14)
+        _draw_luxe_text_left(draw, (x1, y1 + 24, x2, y1 + 55), temp, 32, LUXE_TEXT_BOLD, _rgb("black"), 18)
+        _draw_luxe_text_left(draw, (x1, y1 + 57, x2, y2), day.condition, 23, LUXE_TEXT_BOLD, _rgb("black"), 12)
+
+
+def _draw_forecast_row(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], day: ForecastDayData) -> None:
+    x1, y1, x2, y2 = box
+    _draw_luxe_text_right(draw, (x1, y1, x1 + 56, y2), day.date_label.upper(), 20, LUXE_TEXT_BOLD, _rgb("red"), 11)
+    temp = f"{_weather_temperature_text(day.low, day.unit)}-{_weather_temperature_text(day.high, day.unit)}"
+    _draw_luxe_text_center(draw, (x1 + 66, y1, x1 + 146, y2), temp, 21, LUXE_TEXT_BOLD, _rgb("black"), 11)
+    _draw_luxe_text_left(draw, (x1 + 154, y1, x2, y2), day.condition, 21, LUXE_TEXT_BOLD, _rgb("black"), 10)
+
+
+def _paste_luxe_weather_art(image: Image.Image, slug: str) -> None:
+    artwork = _load_weather_art(slug) or _load_weather_art("sunny_day")
+    if artwork is None:
+        return
+    image.paste(_cover_image(artwork, WIDTH, HEIGHT), (0, 0))
 
 
 def _draw_luxe_weather_tile(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], label: str, value: str) -> None:
@@ -730,7 +856,7 @@ def _weather_temperature_text(value: str, unit: str) -> str:
     text = str(value).strip() or "--"
     if text == "--" or "°" in text:
         return text
-    suffix = str(unit).strip() or "C"
+    suffix = (str(unit).strip() or "C").lstrip("°")
     return f"{text}°{suffix}"
 
 

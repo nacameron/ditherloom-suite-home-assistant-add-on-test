@@ -89,6 +89,15 @@ def test_weather_backdrops_are_packaged_at_panel_resolution():
     assert total_size < 5 * 1024 * 1024
 
 
+def test_weather_forecast_border_is_packaged():
+    path = WEATHER_ART / "forecast_7_day_border.png"
+
+    assert path.exists()
+    assert path.stat().st_size > 0
+    with Image.open(path) as image:
+        assert image.size == (400, 300)
+
+
 def test_sync_wifi_button_is_not_created_and_stale_entity_is_removed():
     button_source = BUTTON.read_text(encoding="utf-8")
     init_source = INIT.read_text(encoding="utf-8")
@@ -200,9 +209,31 @@ def test_backend_attribution_sensor_is_always_visible():
 def test_renderer_cache_is_versioned():
     init_source = (ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py").read_text(encoding="utf-8")
     assert "CARD_RENDERER_VERSION" in init_source
-    assert 'CARD_RENDERER_VERSION = "luxe-0.1.99-astrology-kalam-safezones"' in init_source
+    assert 'CARD_RENDERER_VERSION = "luxe-0.1.102-weather-forecast-cards"' in init_source
     assert 'metadata["card_renderer_version"] = CARD_RENDERER_VERSION' in init_source
     assert 'metadata.get("card_renderer_version") != CARD_RENDERER_VERSION' in init_source
+
+
+def test_ha_slot_capacity_and_content_cadence_are_app_owned_in_options_ui():
+    config_source = (COMPONENT / "config_flow.py").read_text(encoding="utf-8")
+    strings_source = (COMPONENT / "strings.json").read_text(encoding="utf-8")
+
+    setup_start = config_source.index("async def async_step_user")
+    setup_end = config_source.index("@staticmethod", setup_start)
+    setup_source = config_source[setup_start:setup_end]
+    device_start = config_source.index("async def async_step_device")
+    device_end = config_source.index("def _data", device_start)
+    device_source = config_source[device_start:device_end]
+    save_start = config_source.index("def _save_options_or_show")
+    save_end = config_source.index("def _comic_provider_form", save_start)
+    save_source = config_source[save_start:save_end]
+
+    assert "CONF_UPDATE_INTERVAL_MINUTES" not in setup_source
+    assert "CONF_UPDATE_INTERVAL_MINUTES" not in device_source
+    assert "Repeating update interval minutes" not in strings_source
+    assert "validate_ha_lane(" not in save_source
+    assert "errors={\"base\"" not in save_source
+    assert "content update cadence from the Ditherloom app/frame setup" in strings_source
 
 
 def test_astrology_cache_refreshes_by_local_day_not_generic_interval_only():
@@ -248,9 +279,33 @@ def test_weather_luxe_uses_full_background_art():
     assert "image = _render_luxe_weather_card(data)" in modern_source
     assert 'ImageOps.grayscale(image).convert("RGB")' in modern_source
     assert "art.thumbnail" not in paste_source
-    assert "WIDTH / artwork.width" in paste_source
-    assert "HEIGHT / artwork.height" in paste_source
-    assert "image.paste(resized.crop" in paste_source
+    assert "_cover_image(artwork, WIDTH, HEIGHT)" in paste_source
+
+
+def test_weather_forecast_cards_are_exposed_as_separate_weather_menu_items():
+    const_source = (COMPONENT / "const.py").read_text(encoding="utf-8")
+    lane_source = (COMPONENT / "ha_lane.py").read_text(encoding="utf-8")
+    config_source = (COMPONENT / "config_flow.py").read_text(encoding="utf-8")
+    strings_source = (COMPONENT / "strings.json").read_text(encoding="utf-8")
+    renderer_source = (COMPONENT / "renderer" / "cards.py").read_text(encoding="utf-8")
+
+    assert 'CONF_WEATHER_TODAY_TOMORROW_ENABLED = "weather_today_tomorrow_enabled"' in const_source
+    assert 'CONF_WEATHER_7_DAY_ENABLED = "weather_7_day_enabled"' in const_source
+    assert 'PROVIDER_WEATHER_TODAY_TOMORROW = "open_meteo_today_tomorrow"' in lane_source
+    assert 'PROVIDER_WEATHER_7_DAY = "open_meteo_7_day_forecast"' in lane_source
+    assert '"weather_current"' in config_source
+    assert '"weather_today_tomorrow"' in config_source
+    assert '"weather_7_day"' in config_source
+    assert '"weather_current": "Current Weather"' in strings_source
+    assert '"weather_today_tomorrow": "Today / Tomorrow"' in strings_source
+    assert '"weather_7_day": "7-Day Forecast"' in strings_source
+    assert "def render_today_tomorrow_weather_card" in renderer_source
+    assert "def render_seven_day_weather_card" in renderer_source
+    assert "draw.line(diagonal, fill=_rgb(\"red\"), width=10)" in renderer_source
+    assert "draw.line(diagonal, fill=_rgb(\"yellow\"), width=6)" in renderer_source
+    assert 'border = _load_weather_art("forecast_7_day_border")' in renderer_source
+    assert "ImageEnhance.Color(image).enhance(1.2)" in renderer_source
+    assert "ImageEnhance.Contrast(image).enhance(1.2)" in renderer_source
 
 
 def test_luxe_cards_use_fixed_large_fonts_not_box_fitted_fonts():
