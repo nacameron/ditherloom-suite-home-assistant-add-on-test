@@ -13,6 +13,14 @@ from .const import (
     COMICS_SLOT_MODE_PER_SOURCE,
     CONF_ASTROLOGY_ENABLED,
     CONF_ASTROLOGY_SIGNS,
+    CONF_ASTRONOMY_AURORA_WATCH_ENABLED,
+    CONF_ASTRONOMY_CONDITIONS_ENABLED,
+    CONF_ASTRONOMY_CONSTELLATION_ENABLED,
+    CONF_ASTRONOMY_MOON_WATCH_ENABLED,
+    CONF_ASTRONOMY_OVERHEAD_ENABLED,
+    CONF_ASTRONOMY_SOLAR_ACTIVITY_ENABLED,
+    CONF_ASTRONOMY_TONIGHT_SKY_ENABLED,
+    CONF_ASTRONOMY_VISIBLE_PLANETS_ENABLED,
     CONF_COMICS_ENABLED,
     CONF_COMICS_SLOT_MODE,
     CONF_DIESEL_SWEETIES_ENABLED,
@@ -32,7 +40,15 @@ from .const import (
     CONF_WAKE_WINDOW_MINUTES,
     CONF_WEATHER_7_DAY_ENABLED,
     CONF_WEATHER_ENABLED,
+    CONF_WEATHER_PRECIPITATION_ENABLED,
+    CONF_WEATHER_RADAR_ATTRIBUTION,
+    CONF_WEATHER_RADAR_ENABLED,
+    CONF_WEATHER_RADAR_OPENWEATHER_API_KEY,
+    CONF_WEATHER_RADAR_OPENWEATHER_LAYER,
+    CONF_WEATHER_RADAR_OPENWEATHER_ZOOM,
     CONF_WEATHER_TODAY_TOMORROW_ENABLED,
+    CONF_WEATHER_UV_ENABLED,
+    CONF_WEATHER_WIND_ENABLED,
     CONF_WIND_SPEED_UNIT,
     CONF_XKCD_ENABLED,
     CONF_XKCD_ATTRIBUTION_NOTICE,
@@ -144,7 +160,7 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         return self.async_show_menu(
             step_id="init",
-            menu_options=["weather", "sun", "moon", "comics_framework", "astrology", "device"],
+            menu_options=["weather", "sun", "moon", "comics_framework", "astrology", "astronomy", "device"],
         )
 
     async def async_step_weather(self, user_input: dict[str, Any] | None = None):
@@ -154,6 +170,10 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                 "weather_current",
                 "weather_today_tomorrow",
                 "weather_7_day",
+                "weather_radar",
+                "weather_precipitation",
+                "weather_uv",
+                "weather_wind",
             ],
         )
 
@@ -214,6 +234,58 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
             }
             return self._save_options_or_show("weather_7_day", internal_input, schema)
         return self.async_show_form(step_id="weather_7_day", data_schema=schema)
+
+    async def async_step_weather_radar(self, user_input: dict[str, Any] | None = None):
+        data = self._data()
+        schema = self._radar_weather_schema(data)
+        if user_input is not None:
+            internal_input = {
+                CONF_WEATHER_RADAR_ENABLED: bool(user_input.get(CONF_WEATHER_RADAR_ENABLED, False)),
+                CONF_WEATHER_RADAR_OPENWEATHER_API_KEY: str(
+                    user_input.get(CONF_WEATHER_RADAR_OPENWEATHER_API_KEY) or ""
+                ).strip(),
+                CONF_WEATHER_RADAR_OPENWEATHER_LAYER: str(
+                    user_input.get(CONF_WEATHER_RADAR_OPENWEATHER_LAYER) or "precipitation_new"
+                ).strip(),
+                CONF_WEATHER_RADAR_OPENWEATHER_ZOOM: int(user_input.get(CONF_WEATHER_RADAR_OPENWEATHER_ZOOM) or 6),
+                CONF_WEATHER_RADAR_ATTRIBUTION: str(user_input.get(CONF_WEATHER_RADAR_ATTRIBUTION) or "").strip(),
+                **_weather_shared_options(user_input),
+            }
+            return self._save_options_or_show("weather_radar", internal_input, schema)
+        return self.async_show_form(step_id="weather_radar", data_schema=schema)
+
+    async def async_step_weather_precipitation(self, user_input: dict[str, Any] | None = None):
+        data = self._data()
+        schema = self._shared_weather_schema(data, CONF_WEATHER_PRECIPITATION_ENABLED)
+        if user_input is not None:
+            internal_input = {
+                CONF_WEATHER_PRECIPITATION_ENABLED: bool(user_input.get(CONF_WEATHER_PRECIPITATION_ENABLED, False)),
+                **_weather_shared_options(user_input),
+            }
+            return self._save_options_or_show("weather_precipitation", internal_input, schema)
+        return self.async_show_form(step_id="weather_precipitation", data_schema=schema)
+
+    async def async_step_weather_uv(self, user_input: dict[str, Any] | None = None):
+        data = self._data()
+        schema = self._shared_weather_schema(data, CONF_WEATHER_UV_ENABLED)
+        if user_input is not None:
+            internal_input = {
+                CONF_WEATHER_UV_ENABLED: bool(user_input.get(CONF_WEATHER_UV_ENABLED, False)),
+                **_weather_shared_options(user_input),
+            }
+            return self._save_options_or_show("weather_uv", internal_input, schema)
+        return self.async_show_form(step_id="weather_uv", data_schema=schema)
+
+    async def async_step_weather_wind(self, user_input: dict[str, Any] | None = None):
+        data = self._data()
+        schema = self._shared_weather_schema(data, CONF_WEATHER_WIND_ENABLED)
+        if user_input is not None:
+            internal_input = {
+                CONF_WEATHER_WIND_ENABLED: bool(user_input.get(CONF_WEATHER_WIND_ENABLED, False)),
+                **_weather_shared_options(user_input),
+            }
+            return self._save_options_or_show("weather_wind", internal_input, schema)
+        return self.async_show_form(step_id="weather_wind", data_schema=schema)
 
     async def async_step_sun(self, user_input: dict[str, Any] | None = None):
         data = self._data()
@@ -364,7 +436,7 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                     default=_selected_astrology_signs(data),
                 ): _astrology_sign_selector(),
             }
-        )
+            )
         if user_input is not None:
             normalized = {
                 CONF_ASTROLOGY_ENABLED: bool(user_input.get(CONF_ASTROLOGY_ENABLED, False)),
@@ -372,6 +444,77 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
             }
             return self._save_options_or_show("astrology", normalized, schema)
         return self.async_show_form(step_id="astrology", data_schema=schema)
+
+    async def async_step_astronomy(self, user_input: dict[str, Any] | None = None):
+        return self.async_show_menu(
+            step_id="astronomy",
+            menu_options=[
+                "astronomy_visible_planets",
+                "astronomy_moon_watch",
+                "astronomy_constellation",
+                "astronomy_tonight_sky",
+                "astronomy_overhead",
+                "astronomy_conditions",
+                "astronomy_solar_activity",
+                "astronomy_aurora_watch",
+            ],
+        )
+
+    async def async_step_astronomy_visible_planets(self, user_input: dict[str, Any] | None = None):
+        return self._astronomy_provider_form(
+            "astronomy_visible_planets",
+            CONF_ASTRONOMY_VISIBLE_PLANETS_ENABLED,
+            user_input,
+        )
+
+    async def async_step_astronomy_moon_watch(self, user_input: dict[str, Any] | None = None):
+        return self._astronomy_provider_form(
+            "astronomy_moon_watch",
+            CONF_ASTRONOMY_MOON_WATCH_ENABLED,
+            user_input,
+        )
+
+    async def async_step_astronomy_constellation(self, user_input: dict[str, Any] | None = None):
+        return self._astronomy_provider_form(
+            "astronomy_constellation",
+            CONF_ASTRONOMY_CONSTELLATION_ENABLED,
+            user_input,
+        )
+
+    async def async_step_astronomy_tonight_sky(self, user_input: dict[str, Any] | None = None):
+        return self._astronomy_provider_form(
+            "astronomy_tonight_sky",
+            CONF_ASTRONOMY_TONIGHT_SKY_ENABLED,
+            user_input,
+        )
+
+    async def async_step_astronomy_overhead(self, user_input: dict[str, Any] | None = None):
+        return self._astronomy_provider_form(
+            "astronomy_overhead",
+            CONF_ASTRONOMY_OVERHEAD_ENABLED,
+            user_input,
+        )
+
+    async def async_step_astronomy_conditions(self, user_input: dict[str, Any] | None = None):
+        return self._astronomy_provider_form(
+            "astronomy_conditions",
+            CONF_ASTRONOMY_CONDITIONS_ENABLED,
+            user_input,
+        )
+
+    async def async_step_astronomy_solar_activity(self, user_input: dict[str, Any] | None = None):
+        return self._astronomy_provider_form(
+            "astronomy_solar_activity",
+            CONF_ASTRONOMY_SOLAR_ACTIVITY_ENABLED,
+            user_input,
+        )
+
+    async def async_step_astronomy_aurora_watch(self, user_input: dict[str, Any] | None = None):
+        return self._astronomy_provider_form(
+            "astronomy_aurora_watch",
+            CONF_ASTRONOMY_AURORA_WATCH_ENABLED,
+            user_input,
+        )
 
     async def async_step_device(self, user_input: dict[str, Any] | None = None):
         data = {**self._entry.data, **self._entry.options}
@@ -464,6 +607,83 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                 ): vol.In([WIND_SPEED_UNIT_KMH, WIND_SPEED_UNIT_MPH]),
             }
         )
+
+    def _radar_weather_schema(self, data: dict[str, Any]) -> vol.Schema:
+        return vol.Schema(
+            {
+                vol.Optional(
+                    CONF_WEATHER_RADAR_ENABLED,
+                    default=_bool_option(data, CONF_WEATHER_RADAR_ENABLED, False),
+                ): bool,
+                vol.Optional(
+                    CONF_WEATHER_RADAR_OPENWEATHER_API_KEY,
+                    default=data.get(CONF_WEATHER_RADAR_OPENWEATHER_API_KEY, ""),
+                ): str,
+                vol.Optional(
+                    CONF_WEATHER_RADAR_OPENWEATHER_LAYER,
+                    default=data.get(CONF_WEATHER_RADAR_OPENWEATHER_LAYER, "precipitation_new"),
+                ): vol.In(["precipitation_new", "clouds_new", "wind_new", "temp_new"]),
+                vol.Optional(
+                    CONF_WEATHER_RADAR_OPENWEATHER_ZOOM,
+                    default=int(data.get(CONF_WEATHER_RADAR_OPENWEATHER_ZOOM, 6) or 6),
+                ): vol.All(vol.Coerce(int), vol.Range(min=3, max=8)),
+                vol.Optional(
+                    CONF_WEATHER_RADAR_ATTRIBUTION,
+                    default=data.get(CONF_WEATHER_RADAR_ATTRIBUTION, "OpenWeather"),
+                ): str,
+                vol.Optional(CONF_LOCATION_NAME, default=data.get(CONF_LOCATION_NAME, "Home")): str,
+                vol.Optional(
+                    CONF_WEATHER_LOCATION,
+                    default=_default_location(
+                        data.get(CONF_LATITUDE),
+                        data.get(CONF_LONGITUDE),
+                        self.hass.config.latitude,
+                        self.hass.config.longitude,
+                    ),
+                ): selector.LocationSelector({"radius": True}),
+                vol.Optional(CONF_LATITUDE, default=data.get(CONF_LATITUDE, "0")): str,
+                vol.Optional(CONF_LONGITUDE, default=data.get(CONF_LONGITUDE, "0")): str,
+                vol.Optional(
+                    CONF_DISPLAY_MODE,
+                    default=data.get(CONF_DISPLAY_MODE, DEFAULT_DISPLAY_MODE),
+                ): vol.In([DISPLAY_MODE_COLOUR, DISPLAY_MODE_MONO]),
+            }
+        )
+
+    def _astronomy_provider_form(
+        self,
+        step_id: str,
+        option_key: str,
+        user_input: dict[str, Any] | None,
+    ):
+        data = self._data()
+        schema = vol.Schema(
+            {
+                vol.Optional(option_key, default=_bool_option(data, option_key, False)): bool,
+                vol.Optional(CONF_LOCATION_NAME, default=data.get(CONF_LOCATION_NAME, "Home")): str,
+                vol.Optional(
+                    CONF_WEATHER_LOCATION,
+                    default=_default_location(
+                        data.get(CONF_LATITUDE),
+                        data.get(CONF_LONGITUDE),
+                        self.hass.config.latitude,
+                        self.hass.config.longitude,
+                    ),
+                ): selector.LocationSelector({"radius": True}),
+                vol.Optional(CONF_LATITUDE, default=data.get(CONF_LATITUDE, "0")): str,
+                vol.Optional(CONF_LONGITUDE, default=data.get(CONF_LONGITUDE, "0")): str,
+            }
+        )
+        if user_input is not None:
+            internal_input = {
+                option_key: bool(user_input.get(option_key, False)),
+                CONF_LOCATION_NAME: user_input.get(CONF_LOCATION_NAME, data.get(CONF_LOCATION_NAME, "Home")),
+                CONF_WEATHER_LOCATION: user_input.get(CONF_WEATHER_LOCATION),
+                CONF_LATITUDE: user_input.get(CONF_LATITUDE, data.get(CONF_LATITUDE, "0")),
+                CONF_LONGITUDE: user_input.get(CONF_LONGITUDE, data.get(CONF_LONGITUDE, "0")),
+            }
+            return self._save_options_or_show(step_id, internal_input, schema)
+        return self.async_show_form(step_id=step_id, data_schema=schema)
 
     def _comics_description_placeholders(self, data: dict[str, Any]) -> dict[str, str]:
         return {

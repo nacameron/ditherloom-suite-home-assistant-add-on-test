@@ -12,6 +12,14 @@ ditherloom_package.__path__ = [str(ROOT / "custom_components" / "ditherloom_suit
 sys.modules.setdefault("custom_components.ditherloom_suite_ha_addon", ditherloom_package)
 
 from custom_components.ditherloom_suite_ha_addon.const import (
+    CONF_ASTRONOMY_AURORA_WATCH_ENABLED,
+    CONF_ASTRONOMY_CONDITIONS_ENABLED,
+    CONF_ASTRONOMY_CONSTELLATION_ENABLED,
+    CONF_ASTRONOMY_MOON_WATCH_ENABLED,
+    CONF_ASTRONOMY_OVERHEAD_ENABLED,
+    CONF_ASTRONOMY_SOLAR_ACTIVITY_ENABLED,
+    CONF_ASTRONOMY_TONIGHT_SKY_ENABLED,
+    CONF_ASTRONOMY_VISIBLE_PLANETS_ENABLED,
     CONF_COMICS_ENABLED,
     CONF_FRAME_HA_SLOT_CSV,
     CONF_FRAME_HA_SLOT_POOL,
@@ -25,7 +33,11 @@ from custom_components.ditherloom_suite_ha_addon.const import (
     CONF_TARGET_SLOT,
     CONF_WEATHER_7_DAY_ENABLED,
     CONF_WEATHER_ENABLED,
+    CONF_WEATHER_PRECIPITATION_ENABLED,
+    CONF_WEATHER_RADAR_ENABLED,
     CONF_WEATHER_TODAY_TOMORROW_ENABLED,
+    CONF_WEATHER_UV_ENABLED,
+    CONF_WEATHER_WIND_ENABLED,
     CONF_XKCD_ENABLED,
 )
 from custom_components.ditherloom_suite_ha_addon.ha_lane import (
@@ -97,6 +109,66 @@ def test_weather_subcards_are_separate_slot_providers():
         "open_meteo_weather": 440,
         "open_meteo_today_tomorrow": 441,
         "open_meteo_7_day_forecast": 442,
+    }
+
+
+def test_weather_metric_cards_are_separate_slot_providers():
+    options = {
+        CONF_FRAME_HA_SLOT_CSV: "440,441,442,443",
+        CONF_WEATHER_RADAR_ENABLED: True,
+        CONF_WEATHER_PRECIPITATION_ENABLED: True,
+        CONF_WEATHER_UV_ENABLED: True,
+        CONF_WEATHER_WIND_ENABLED: True,
+    }
+
+    assert validate_ha_lane(options).valid
+    assert enabled_content_providers(options) == [
+        "weather_radar",
+        "open_meteo_precipitation",
+        "open_meteo_uv",
+        "open_meteo_wind",
+    ]
+    assert provider_slot_map(options) == {
+        "weather_radar": 440,
+        "open_meteo_precipitation": 441,
+        "open_meteo_uv": 442,
+        "open_meteo_wind": 443,
+    }
+
+
+def test_astronomy_cards_are_separate_slot_providers():
+    options = {
+        CONF_FRAME_HA_SLOT_CSV: "439,440,441,442,443,444,445,446",
+        CONF_ASTRONOMY_VISIBLE_PLANETS_ENABLED: True,
+        CONF_ASTRONOMY_MOON_WATCH_ENABLED: True,
+        CONF_ASTRONOMY_CONSTELLATION_ENABLED: True,
+        CONF_ASTRONOMY_TONIGHT_SKY_ENABLED: True,
+        CONF_ASTRONOMY_OVERHEAD_ENABLED: True,
+        CONF_ASTRONOMY_CONDITIONS_ENABLED: True,
+        CONF_ASTRONOMY_SOLAR_ACTIVITY_ENABLED: True,
+        CONF_ASTRONOMY_AURORA_WATCH_ENABLED: True,
+    }
+
+    assert validate_ha_lane(options).valid
+    assert enabled_content_providers(options) == [
+        "astronomy_visible_planets",
+        "astronomy_moon_watch",
+        "astronomy_constellation",
+        "astronomy_tonight_sky",
+        "astronomy_overhead",
+        "astronomy_conditions",
+        "astronomy_solar_activity",
+        "astronomy_aurora_watch",
+    ]
+    assert provider_slot_map(options) == {
+        "astronomy_visible_planets": 439,
+        "astronomy_moon_watch": 440,
+        "astronomy_constellation": 441,
+        "astronomy_tonight_sky": 442,
+        "astronomy_overhead": 443,
+        "astronomy_conditions": 444,
+        "astronomy_solar_activity": 445,
+        "astronomy_aurora_watch": 446,
     }
 
 

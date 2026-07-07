@@ -8,7 +8,7 @@ from functools import lru_cache
 from datetime import datetime
 from typing import Any, Dict
 
-from .renderer.cards import ForecastDayData, WeatherCardData, WeatherForecastData
+from .renderer.cards import ForecastDayData, WeatherCardData, WeatherForecastData, WeatherHourlyData, WeatherHourlyPoint
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"
@@ -253,6 +253,70 @@ def fetch_open_meteo_forecast(
     )
 
 
+def fetch_open_meteo_hourly(
+    latitude: str,
+    longitude: str,
+    location: str,
+    wind_speed_unit: str = "kmh",
+) -> WeatherHourlyData:
+    latitude, longitude = _normalise_coordinates(latitude, longitude)
+    resolved_location = location.strip() or _reverse_location_name(latitude, longitude) or "Open-Meteo"
+    wind_speed_unit = _wind_speed_unit(wind_speed_unit)
+    wind_suffix = "mph" if wind_speed_unit == "mph" else "km/h"
+    params = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "hourly": ",".join(
+            [
+                "precipitation",
+                "precipitation_probability",
+                "uv_index",
+                "wind_speed_10m",
+                "wind_gusts_10m",
+            ]
+        ),
+        "timezone": "auto",
+        "forecast_days": "1",
+        "wind_speed_unit": wind_speed_unit,
+        "precipitation_unit": "mm",
+    }
+    url = f"{OPEN_METEO_URL}?{urllib.parse.urlencode(params)}"
+    with urllib.request.urlopen(url, timeout=12) as response:
+        payload: Dict[str, Any] = json.loads(response.read().decode("utf-8"))
+
+    hourly = payload.get("hourly", {})
+    times = list(hourly.get("time") or [])
+    precip = list(hourly.get("precipitation") or [])
+    precip_probability = list(hourly.get("precipitation_probability") or [])
+    uv_index = list(hourly.get("uv_index") or [])
+    wind_speed = list(hourly.get("wind_speed_10m") or [])
+    wind_gust = list(hourly.get("wind_gusts_10m") or [])
+    blocks: list[WeatherHourlyPoint] = []
+    for block_start in range(0, min(24, len(times)), 4):
+        indexes = list(range(block_start, min(block_start + 4, len(times))))
+        if not indexes:
+            continue
+        label = _hour_label(_list_item(times, indexes[0], ""))
+        blocks.append(
+            WeatherHourlyPoint(
+                label=label,
+                precipitation_mm=max(_float_item(precip, index) for index in indexes),
+                precipitation_probability=max(_float_item(precip_probability, index) for index in indexes),
+                uv_index=max(_float_item(uv_index, index) for index in indexes),
+                wind_speed=max(_float_item(wind_speed, index) for index in indexes),
+                wind_gust=max(_float_item(wind_gust, index) for index in indexes),
+                wind_unit=wind_suffix,
+            )
+        )
+    return WeatherHourlyData(
+        location=resolved_location,
+        blocks=tuple(blocks[:6]),
+        updated=datetime.now().strftime("%H:%M"),
+        source_entity_id="open_meteo.direct",
+        attribution=f"{OPEN_METEO_ATTRIBUTION} {NOMINATIM_ATTRIBUTION if not location.strip() else ''}".strip(),
+    )
+
+
 _COORDINATE_RE = re.compile(r"([+-]?\d+(?:\.\d+)?)")
 
 
@@ -344,6 +408,20 @@ def _first(value: Any) -> Any:
 
 def _list_item(values: list[Any], index: int, default: Any = None) -> Any:
     return values[index] if index < len(values) else default
+
+
+def _float_item(values: list[Any], index: int, default: float = 0.0) -> float:
+    try:
+        return float(_list_item(values, index, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _hour_label(value: Any) -> str:
+    text = str(value or "")
+    if "T" in text:
+        text = text.split("T", 1)[1]
+    return text[:5] if text else "--"
 
 
 def _date_label(value: Any) -> str:

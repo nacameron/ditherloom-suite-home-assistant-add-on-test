@@ -33,8 +33,6 @@ ATKINSON_KERNEL = (
     (0, 2, 1 / 8),
 )
 TEMPLATE_RECIPE_MATCH_DISTANCE_SQUARED = 0
-TEMPLATE_EXACT_BLACK_WHITE_ERROR = 18
-TEMPLATE_EXACT_COLOUR_ERROR = 24
 
 
 @dataclass(frozen=True)
@@ -50,10 +48,17 @@ class RenderArtifact:
     packet_debug_image: Image.Image
 
 
-def image_to_codes(image: Image.Image) -> List[int]:
+def image_to_codes(image: Image.Image, protected_mask: Image.Image | None = None) -> List[int]:
     if image.size != (WIDTH, HEIGHT):
         raise ValueError(f"Expected {WIDTH}x{HEIGHT}, got {image.size[0]}x{image.size[1]}")
     rgb_image = image.convert("RGB")
+    mask_pixels = None
+    if protected_mask is not None:
+        if protected_mask.size != (WIDTH, HEIGHT):
+            raise ValueError(
+                f"Expected protected mask {WIDTH}x{HEIGHT}, got {protected_mask.size[0]}x{protected_mask.size[1]}"
+            )
+        mask_pixels = protected_mask.convert("L").load()
     pixels = [
         [[float(channel) for channel in rgb_image.getpixel((x, y))] for x in range(WIDTH)]
         for y in range(HEIGHT)
@@ -63,10 +68,11 @@ def image_to_codes(image: Image.Image) -> List[int]:
     for y in range(HEIGHT):
         for x in range(WIDTH):
             rgb = source_pixels[x, y]
-            template_code = _template_safe_palette_code(rgb, x, y)
-            if template_code is not None:
-                codes[y * WIDTH + x] = template_code
-                continue
+            if mask_pixels is None or mask_pixels[x, y] > 0:
+                template_code = _template_safe_palette_code(rgb, x, y)
+                if template_code is not None:
+                    codes[y * WIDTH + x] = template_code
+                    continue
 
             r, g, b = pixels[y][x]
             code, nr, ng, nb = closest_panel_code_and_rgb(r, g, b)
@@ -85,7 +91,7 @@ def _template_safe_palette_code(rgb: tuple[int, int, int], x: int, y: int) -> in
 def _template_colour_code(rgb: tuple[int, int, int], x: int, y: int) -> int:
     colour_name = RGB_TO_TEMPLATE_NAME.get(rgb)
     if colour_name is None:
-        return _template_exact_code(rgb) or closest_panel_code_and_rgb(*rgb)[0]
+        return closest_panel_code_and_rgb(*rgb)[0]
     if colour_name == "black":
         return CODE_BLACK
     if colour_name == "red":
@@ -98,50 +104,6 @@ def _template_colour_code(rgb: tuple[int, int, int], x: int, y: int) -> int:
     if colour.recipe is not None:
         return ordered_code(colour.recipe, x, y)
     return CODE_BLACK
-
-
-def _template_safe_colour_recipe(rgb: tuple[int, int, int]) -> tuple[int, int, int] | None:
-    r, g, b = rgb
-    best_rgb: tuple[int, int, int] | None = None
-    best_distance = TEMPLATE_RECIPE_MATCH_DISTANCE_SQUARED + 1
-    for colour in TEMPLATE_COLOURS.values():
-        cr, cg, cb = colour.rgb
-        distance = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2
-        if distance < best_distance:
-            best_distance = distance
-            best_rgb = colour.rgb
-    if best_rgb is not None and best_distance <= TEMPLATE_RECIPE_MATCH_DISTANCE_SQUARED:
-        return best_rgb
-    return None
-
-
-def _template_native_panel_code(r: int, g: int, b: int) -> int | None:
-    high = max(r, g, b)
-    low = min(r, g, b)
-    if high <= 70:
-        return CODE_BLACK
-    if low >= 224 and high - low <= 50:
-        return CODE_WHITE
-    if r >= 200 and g <= 76 and b <= 76:
-        return CODE_RED
-    if r >= 200 and g >= 176 and b <= 84 and abs(r - g) <= 82:
-        return CODE_YELLOW
-    return None
-
-
-def _template_exact_code(rgb: tuple[int, int, int]) -> int | None:
-    r, g, b = rgb
-    best_code = CODE_BLACK
-    best_error = float("inf")
-    for code, (pr, pg, pb) in PACKET_RGB.items():
-        error = ((r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2) ** 0.5
-        if error < best_error:
-            best_error = error
-            best_code = code
-    threshold = TEMPLATE_EXACT_BLACK_WHITE_ERROR if best_code in {CODE_BLACK, CODE_WHITE} else TEMPLATE_EXACT_COLOUR_ERROR
-    if best_error <= threshold:
-        return best_code
-    return None
 
 
 def closest_panel_code_and_rgb(r: float, g: float, b: float) -> tuple[int, int, int, int]:
@@ -194,7 +156,9 @@ def codes_to_image(codes: List[int], palette: Dict[int, tuple[int, int, int]]) -
 
 def render_to_artifact(image: Image.Image, template_name: str, source_entity_ids: list[str]) -> RenderArtifact:
     oriented_image = orient_image_for_device(image)
-    codes = image_to_codes(oriented_image)
+    protected_mask = image.info.get("ditherloom_protected_mask")
+    oriented_mask = orient_image_for_device(protected_mask) if isinstance(protected_mask, Image.Image) else None
+    codes = image_to_codes(oriented_image, oriented_mask)
     packed = pack_pixel_codes(codes)
     if len(codes) != PIXEL_COUNT:
         raise ValueError(f"Expected {PIXEL_COUNT} pixel codes, got {len(codes)}")

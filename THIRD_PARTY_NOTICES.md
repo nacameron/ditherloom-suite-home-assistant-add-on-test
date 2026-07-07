@@ -105,6 +105,25 @@ name. Results are cached in-process to avoid repeated lookups for the same
 coordinate. Nominatim/OpenStreetMap data, API terms, and provider branding
 remain controlled by their respective projects.
 
+The optional Weather Radar card can fetch OpenWeather Weather Maps tiles when
+the user explicitly enables the radar card and supplies their own OpenWeather
+API key in Home Assistant options. Ditherloom does not bundle, share, or claim
+ownership of any OpenWeather API key, map tile, provider branding, or terms.
+Rendered radar metadata records OpenWeather attribution, terms URL, selected map
+layer, and zoom level. The map tile colours are transformed for readability on
+the Ditherloom 400 x 300 colour display before the normal hybrid renderer packs
+the card.
+
+Sources:
+
+```text
+https://open-meteo.com/
+https://openweathermap.org/
+https://openweathermap.org/api/weathermaps
+https://openweathermap.org/terms
+https://www.openstreetmap.org/copyright
+```
+
 ## Optional xkcd Comic Content
 
 The optional xkcd Comic provider fetches comic metadata and image assets from
@@ -183,4 +202,43 @@ Sources:
 https://rhodesmill.org/skyfield/
 https://github.com/brandon-rhodes/python-jplephem
 https://naif.jpl.nasa.gov/naif/data.html
+```
+
+## Optional Astronomy Content
+
+Astronomy cards use Ditherloom-owned/generated sky summary wording and bundled
+astronomy artwork supplied for the Ditherloom project. V1 does not bundle
+external planet photographs or scrape third-party sky text.
+
+When available, the provider uses Skyfield and jplephem to calculate local sky
+positions from JPL/NASA DE421 ephemeris data. Skyfield and jplephem remain under
+their MIT licenses. JPL/NASA ephemeris data remains NASA/JPL work under its
+source distribution terms; the Ditherloom project does not claim copyright over
+that data or over Skyfield/jplephem.
+
+Rendered Astronomy metadata records Ditherloom attribution, Skyfield/jplephem
+secondary attribution, JPL/NASA ephemeris attribution, the selected card type,
+date, configured location, and whether Skyfield data or fallback seasonal
+guidance was used.
+
+Astronomy View Conditions uses Open-Meteo cloud cover and visibility data for the
+configured locale. Open-Meteo remains under its own CC BY 4.0/terms, and the
+rendered card visibly attributes Open-Meteo when that card is used.
+
+Solar Activity and Aurora Watch use NOAA/SWPC space-weather data, including Kp,
+solar-wind, and aurora forecast products where available. NOAA/NWS information
+is generally public domain unless otherwise noted, but NOAA/SWPC remains the
+source and Ditherloom does not imply NOAA endorsement or claim copyright over
+NOAA data. Rendered cards visibly attribute NOAA/SWPC when those cards are used.
+
+Sources:
+
+```text
+https://rhodesmill.org/skyfield/
+https://github.com/brandon-rhodes/python-jplephem
+https://naif.jpl.nasa.gov/naif/data.html
+https://open-meteo.com/
+https://www.swpc.noaa.gov/
+https://services.swpc.noaa.gov/
+https://www.weather.gov/disclaimer
 ```

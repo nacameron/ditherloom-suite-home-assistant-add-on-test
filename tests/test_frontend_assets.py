@@ -10,6 +10,7 @@ BUTTON = COMPONENT / "button.py"
 SENSOR = COMPONENT / "sensor.py"
 UPDATE = COMPONENT / "update.py"
 WEATHER_ART = COMPONENT / "assets" / "weather_art"
+ASTRONOMY_ART = COMPONENT / "assets" / "astronomy_art"
 
 
 def test_home_assistant_brand_assets_are_packaged():
@@ -65,6 +66,21 @@ def test_astrology_sign_assets_are_packaged_at_panel_resolution():
         "astro_pisces.png",
     ):
         path = sample_dir / name
+        assert path.exists()
+        assert path.stat().st_size > 0
+        with Image.open(path) as image:
+            assert image.size == (400, 300)
+
+
+def test_astronomy_assets_are_packaged_at_panel_resolution():
+    for name in (
+        "astronomy_visible_planets.png",
+        "astronomy_moon_watch.png",
+        "astronomy_constellation.png",
+        "astronomy_tonight_sky.png",
+        "astronomy_overhead.png",
+    ):
+        path = ASTRONOMY_ART / name
         assert path.exists()
         assert path.stat().st_size > 0
         with Image.open(path) as image:
@@ -177,7 +193,7 @@ def test_backend_attribution_sensor_is_always_visible():
     assert "DitherloomDataAttributionSensor(coordinator, entry)" in sensor_source
     assert "class DitherloomDataAttributionSensor" in sensor_source
     assert 'self._attr_unique_id = f"{entry.entry_id}_data_attribution"' in sensor_source
-    assert 'return "Open-Meteo Weather; Ditherloom local sun/moon; Comics; Daily Astrology"' in sensor_source
+    assert 'return "Open-Meteo Weather; Ditherloom local sun/moon; Comics; Daily Astrology; Astronomy"' in sensor_source
     assert '"weather_provider": "Open-Meteo"' in sensor_source
     assert '"weather_attribution": OPEN_METEO_ATTRIBUTION' in sensor_source
     assert '"weather_attribution_url": OPEN_METEO_ATTRIBUTION_URL' in sensor_source
@@ -202,14 +218,21 @@ def test_backend_attribution_sensor_is_always_visible():
     assert '"astrology_skyfield": "Skyfield MIT licensed Python astronomy library"' in sensor_source
     assert '"astrology_jplephem": "jplephem MIT licensed JPL ephemeris reader"' in sensor_source
     assert '"astrology_ephemeris": "JPL/NASA ephemeris data used for planetary and lunar positions; Ditherloom does not claim copyright over NASA/JPL data."' in sensor_source
-    assert '"visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM. Comic cards show source-specific red attribution and license text. Astrology cards show DITHERLOOM; backend metadata attributes Skyfield, jplephem, and NASA/JPL ephemeris data."' in sensor_source
+    assert '"astronomy_attribution": "Ditherloom Astronomy; planetary data by NASA/JPL via Skyfield"' in sensor_source
+    assert '"astronomy_license": "Ditherloom artwork/text; Skyfield and jplephem MIT; NASA/JPL ephemeris data retained under source terms"' in sensor_source
+    assert '"astronomy_skyfield": "Skyfield MIT licensed Python astronomy library"' in sensor_source
+    assert '"astronomy_jplephem": "jplephem MIT licensed JPL ephemeris reader"' in sensor_source
+    assert '"astronomy_ephemeris": "JPL/NASA DE421 ephemeris data used for local sky positions; Ditherloom does not claim copyright over NASA/JPL data."' in sensor_source
+    assert '"astronomy_noaa_swpc": "NOAA/SWPC space-weather data for Solar Activity and Aurora Watch; public domain unless otherwise noted; Ditherloom does not claim copyright over NOAA data."' in sensor_source
+    assert '"astronomy_open_meteo": "Open-Meteo cloud cover and visibility data for Astronomy View Conditions"' in sensor_source
+    assert '"visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM. Comic cards show source-specific red attribution and license text. Astrology cards show DITHERLOOM. Astronomy cards show DITHERLOOM plus Skyfield/JPL, Open-Meteo, or NOAA/SWPC as applicable."' in sensor_source
     assert '"audit_note": "These diagnostic attribution fields are fixed compliance metadata' in sensor_source
 
 
 def test_renderer_cache_is_versioned():
     init_source = (ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py").read_text(encoding="utf-8")
     assert "CARD_RENDERER_VERSION" in init_source
-    assert 'CARD_RENDERER_VERSION = "luxe-0.1.102-weather-forecast-cards"' in init_source
+    assert 'CARD_RENDERER_VERSION = "luxe-0.1.114-astronomy-centered-conditions"' in init_source
     assert 'metadata["card_renderer_version"] = CARD_RENDERER_VERSION' in init_source
     assert 'metadata.get("card_renderer_version") != CARD_RENDERER_VERSION' in init_source
 
@@ -291,21 +314,84 @@ def test_weather_forecast_cards_are_exposed_as_separate_weather_menu_items():
 
     assert 'CONF_WEATHER_TODAY_TOMORROW_ENABLED = "weather_today_tomorrow_enabled"' in const_source
     assert 'CONF_WEATHER_7_DAY_ENABLED = "weather_7_day_enabled"' in const_source
+    assert 'CONF_WEATHER_RADAR_ENABLED = "weather_radar_enabled"' in const_source
+    assert 'CONF_WEATHER_PRECIPITATION_ENABLED = "weather_precipitation_enabled"' in const_source
+    assert 'CONF_WEATHER_UV_ENABLED = "weather_uv_enabled"' in const_source
+    assert 'CONF_WEATHER_WIND_ENABLED = "weather_wind_enabled"' in const_source
     assert 'PROVIDER_WEATHER_TODAY_TOMORROW = "open_meteo_today_tomorrow"' in lane_source
     assert 'PROVIDER_WEATHER_7_DAY = "open_meteo_7_day_forecast"' in lane_source
+    assert 'PROVIDER_WEATHER_RADAR = "weather_radar"' in lane_source
+    assert 'PROVIDER_WEATHER_PRECIPITATION = "open_meteo_precipitation"' in lane_source
+    assert 'PROVIDER_WEATHER_UV = "open_meteo_uv"' in lane_source
+    assert 'PROVIDER_WEATHER_WIND = "open_meteo_wind"' in lane_source
     assert '"weather_current"' in config_source
     assert '"weather_today_tomorrow"' in config_source
     assert '"weather_7_day"' in config_source
+    assert '"weather_radar"' in config_source
+    assert '"weather_precipitation"' in config_source
+    assert '"weather_uv"' in config_source
+    assert '"weather_wind"' in config_source
     assert '"weather_current": "Current Weather"' in strings_source
     assert '"weather_today_tomorrow": "Today / Tomorrow"' in strings_source
     assert '"weather_7_day": "7-Day Forecast"' in strings_source
+    assert '"weather_radar": "Weather Radar"' in strings_source
+    assert '"weather_precipitation": "Precipitation"' in strings_source
+    assert '"weather_uv": "UV"' in strings_source
+    assert '"weather_wind": "Wind"' in strings_source
+    assert "https://home.openweathermap.org/api_keys" in strings_source
+    assert "follow OpenWeather's current API terms" in strings_source
     assert "def render_today_tomorrow_weather_card" in renderer_source
     assert "def render_seven_day_weather_card" in renderer_source
-    assert "draw.line(diagonal, fill=_rgb(\"red\"), width=10)" in renderer_source
-    assert "draw.line(diagonal, fill=_rgb(\"yellow\"), width=6)" in renderer_source
+    assert "def render_weather_radar_card" in renderer_source
+    assert "def render_precipitation_graph_card" in renderer_source
+    assert "def render_uv_graph_card" in renderer_source
+    assert "def render_wind_graph_card" in renderer_source
+    assert "draw.line(diagonal, fill=_rgb(\"bright_yellow\"), width=10)" in renderer_source
+    assert "draw.line(diagonal, fill=_rgb(\"white\"), width=6)" in renderer_source
     assert 'border = _load_weather_art("forecast_7_day_border")' in renderer_source
     assert "ImageEnhance.Color(image).enhance(1.2)" in renderer_source
     assert "ImageEnhance.Contrast(image).enhance(1.2)" in renderer_source
+
+
+def test_weather_metric_cards_keep_text_crisp_and_do_not_near_snap_artwork():
+    renderer_source = (COMPONENT / "renderer" / "cards.py").read_text(encoding="utf-8")
+    packer_source = (COMPONENT / "renderer" / "pack.py").read_text(encoding="utf-8")
+
+    hourly_start = renderer_source.index("def _draw_hourly_bars")
+    hourly_end = renderer_source.index("def _bar_fill_for_metric", hourly_start)
+    hourly_source = renderer_source[hourly_start:hourly_end]
+
+    assert "_draw_luxe_text_center_outlined" not in hourly_source
+    assert 'outline=_rgb("black"), width=1' in hourly_source
+    assert "font_delta=2" in renderer_source
+    assert "_weather_foreground_layer()" in renderer_source
+    assert "_composite_weather_foreground(" in renderer_source
+    assert "_remove_template_safe_pixels_from_background(" in renderer_source
+    assert "_prepare_radar_layer_image(" in renderer_source
+    assert 'if metric == "uv":' in renderer_source
+    assert 'if metric == "wind":' in renderer_source
+    assert 'if metric == "precipitation":' in renderer_source
+    assert 'return _rgb("yellow")' in renderer_source
+    assert 'return _rgb("white")' in renderer_source
+    assert 'return _rgb("orange")' in renderer_source
+    assert 'return _rgb("red")' in renderer_source
+    assert "TEMPLATE_EXACT_BLACK_WHITE_ERROR" not in packer_source
+    assert "TEMPLATE_EXACT_COLOUR_ERROR" not in packer_source
+    assert "_template_exact_code" not in packer_source
+    assert "RGB_TO_TEMPLATE_NAME.get(rgb)" in packer_source
+
+
+def test_astronomy_constellation_card_uses_bonus_constellation_copy():
+    source = (COMPONENT / "astronomy_provider.py").read_text(encoding="utf-8")
+
+    assert "drawn in panel" not in source
+    assert "_bonus_constellation(" in source
+    assert 'MAIN_CONSTELLATION_NAME_BOX' in source
+    assert 'BONUS_LABEL_BOX' not in source
+    assert '_draw_single_centered(image, MAIN_CONSTELLATION_NAME_BOX, constellation.upper()' in source
+    assert '_draw_single_centered(image, BONUS_NAME_BOX, bonus.upper()' in source
+    assert '_draw_single_centered(image, BONUS_LABEL_BOX, "BONUS"' not in source
+    assert "BONUS_CONSTELLATION_DRAW_BOX" in source
 
 
 def test_luxe_cards_use_fixed_large_fonts_not_box_fitted_fonts():
@@ -403,7 +489,7 @@ def test_xkcd_options_and_controls_are_exposed_as_opt_in_provider():
     assert 'CONF_XKCD_RANDOM_ATTEMPTS = "xkcd_random_attempts"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
     assert 'SERVICE_RENDER_XKCD = "render_xkcd_card"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
     assert 'SERVICE_SEND_XKCD = "send_xkcd_card"' in (COMPONENT / "const.py").read_text(encoding="utf-8")
-    assert '"comics_framework", "astrology", "device"' in config_source
+    assert '"comics_framework", "astrology", "astronomy", "device"' in config_source
     assert '"comics_framework", "xkcd", "device"' not in config_source
     assert '"comics_pepper_carrot"' not in config_source
     assert '"comics_irregular_webcomic"' not in config_source
@@ -446,6 +532,17 @@ def test_xkcd_options_and_controls_are_exposed_as_opt_in_provider():
     for source in (strings_source, translations_source, translations_en_gb_source):
         assert '"comics_framework": "Comics"' in source
         assert '"astrology": "Daily Astrology"' in source
+        assert '"astronomy": "Astronomy"' in source
+        assert '"astronomy_visible_planets": "Visible Planets"' in source
+        assert '"astronomy_moon_watch": "Moon Watch"' in source
+        assert '"astronomy_constellation": "Constellation Tonight"' in source
+        assert '"astronomy_tonight_sky": "Tonight' in source
+        assert '"astronomy_overhead": "Planets Overhead"' in source
+        assert '"astronomy_conditions": "Astronomy View Conditions"' in source
+        assert '"astronomy_solar_activity": "Solar Activity"' in source
+        assert '"astronomy_aurora_watch": "Aurora Watch"' in source
+        assert "NOAA/SWPC" in source
+        assert "Open-Meteo cloud cover and visibility data" in source
         assert '"comics_settings": "Comics enabled"' in source
         assert '"comics_xkcd": "xkcd Comic"' in source
         assert '"comics_pepper_carrot": "Giant Friday"' not in source

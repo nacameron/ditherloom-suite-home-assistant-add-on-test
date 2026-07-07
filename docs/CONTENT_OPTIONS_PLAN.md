@@ -680,6 +680,42 @@ Done when:
 
 ## Rotation After Providers Exist
 
+## Implemented Astronomy Framework
+
+Function added: astronomy card framework.
+
+Status: implemented local-staged V1. See `docs/PROVIDER_21_ASTRONOMY.md`.
+
+Provider ids:
+
+- `astronomy_visible_planets`
+- `astronomy_moon_watch`
+- `astronomy_constellation`
+- `astronomy_tonight_sky`
+- `astronomy_overhead`
+- `astronomy_conditions`
+- `astronomy_solar_activity`
+- `astronomy_aurora_watch`
+
+The Astronomy framework is disabled by default. Each enabled card consumes one
+explicit HA slot and reuses the existing cached-content and frame-awake Gateway
+delivery path. It uses bundled Ditherloom astronomy artwork, panel-safe
+white/yellow text and constellation marks, protected foreground masks, and no
+provider-side panel snapping or exact-colour mutation of supplied backgrounds.
+
+Attribution:
+
+- Ditherloom owns the generated wording, layout, code, and bundled project
+  artwork.
+- Skyfield and jplephem remain MIT licensed.
+- JPL/NASA DE421 ephemeris data remains NASA/JPL work; Ditherloom does not
+  claim copyright over that data.
+- Open-Meteo is used for Astronomy View Conditions cloud/visibility data and remains
+  CC BY 4.0/terms-controlled.
+- NOAA/SWPC is used for Solar Activity and Aurora Watch Kp, solar-wind, and
+  aurora products. NOAA/SWPC remains the source; Ditherloom does not claim
+  copyright over NOAA data or imply NOAA endorsement.
+
 Only add rotation after at least three non-weather providers are complete.
 
 Function added: content rotation.

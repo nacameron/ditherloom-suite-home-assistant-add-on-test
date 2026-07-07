@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from io import BytesIO
 from functools import lru_cache
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
-from .palette import TEMPLATE_COLOURS
+from .palette import RGB_TO_TEMPLATE_NAME, TEMPLATE_COLOURS
 
 WIDTH = 400
 HEIGHT = 300
@@ -95,6 +96,35 @@ class WeatherForecastData:
     updated: str = "Now"
     source_entity_id: str = "weather.home"
     attribution: str = "Weather data by Open-Meteo.com."
+
+
+@dataclass(frozen=True)
+class WeatherHourlyPoint:
+    label: str = "--"
+    precipitation_mm: float = 0.0
+    precipitation_probability: float = 0.0
+    uv_index: float = 0.0
+    wind_speed: float = 0.0
+    wind_gust: float = 0.0
+    wind_unit: str = "km/h"
+
+
+@dataclass(frozen=True)
+class WeatherHourlyData:
+    location: str = "Home"
+    blocks: tuple[WeatherHourlyPoint, ...] = ()
+    updated: str = "Now"
+    source_entity_id: str = "open_meteo.direct"
+    attribution: str = "Weather data by Open-Meteo.com."
+
+
+@dataclass(frozen=True)
+class WeatherRadarData:
+    location: str = "Home"
+    radar_image: bytes = b""
+    updated: str = "Now"
+    source_entity_id: str = "weather.radar"
+    attribution: str = "Radar source configured by user"
 
 
 @dataclass(frozen=True)
@@ -329,7 +359,34 @@ def _load_weather_art(name: str) -> Image.Image | None:
     image = Image.open(path).convert("RGB")
     image = ImageEnhance.Color(image).enhance(1.2)
     image = ImageEnhance.Contrast(image).enhance(1.2)
+    if name == "forecast_7_day_border":
+        image = _preserve_forecast_cream_background(image)
+    return _remove_template_safe_pixels_from_background(image)
+
+
+def _remove_template_safe_pixels_from_background(image: Image.Image) -> Image.Image:
+    """Keep supplied artwork out of the crisp text/bars exact-colour path."""
+    image = image.convert("RGB")
+    pixels = image.load()
+    protected = {"black", "red", "yellow", "bright_yellow", "white"}
+    for y in range(image.height):
+        for x in range(image.width):
+            rgb = pixels[x, y]
+            if RGB_TO_TEMPLATE_NAME.get(rgb) not in protected:
+                continue
+            r, g, b = rgb
+            if rgb == TEMPLATE_COLOURS["white"].rgb:
+                pixels[x, y] = (254, 254, 253)
+            elif rgb == TEMPLATE_COLOURS["black"].rgb:
+                pixels[x, y] = (18, 18, 17)
+            else:
+                pixels[x, y] = (max(0, r - 1), g, b)
     return image
+
+
+def _preserve_forecast_cream_background(image: Image.Image) -> Image.Image:
+    cream = Image.new("RGB", image.size, (244, 224, 184))
+    return Image.blend(image, cream, 0.32)
 
 
 def _weather_art_for_title(title: str, kind: str) -> Image.Image | None:
@@ -514,6 +571,28 @@ def _draw_luxe_text_center(
     text_width = right - left
     text_x = x1 + ((x2 - x1) - text_width) / 2 - left
     _draw_solid_palette_text_clipped(draw, (text_x, y1 - top), value, font, fill, box)
+
+
+def _draw_luxe_text_center_outlined(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    text: str,
+    size: int,
+    bold: bool,
+    fill: tuple[int, int, int],
+    outline: tuple[int, int, int],
+    min_size: int = 7,
+) -> None:
+    x1, y1, x2, y2 = box
+    value = str(text)
+    font = _fit_ui_font(value, max(1, x2 - x1 - 6), size, bold=bold, min_size=min_size, max_height=max(1, y2 - y1 - 2))
+    left, top, right, bottom = font.getbbox(value)
+    text_width = right - left
+    text_x = x1 + ((x2 - x1) - text_width) / 2 - left
+    text_y = y1 - top
+    for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+        _draw_solid_palette_text_clipped(draw, (text_x + dx, text_y + dy), value, font, outline, box)
+    _draw_solid_palette_text_clipped(draw, (text_x, text_y), value, font, fill, box)
 
 
 def _draw_solid_palette_text(
@@ -715,14 +794,16 @@ def render_today_tomorrow_weather_card(data: WeatherForecastData, colour_mode: s
         mask_draw = ImageDraw.Draw(mask)
         mask_draw.polygon([(0, HEIGHT), (WIDTH, 0), (WIDTH, HEIGHT)], fill=255)
         image.paste(right_image, (0, 0), mask)
-    draw = ImageDraw.Draw(image)
+    foreground = _weather_foreground_layer()
+    draw = ImageDraw.Draw(foreground)
     diagonal = (0, HEIGHT - 1, WIDTH - 1, 0)
-    draw.line(diagonal, fill=_rgb("red"), width=10)
-    draw.line(diagonal, fill=_rgb("yellow"), width=6)
+    draw.line(diagonal, fill=_rgb("bright_yellow"), width=10)
+    draw.line(diagonal, fill=_rgb("white"), width=6)
     _draw_weather_split_day(draw, (18, 112, 178, 206), "TODAY", today, align="left")
     _draw_weather_split_day(draw, (214, 112, 382, 206), "TOMORROW", tomorrow, align="right")
     _draw_luxe_text_left(draw, (18, 14, 192, 40), (data.location or "Weather").upper(), 28, LUXE_TEXT_BOLD, _rgb("black"), 15)
     _draw_luxe_text_right(draw, (248, 260, 382, 286), _source_label(data.attribution), 16, LUXE_TEXT_BOLD, _rgb("red"), 10)
+    image = _composite_weather_foreground(image, foreground)
     if _is_mono(colour_mode):
         return ImageOps.grayscale(image).convert("RGB")
     return image
@@ -734,13 +815,85 @@ def render_seven_day_weather_card(data: WeatherForecastData, colour_mode: str = 
         image = Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
     else:
         image = _cover_image(border, WIDTH, HEIGHT)
-    draw = ImageDraw.Draw(image)
+    foreground = _weather_foreground_layer()
+    draw = ImageDraw.Draw(foreground)
     _draw_luxe_text_center(draw, (62, 24, 338, 50), (data.location or "7-Day Forecast").upper(), 28, LUXE_TEXT_BOLD, _rgb("black"), 15)
     y = 62
     for day in _forecast_days(data)[:7]:
         _draw_forecast_row(draw, (72, y, 328, y + 25), day)
         y += 27
     _draw_luxe_text_center(draw, (122, 255, 278, 276), _source_label(data.attribution), 15, LUXE_TEXT_BOLD, _rgb("red"), 9)
+    image = _composite_weather_foreground(image, foreground)
+    if _is_mono(colour_mode):
+        return ImageOps.grayscale(image).convert("RGB")
+    return image
+
+
+def render_weather_radar_card(data: WeatherRadarData, colour_mode: str = COLOUR_MODE_COLOUR) -> Image.Image:
+    frame = _load_weather_art("radar_panel_frame")
+    image = _cover_image(frame, WIDTH, HEIGHT) if frame else Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
+    radar_box = (38, 58, 212, 235)
+    radar = _radar_image_from_bytes(data.radar_image)
+    if radar is not None:
+        radar_layer = _weather_foreground_layer()
+        radar_layer.paste(
+            _prepare_radar_layer_image(_cover_image(radar, radar_box[2] - radar_box[0], radar_box[3] - radar_box[1])),
+            (radar_box[0], radar_box[1]),
+        )
+        image = _composite_weather_foreground(image, radar_layer, protect=False)
+    foreground = _weather_foreground_layer()
+    draw = ImageDraw.Draw(foreground)
+    text_box = (254, 36, 386, 268)
+    _draw_luxe_text_center(draw, (text_box[0], 42, text_box[2], 70), "RADAR", 27, LUXE_TEXT_BOLD, _rgb("red"), 14)
+    _draw_wrapped_centered(draw, (text_box[0] + 8, 82, text_box[2] - 8, 174), (data.location or "Weather").upper(), 22, _rgb("black"), 10)
+    status = "Configured snapshot" if radar is not None else "Add radar image URL"
+    _draw_wrapped_centered(draw, (text_box[0] + 8, 182, text_box[2] - 8, 222), status, 18, _rgb("black"), 9)
+    _draw_wrapped_centered(draw, (text_box[0] + 8, 232, text_box[2] - 8, 262), _source_label(data.attribution), 14, _rgb("red"), 8)
+    image = _composite_weather_foreground(image, foreground)
+    if _is_mono(colour_mode):
+        return ImageOps.grayscale(image).convert("RGB")
+    return image
+
+
+def render_precipitation_graph_card(data: WeatherHourlyData, colour_mode: str = COLOUR_MODE_COLOUR) -> Image.Image:
+    background = _load_weather_art(_precip_background_name(data))
+    image = _cover_image(background, WIDTH, HEIGHT) if background else Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
+    foreground = _weather_foreground_layer()
+    draw = ImageDraw.Draw(foreground)
+    _draw_luxe_text_center(draw, (30, 18, 370, 45), "PRECIPITATION", 28, LUXE_TEXT_BOLD, _rgb("red"), 15)
+    _draw_hourly_bars(draw, _hourly_blocks(data), metric="precipitation", max_value=10.0, unit="mm", font_delta=2)
+    _draw_luxe_text_center(draw, (98, 264, 302, 286), _source_label(data.attribution), 15, LUXE_TEXT_BOLD, _rgb("red"), 9)
+    image = _composite_weather_foreground(image, foreground)
+    if _is_mono(colour_mode):
+        return ImageOps.grayscale(image).convert("RGB")
+    return image
+
+
+def render_uv_graph_card(data: WeatherHourlyData, colour_mode: str = COLOUR_MODE_COLOUR) -> Image.Image:
+    background = _load_weather_art("uv_day_graph")
+    image = _cover_image(background, WIDTH, HEIGHT) if background else Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
+    foreground = _weather_foreground_layer()
+    draw = ImageDraw.Draw(foreground)
+    _draw_luxe_text_center(draw, (40, 18, 360, 45), "UV INDEX", 30, LUXE_TEXT_BOLD, _rgb("red"), 15)
+    _draw_hourly_bars(draw, _hourly_blocks(data), metric="uv", max_value=12.0, unit="", font_delta=2)
+    _draw_luxe_text_center(draw, (98, 264, 302, 286), _source_label(data.attribution), 15, LUXE_TEXT_BOLD, _rgb("red"), 9)
+    image = _composite_weather_foreground(image, foreground)
+    if _is_mono(colour_mode):
+        return ImageOps.grayscale(image).convert("RGB")
+    return image
+
+
+def render_wind_graph_card(data: WeatherHourlyData, colour_mode: str = COLOUR_MODE_COLOUR) -> Image.Image:
+    background = _load_weather_art("wind_day_graph")
+    image = _cover_image(background, WIDTH, HEIGHT) if background else Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
+    foreground = _weather_foreground_layer()
+    draw = ImageDraw.Draw(foreground)
+    _draw_luxe_text_center(draw, (40, 18, 360, 45), "WIND", 32, LUXE_TEXT_BOLD, _rgb("red"), 15)
+    blocks = _hourly_blocks(data)
+    unit = blocks[0].wind_unit if blocks else "km/h"
+    _draw_hourly_bars(draw, blocks, metric="wind", max_value=max(40.0, max((p.wind_gust or p.wind_speed for p in blocks), default=0.0)), unit=unit, font_delta=2)
+    _draw_luxe_text_center(draw, (98, 264, 302, 286), _source_label(data.attribution), 15, LUXE_TEXT_BOLD, _rgb("red"), 9)
+    image = _composite_weather_foreground(image, foreground)
     if _is_mono(colour_mode):
         return ImageOps.grayscale(image).convert("RGB")
     return image
@@ -749,7 +902,8 @@ def render_seven_day_weather_card(data: WeatherForecastData, colour_mode: str = 
 def _render_luxe_weather_card(data: WeatherCardData) -> Image.Image:
     image = Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
     _paste_luxe_weather_art(image, _template_slug_for_data(data))
-    draw = ImageDraw.Draw(image)
+    foreground = _weather_foreground_layer()
+    draw = ImageDraw.Draw(foreground)
     current_temperature_label = "CURRENTLY"
 
     draw.rounded_rectangle((12, 10, 388, 50), radius=7, fill=_rgb("warm_white"), outline=_rgb("yellow"), width=1)
@@ -779,7 +933,7 @@ def _render_luxe_weather_card(data: WeatherCardData) -> Image.Image:
     _draw_luxe_weather_tile(draw, (18, 251, 136, 294), "HUMIDITY", _detail_value(data, ("Hum", "Humidity"), data.humidity) or "--")
     _draw_luxe_weather_tile(draw, (141, 251, 259, 294), "WIND", _detail_value(data, ("Wind",), data.wind) or "--")
     _draw_luxe_weather_tile(draw, (264, 251, 382, 294), "RAIN", _detail_value(data, ("Rain",), data.rain) or "--")
-    return image
+    return _composite_weather_foreground(image, foreground)
 
 
 def _forecast_days(data: WeatherForecastData) -> tuple[ForecastDayData, ...]:
@@ -790,6 +944,138 @@ def _forecast_days(data: WeatherForecastData) -> tuple[ForecastDayData, ...]:
     return days + (filler,) * (7 - len(days))
 
 
+def _hourly_blocks(data: WeatherHourlyData) -> tuple[WeatherHourlyPoint, ...]:
+    blocks = tuple(data.blocks)
+    if len(blocks) >= 6:
+        return blocks[:6]
+    filler = WeatherHourlyPoint(label="--")
+    return blocks + (filler,) * (6 - len(blocks))
+
+
+def _radar_image_from_bytes(payload: bytes) -> Image.Image | None:
+    if not payload:
+        return None
+    try:
+        return Image.open(BytesIO(payload)).convert("RGB")
+    except Exception:
+        return None
+
+
+def _precip_background_name(data: WeatherHourlyData) -> str:
+    blocks = tuple(data.blocks)
+    max_mm = max((point.precipitation_mm for point in blocks), default=0.0)
+    total_mm = sum(max(0.0, point.precipitation_mm) for point in blocks)
+    max_probability = max((point.precipitation_probability for point in blocks), default=0.0)
+
+    # Scene artwork represents rain intensity. A high chance of drizzle should
+    # still use the light-rain scene, not the heavy-rain scene.
+    if max_mm >= 6.0 or total_mm >= 18.0:
+        return "precip_heavy"
+    if max_mm >= 2.0 or total_mm >= 6.0:
+        return "precip_medium"
+    if max_mm > 0.05 or total_mm > 0.2 or max_probability >= 35.0:
+        return "precip_light"
+    return "precip_none"
+
+
+def _draw_hourly_bars(
+    draw: ImageDraw.ImageDraw,
+    blocks: tuple[WeatherHourlyPoint, ...],
+    metric: str,
+    max_value: float,
+    unit: str,
+    font_delta: int = 0,
+) -> None:
+    graph = (36, 70, 364, 232)
+    baseline = graph[3]
+    top = graph[1]
+    count = max(1, len(blocks))
+    gap = 8
+    bar_width = max(12, (graph[2] - graph[0] - gap * (count - 1)) // count)
+    draw.line((graph[0], baseline, graph[2], baseline), fill=_rgb("yellow"), width=2)
+    for index, point in enumerate(blocks):
+        x1 = graph[0] + index * (bar_width + gap)
+        x2 = x1 + bar_width
+        if metric == "precipitation":
+            value = point.precipitation_mm
+            sub_value = f"{int(round(point.precipitation_probability))}%"
+        elif metric == "uv":
+            value = point.uv_index
+            sub_value = _one_decimal(value)
+        else:
+            value = point.wind_speed
+            sub_value = f"G {int(round(point.wind_gust or point.wind_speed))}"
+        height = int((baseline - top) * min(1.0, max(0.0, value / max(0.1, max_value))))
+        y1 = baseline - max(2, height)
+        fill = _bar_fill_for_metric(metric, value, max_value)
+        draw.rounded_rectangle((x1, y1, x2, baseline), radius=3, fill=fill, outline=_rgb("black"), width=1)
+        label_box = (x1 - 6, baseline + 4, x2 + 6, baseline + 20)
+        _draw_luxe_text_center(draw, label_box, point.label, 15 + font_delta, LUXE_TEXT_BOLD, _rgb("red"), 8 + font_delta)
+        value_text = f"{_one_decimal(value)}{unit}" if unit else _one_decimal(value)
+        _draw_luxe_text_center(draw, (x1 - 8, y1 - 35, x2 + 8, y1 - 18), value_text, 15 + font_delta, LUXE_TEXT_BOLD, _rgb("black"), 8 + font_delta)
+        _draw_luxe_text_center(draw, (x1 - 8, y1 - 18, x2 + 8, y1 - 2), sub_value, 14 + font_delta, LUXE_TEXT_BOLD, _rgb("red"), 8 + font_delta)
+
+
+def _bar_fill_for_metric(metric: str, value: float, max_value: float) -> tuple[int, int, int]:
+    ratio = min(1.0, max(0.0, value / max(0.1, max_value)))
+    if metric == "uv":
+        if value < 3:
+            return _rgb("yellow")
+        if value < 6:
+            return _rgb("gold")
+        if value < 8:
+            return _rgb("orange")
+        return _rgb("red")
+    if metric == "wind":
+        if ratio < 0.30:
+            return _rgb("white")
+        if ratio < 0.55:
+            return _rgb("yellow")
+        if ratio < 0.78:
+            return _rgb("orange")
+        return _rgb("red")
+    if metric == "precipitation":
+        return _rgb("white")
+    return _rgb("red") if ratio >= 0.45 else _rgb("black")
+
+
+def _draw_wrapped_centered(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    text: str,
+    size: int,
+    fill: tuple[int, int, int],
+    min_size: int,
+) -> None:
+    words = str(text or "").split()
+    if not words:
+        return
+    x1, y1, x2, y2 = box
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        font = _fit_ui_font(candidate, max(1, x2 - x1 - 4), size, bold=LUXE_TEXT_BOLD, min_size=min_size, max_height=max(1, y2 - y1))
+        left, _top, right, _bottom = font.getbbox(candidate)
+        if current and right - left > x2 - x1 - 4:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    line_height = max(12, (y2 - y1) // max(1, len(lines)))
+    start_y = y1 + max(0, (y2 - y1 - line_height * len(lines)) // 2)
+    for index, line in enumerate(lines):
+        _draw_luxe_text_center(draw, (x1, start_y + index * line_height, x2, start_y + (index + 1) * line_height), line, size, LUXE_TEXT_BOLD, fill, min_size)
+
+
+def _one_decimal(value: float) -> str:
+    if abs(value - round(value)) < 0.05:
+        return str(int(round(value)))
+    return f"{value:.1f}"
+
+
 def _template_slug_for_condition(condition: str) -> str:
     card = WeatherCardData(condition=condition)
     return _template_slug_for_data(card)
@@ -797,6 +1083,35 @@ def _template_slug_for_condition(condition: str) -> str:
 
 def _paste_cover(base: Image.Image, artwork: Image.Image, box: tuple[int, int, int, int]) -> None:
     base.paste(_cover_image(artwork, box[2] - box[0], box[3] - box[1]), (box[0], box[1]))
+
+
+def _weather_background_layer(fill: tuple[int, int, int] | None = None) -> Image.Image:
+    return Image.new("RGB", (WIDTH, HEIGHT), fill or _rgb("warm_white"))
+
+
+def _weather_foreground_layer() -> Image.Image:
+    return Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+
+
+def _composite_weather_foreground(background: Image.Image, foreground: Image.Image, *, protect: bool = True) -> Image.Image:
+    composited = Image.alpha_composite(background.convert("RGBA"), foreground)
+    image = composited.convert("RGB")
+    if protect:
+        _merge_protected_alpha(image, foreground)
+    return image
+
+
+def _merge_protected_alpha(image: Image.Image, foreground: Image.Image) -> None:
+    protected = image.info.get("ditherloom_protected_mask")
+    if not isinstance(protected, Image.Image) or protected.size != image.size:
+        protected = Image.new("L", image.size, 0)
+    alpha = foreground.getchannel("A") if foreground.mode == "RGBA" else Image.new("L", image.size, 255)
+    protected = ImageChops.lighter(protected, alpha)
+    image.info["ditherloom_protected_mask"] = protected
+
+
+def _prepare_radar_layer_image(image: Image.Image) -> Image.Image:
+    return _remove_template_safe_pixels_from_background(image.convert("RGB"))
 
 
 def _cover_image(artwork: Image.Image, target_w: int, target_h: int) -> Image.Image:

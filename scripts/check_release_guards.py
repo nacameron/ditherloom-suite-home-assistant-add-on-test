@@ -283,8 +283,8 @@ def check_update_platform() -> None:
         if forbidden in init_text:
             fail(f"runtime contains forbidden rotation/auth shortcut: {forbidden}")
 
-    if '"version": "0.1.103"' not in manifest_text:
-        fail("manifest version was not bumped to 0.1.103")
+    if '"version": "0.1.114"' not in manifest_text:
+        fail("manifest version was not bumped to 0.1.114")
 
     for forbidden in (
         '"mode": "frame_pull"',

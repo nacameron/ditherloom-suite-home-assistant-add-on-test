@@ -5,9 +5,12 @@ import base64
 import inspect
 import json
 import logging
+import math
 import re
 import shutil
 import socket
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from functools import partial
@@ -31,6 +34,14 @@ from .const import (
     ATTR_PREVIEW_URL,
     CONF_ASTROLOGY_ENABLED,
     CONF_ASTROLOGY_SIGNS,
+    CONF_ASTRONOMY_CONSTELLATION_ENABLED,
+    CONF_ASTRONOMY_AURORA_WATCH_ENABLED,
+    CONF_ASTRONOMY_CONDITIONS_ENABLED,
+    CONF_ASTRONOMY_MOON_WATCH_ENABLED,
+    CONF_ASTRONOMY_OVERHEAD_ENABLED,
+    CONF_ASTRONOMY_SOLAR_ACTIVITY_ENABLED,
+    CONF_ASTRONOMY_TONIGHT_SKY_ENABLED,
+    CONF_ASTRONOMY_VISIBLE_PLANETS_ENABLED,
     CONF_DISPLAY_MODE,
     CONF_DISPLAY_ROTATION_ENABLED,
     CONF_DISPLAY_ROTATION_HOURS,
@@ -62,7 +73,15 @@ from .const import (
     CONF_WAKE_WINDOW_SECONDS,
     CONF_WEATHER_7_DAY_ENABLED,
     CONF_WEATHER_ENABLED,
+    CONF_WEATHER_PRECIPITATION_ENABLED,
+    CONF_WEATHER_RADAR_ATTRIBUTION,
+    CONF_WEATHER_RADAR_ENABLED,
+    CONF_WEATHER_RADAR_OPENWEATHER_API_KEY,
+    CONF_WEATHER_RADAR_OPENWEATHER_LAYER,
+    CONF_WEATHER_RADAR_OPENWEATHER_ZOOM,
     CONF_WEATHER_TODAY_TOMORROW_ENABLED,
+    CONF_WEATHER_UV_ENABLED,
+    CONF_WEATHER_WIND_ENABLED,
     CONF_WIND_SPEED_UNIT,
     CONF_XKCD_ENABLED,
     CONF_XKCD_MODE,
@@ -108,16 +127,47 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
-CARD_RENDERER_VERSION = "luxe-0.1.102-weather-forecast-cards"
+CARD_RENDERER_VERSION = "luxe-0.1.114-astronomy-centered-conditions"
 PROVIDER_WEATHER = "open_meteo_weather"
 PROVIDER_WEATHER_TODAY_TOMORROW = "open_meteo_today_tomorrow"
 PROVIDER_WEATHER_7_DAY = "open_meteo_7_day_forecast"
+PROVIDER_WEATHER_RADAR = "weather_radar"
+PROVIDER_WEATHER_PRECIPITATION = "open_meteo_precipitation"
+PROVIDER_WEATHER_UV = "open_meteo_uv"
+PROVIDER_WEATHER_WIND = "open_meteo_wind"
+WEATHER_PROVIDER_IDS = {
+    PROVIDER_WEATHER,
+    PROVIDER_WEATHER_TODAY_TOMORROW,
+    PROVIDER_WEATHER_7_DAY,
+    PROVIDER_WEATHER_RADAR,
+    PROVIDER_WEATHER_PRECIPITATION,
+    PROVIDER_WEATHER_UV,
+    PROVIDER_WEATHER_WIND,
+}
 PROVIDER_SUN = "sunrise_sunset"
 PROVIDER_MOON = "moon_phase"
 PROVIDER_XKCD = "xkcd_comic"
 PROVIDER_DIESEL_SWEETIES = "diesel_sweeties"
 PROVIDER_MIMI_EUNICE = "mimi_eunice"
 PROVIDER_ASTROLOGY = "daily_astrology"
+PROVIDER_ASTRONOMY_VISIBLE_PLANETS = "astronomy_visible_planets"
+PROVIDER_ASTRONOMY_MOON_WATCH = "astronomy_moon_watch"
+PROVIDER_ASTRONOMY_CONSTELLATION = "astronomy_constellation"
+PROVIDER_ASTRONOMY_TONIGHT_SKY = "astronomy_tonight_sky"
+PROVIDER_ASTRONOMY_OVERHEAD = "astronomy_overhead"
+PROVIDER_ASTRONOMY_CONDITIONS = "astronomy_conditions"
+PROVIDER_ASTRONOMY_SOLAR_ACTIVITY = "astronomy_solar_activity"
+PROVIDER_ASTRONOMY_AURORA_WATCH = "astronomy_aurora_watch"
+ASTRONOMY_PROVIDER_IDS = {
+    PROVIDER_ASTRONOMY_VISIBLE_PLANETS,
+    PROVIDER_ASTRONOMY_MOON_WATCH,
+    PROVIDER_ASTRONOMY_CONSTELLATION,
+    PROVIDER_ASTRONOMY_TONIGHT_SKY,
+    PROVIDER_ASTRONOMY_OVERHEAD,
+    PROVIDER_ASTRONOMY_CONDITIONS,
+    PROVIDER_ASTRONOMY_SOLAR_ACTIVITY,
+    PROVIDER_ASTRONOMY_AURORA_WATCH,
+}
 COMIC_SUCCESSOR_PROVIDERS = {PROVIDER_XKCD, PROVIDER_DIESEL_SWEETIES, PROVIDER_MIMI_EUNICE}
 DISCOVERY_AUTH_MESSAGE = "Provide a Home Assistant Long-Lived Access Token."
 STALE_FRONTEND_ENTITY_NAMES = {
@@ -154,7 +204,16 @@ PRESERVED_RUNTIME_METADATA_KEYS = (
 
 
 def _render_weather_artifact_to_disk(card_data: Any, display_mode: str, payload_dir: Path, stem: str, variant: str = PROVIDER_WEATHER) -> Any:
-    from .renderer import render_modern_weather_card, render_seven_day_weather_card, render_to_artifact, render_today_tomorrow_weather_card
+    from .renderer import (
+        render_modern_weather_card,
+        render_precipitation_graph_card,
+        render_seven_day_weather_card,
+        render_to_artifact,
+        render_today_tomorrow_weather_card,
+        render_uv_graph_card,
+        render_weather_radar_card,
+        render_wind_graph_card,
+    )
     from .renderer.pack import write_artifact
 
     if variant == PROVIDER_WEATHER_TODAY_TOMORROW:
@@ -163,6 +222,18 @@ def _render_weather_artifact_to_disk(card_data: Any, display_mode: str, payload_
     elif variant == PROVIDER_WEATHER_7_DAY:
         image = render_seven_day_weather_card(card_data, colour_mode=display_mode)
         template_name = "weather_7_day_forecast"
+    elif variant == PROVIDER_WEATHER_RADAR:
+        image = render_weather_radar_card(card_data, colour_mode=display_mode)
+        template_name = "weather_radar"
+    elif variant == PROVIDER_WEATHER_PRECIPITATION:
+        image = render_precipitation_graph_card(card_data, colour_mode=display_mode)
+        template_name = "weather_precipitation"
+    elif variant == PROVIDER_WEATHER_UV:
+        image = render_uv_graph_card(card_data, colour_mode=display_mode)
+        template_name = "weather_uv"
+    elif variant == PROVIDER_WEATHER_WIND:
+        image = render_wind_graph_card(card_data, colour_mode=display_mode)
+        template_name = "weather_wind"
     else:
         image = render_modern_weather_card(card_data, colour_mode=display_mode)
         template_name = "weather_current"
@@ -861,7 +932,9 @@ class DitherloomRuntime:
             metadata = await self.async_render_webcomic(render_data, publish=False, send_to_frame=False, cache_provider_id=provider)
         elif provider == PROVIDER_ASTROLOGY:
             metadata = await self.async_render_astrology({}, publish=False, send_to_frame=False, cache_provider_id=provider)
-        elif provider in {PROVIDER_WEATHER, PROVIDER_WEATHER_TODAY_TOMORROW, PROVIDER_WEATHER_7_DAY}:
+        elif provider in ASTRONOMY_PROVIDER_IDS:
+            metadata = await self.async_render_astronomy({}, publish=False, send_to_frame=False, cache_provider_id=provider)
+        elif provider in WEATHER_PROVIDER_IDS:
             metadata = await self.async_render_weather({}, publish=False, send_to_frame=False, cache_provider_id=provider)
         else:
             metadata = await self.async_render_weather({}, publish=False, send_to_frame=False, cache_provider_id=PROVIDER_WEATHER)
@@ -890,7 +963,9 @@ class DitherloomRuntime:
             metadata = await self.async_render_webcomic({}, publish=True, send_to_frame=False, cache_provider_id=provider)
         elif provider == PROVIDER_ASTROLOGY:
             metadata = await self.async_render_astrology({}, publish=True, send_to_frame=False, cache_provider_id=provider)
-        elif provider in {PROVIDER_WEATHER, PROVIDER_WEATHER_TODAY_TOMORROW, PROVIDER_WEATHER_7_DAY}:
+        elif provider in ASTRONOMY_PROVIDER_IDS:
+            metadata = await self.async_render_astronomy({}, publish=True, send_to_frame=False, cache_provider_id=provider)
+        elif provider in WEATHER_PROVIDER_IDS:
             metadata = await self.async_render_weather({}, publish=True, send_to_frame=False, cache_provider_id=provider)
         else:
             metadata = await self.async_render_weather({}, publish=True, send_to_frame=False, cache_provider_id=PROVIDER_WEATHER)
@@ -1086,6 +1161,78 @@ class DitherloomRuntime:
         await self.async_save()
         return metadata
 
+    async def async_render_astronomy(
+        self,
+        data: dict[str, Any],
+        publish: bool,
+        send_to_frame: bool,
+        cache_provider_id: str | None = None,
+    ) -> dict[str, Any]:
+        from .astronomy_provider import ASTRONOMY_PROVIDER_IDS as SOURCE_ASTRONOMY_PROVIDER_IDS
+        from .astronomy_provider import ASTRONOMY_PROVIDER_NAMES, render_astronomy_provider
+
+        provider = cache_provider_id or str(data.get("provider_id") or PROVIDER_ASTRONOMY_TONIGHT_SKY)
+        if provider not in SOURCE_ASTRONOMY_PROVIDER_IDS:
+            raise HomeAssistantError("Choose a supported Astronomy provider.")
+        opts = self.options
+        stem = self._provider_payload_name(cache_provider_id) if cache_provider_id else self.latest_payload_name
+        latitude = _float_or_zero(data.get(CONF_LATITUDE) or opts.get(CONF_LATITUDE) or self.hass.config.latitude)
+        longitude = _float_or_zero(data.get(CONF_LONGITUDE) or opts.get(CONF_LONGITUDE) or self.hass.config.longitude)
+        location_name = str(data.get(CONF_LOCATION_NAME) or opts.get(CONF_LOCATION_NAME) or "Home")
+        artifact, card = await self.hass.async_add_executor_job(
+            partial(
+                render_astronomy_provider,
+                provider,
+                self.payload_dir,
+                stem,
+                latitude=latitude,
+                longitude=longitude,
+                location_name=location_name,
+                now=datetime.now(self._local_timezone()),
+            )
+        )
+        if cache_provider_id:
+            await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.ppbin", self.payload_path())
+            await self.hass.async_add_executor_job(shutil.copyfile, self.payload_dir / f"{stem}.preview.png", self.preview_path())
+
+        metadata = dict(artifact.metadata)
+        metadata[ATTR_PREVIEW_URL] = self.preview_url
+        metadata["rendered_at"] = datetime.now(timezone.utc).isoformat()
+        metadata["provider_id"] = provider
+        metadata["provider_name"] = ASTRONOMY_PROVIDER_NAMES[provider]
+        metadata["card_renderer_version"] = CARD_RENDERER_VERSION
+        metadata["astronomy_card_provider"] = provider
+        metadata["astronomy_date_label"] = card.date_label
+        metadata["astronomy_skyfield_status"] = card.skyfield_status
+        metadata["astronomy_headline"] = card.headline
+        metadata["astronomy_lines"] = list(card.lines)
+        metadata["update_interval_minutes"] = self._effective_update_interval_minutes()
+        metadata["wake_window_seconds"] = self._effective_wake_window_seconds()
+        metadata["wake_window_minutes"] = self._effective_wake_window_minutes()
+        metadata["max_jobs_per_wake"] = opts.get(CONF_MAX_JOBS_PER_WAKE, DEFAULT_MAX_JOBS_PER_WAKE)
+        metadata["content_rendered_at"] = metadata["rendered_at"]
+        metadata["content_rendered_provider_id"] = metadata["provider_id"]
+        metadata["content_rendered_provider_name"] = metadata["provider_name"]
+        metadata["content_rendered_source_name"] = metadata["source_name"]
+        metadata["content_rendered_attribution"] = metadata["attribution"]
+        metadata["content_rendered_license"] = metadata["license"]
+        metadata["content_rendered_content_id"] = metadata.get(ATTR_CONTENT_ID)
+        metadata["content_rendered_crc32"] = metadata.get(ATTR_CRC32)
+        for preserved_key in PRESERVED_RUNTIME_METADATA_KEYS:
+            if preserved_key in self.last_metadata:
+                metadata[preserved_key] = self.last_metadata[preserved_key]
+
+        self.last_status = "rendered"
+        self.last_metadata = metadata
+        if publish:
+            self.last_status = "rendered"
+        if send_to_frame:
+            await self.async_send_to_frame(artifact.packed, artifact.crc32)
+            self.last_status = "sent"
+            self.last_metadata.pop(ATTR_LAST_ERROR, None)
+        await self.async_save()
+        return metadata
+
     async def async_render_weather(
         self,
         data: dict[str, Any],
@@ -1105,7 +1252,9 @@ class DitherloomRuntime:
             OPEN_METEO_LICENSE_URL,
             fetch_open_meteo_card,
             fetch_open_meteo_forecast,
+            fetch_open_meteo_hourly,
         )
+        from .renderer import WeatherRadarData
 
         opts = self.options
         picked_location = data.get(CONF_WEATHER_LOCATION)
@@ -1121,6 +1270,26 @@ class DitherloomRuntime:
         temperature_unit = str(data.get(CONF_TEMPERATURE_UNIT) or opts.get(CONF_TEMPERATURE_UNIT, DEFAULT_TEMPERATURE_UNIT))
         wind_speed_unit = str(data.get(CONF_WIND_SPEED_UNIT) or opts.get(CONF_WIND_SPEED_UNIT, DEFAULT_WIND_SPEED_UNIT))
         provider_id = cache_provider_id or PROVIDER_WEATHER
+        radar_api_key = str(
+            data.get(CONF_WEATHER_RADAR_OPENWEATHER_API_KEY)
+            or opts.get(CONF_WEATHER_RADAR_OPENWEATHER_API_KEY)
+            or ""
+        ).strip()
+        radar_layer = str(
+            data.get(CONF_WEATHER_RADAR_OPENWEATHER_LAYER)
+            or opts.get(CONF_WEATHER_RADAR_OPENWEATHER_LAYER)
+            or "precipitation_new"
+        ).strip()
+        radar_zoom = int(
+            data.get(CONF_WEATHER_RADAR_OPENWEATHER_ZOOM)
+            or opts.get(CONF_WEATHER_RADAR_OPENWEATHER_ZOOM)
+            or 6
+        )
+        radar_attribution = str(
+            data.get(CONF_WEATHER_RADAR_ATTRIBUTION)
+            or opts.get(CONF_WEATHER_RADAR_ATTRIBUTION)
+            or "OpenWeather"
+        ).strip()
         if provider_id in {PROVIDER_WEATHER_TODAY_TOMORROW, PROVIDER_WEATHER_7_DAY}:
             card_data = await self.hass.async_add_executor_job(
                 fetch_open_meteo_forecast,
@@ -1130,6 +1299,34 @@ class DitherloomRuntime:
                 temperature_unit,
                 wind_speed_unit,
                 7,
+            )
+        elif provider_id in {PROVIDER_WEATHER_PRECIPITATION, PROVIDER_WEATHER_UV, PROVIDER_WEATHER_WIND}:
+            card_data = await self.hass.async_add_executor_job(
+                fetch_open_meteo_hourly,
+                latitude,
+                longitude,
+                location,
+                wind_speed_unit,
+            )
+        elif provider_id == PROVIDER_WEATHER_RADAR:
+            radar_payload = (
+                await self.hass.async_add_executor_job(
+                    _fetch_openweather_radar_snapshot,
+                    latitude,
+                    longitude,
+                    radar_api_key,
+                    radar_layer,
+                    radar_zoom,
+                )
+                if radar_api_key
+                else b""
+            )
+            card_data = WeatherRadarData(
+                location=location or str(opts.get(CONF_LOCATION_NAME) or "Weather"),
+                radar_image=radar_payload,
+                updated=datetime.now().strftime("%H:%M"),
+                source_entity_id="weather.radar_url",
+                attribution=radar_attribution,
             )
         else:
             card_data = await self.hass.async_add_executor_job(
@@ -1168,15 +1365,31 @@ class DitherloomRuntime:
         metadata["provider_name"] = _weather_provider_name(provider_id)
         metadata["weather_card_variant"] = provider_id
         metadata["card_renderer_version"] = CARD_RENDERER_VERSION
-        metadata["source"] = "open_meteo"
-        metadata["source_name"] = "Open-Meteo"
-        metadata["source_url"] = OPEN_METEO_ATTRIBUTION_URL
-        metadata["attribution"] = card_data.attribution or OPEN_METEO_ATTRIBUTION
-        metadata["attribution_url"] = OPEN_METEO_ATTRIBUTION_URL
-        metadata["license"] = OPEN_METEO_LICENSE
-        metadata["license_url"] = OPEN_METEO_LICENSE_URL
-        metadata["data_transformations"] = OPEN_METEO_CHANGES
-        if NOMINATIM_ATTRIBUTION in metadata["attribution"]:
+        if provider_id == PROVIDER_WEATHER_RADAR:
+            metadata["source"] = "openweather_weather_maps"
+            metadata["source_name"] = "OpenWeather Weather Maps"
+            metadata["source_url"] = "https://openweathermap.org/api/weathermaps"
+            metadata["attribution"] = card_data.attribution or "OpenWeather"
+            metadata["attribution_url"] = "https://openweathermap.org/"
+            metadata["license"] = "OpenWeather API terms"
+            metadata["license_url"] = "https://openweathermap.org/terms"
+            metadata["data_transformations"] = (
+                "OpenWeather map tiles are assembled around the configured latitude/longitude, cropped to the radar panel, "
+                "and remapped to Ditherloom-friendly precipitation colours before the 400x300 hybrid render; "
+                "background saturation and contrast boosted 20%; text rendered panel-safe."
+            )
+            metadata["openweather_layer"] = radar_layer
+            metadata["openweather_zoom"] = radar_zoom
+        else:
+            metadata["source"] = "open_meteo"
+            metadata["source_name"] = "Open-Meteo"
+            metadata["source_url"] = OPEN_METEO_ATTRIBUTION_URL
+            metadata["attribution"] = card_data.attribution or OPEN_METEO_ATTRIBUTION
+            metadata["attribution_url"] = OPEN_METEO_ATTRIBUTION_URL
+            metadata["license"] = OPEN_METEO_LICENSE
+            metadata["license_url"] = OPEN_METEO_LICENSE_URL
+            metadata["data_transformations"] = OPEN_METEO_CHANGES
+        if provider_id != PROVIDER_WEATHER_RADAR and NOMINATIM_ATTRIBUTION in metadata["attribution"]:
             metadata["secondary_attribution"] = NOMINATIM_ATTRIBUTION
             metadata["secondary_attribution_url"] = NOMINATIM_ATTRIBUTION_URL
             metadata["secondary_license"] = NOMINATIM_LICENSE
@@ -1639,12 +1852,36 @@ class DitherloomRuntime:
             return "content-mimi-eunice"
         if provider == PROVIDER_ASTROLOGY:
             return "content-daily-astrology"
+        if provider == PROVIDER_ASTRONOMY_VISIBLE_PLANETS:
+            return "content-astronomy-visible-planets"
+        if provider == PROVIDER_ASTRONOMY_MOON_WATCH:
+            return "content-astronomy-moon-watch"
+        if provider == PROVIDER_ASTRONOMY_CONSTELLATION:
+            return "content-astronomy-constellation"
+        if provider == PROVIDER_ASTRONOMY_TONIGHT_SKY:
+            return "content-astronomy-tonight-sky"
+        if provider == PROVIDER_ASTRONOMY_OVERHEAD:
+            return "content-astronomy-overhead"
+        if provider == PROVIDER_ASTRONOMY_CONDITIONS:
+            return "content-astronomy-conditions"
+        if provider == PROVIDER_ASTRONOMY_SOLAR_ACTIVITY:
+            return "content-astronomy-solar-activity"
+        if provider == PROVIDER_ASTRONOMY_AURORA_WATCH:
+            return "content-astronomy-aurora-watch"
         if provider == "open_meteo_weather":
             return "content-weather"
         if provider == PROVIDER_WEATHER_TODAY_TOMORROW:
             return "content-weather-today-tomorrow"
         if provider == PROVIDER_WEATHER_7_DAY:
             return "content-weather-7-day"
+        if provider == PROVIDER_WEATHER_RADAR:
+            return "content-weather-radar"
+        if provider == PROVIDER_WEATHER_PRECIPITATION:
+            return "content-weather-precipitation"
+        if provider == PROVIDER_WEATHER_UV:
+            return "content-weather-uv"
+        if provider == PROVIDER_WEATHER_WIND:
+            return "content-weather-wind"
         return self.latest_payload_name
 
     def _cached_metadata_path(self, provider: str) -> Path:
@@ -1707,6 +1944,13 @@ class DitherloomRuntime:
                 self._effective_update_interval_minutes(),
             )
             if metadata.get("astrology_sign") != current_sign:
+                return False
+            return True
+        if provider in ASTRONOMY_PROVIDER_IDS:
+            target = datetime.now(self._local_timezone())
+            if metadata.get("astronomy_date") != target.date().isoformat():
+                return False
+            if metadata.get("astronomy_card_provider") != provider:
                 return False
             return True
         age = datetime.now(timezone.utc) - rendered_at.astimezone(timezone.utc)
@@ -2608,6 +2852,13 @@ def _positive_int(value: Any) -> int | None:
     return parsed if parsed > 0 else None
 
 
+def _float_or_zero(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _xkcd_number_from_url(value: Any) -> int | None:
     text = str(value or "")
     match = re.search(r"xkcd\.com/(\d+)/?", text)
@@ -2628,11 +2879,100 @@ def _bool_option(data: dict[str, Any], key: str, default: bool) -> bool:
     return bool(data[key]) if key in data else default
 
 
+def _fetch_openweather_radar_snapshot(latitude: str, longitude: str, api_key: str, layer: str, zoom: int) -> bytes:
+    from io import BytesIO
+
+    from PIL import Image, ImageDraw
+
+    lat = max(-85.05112878, min(85.05112878, float(latitude)))
+    lon = ((float(longitude) + 180.0) % 360.0) - 180.0
+    zoom = max(3, min(8, int(zoom)))
+    layer = layer if layer in {"precipitation_new", "clouds_new", "wind_new", "temp_new"} else "precipitation_new"
+    tile_count = 2**zoom
+    world_x = (lon + 180.0) / 360.0 * tile_count * 256
+    lat_rad = math.radians(lat)
+    world_y = (1.0 - math.log(math.tan(lat_rad) + 1.0 / math.cos(lat_rad)) / math.pi) / 2.0 * tile_count * 256
+    tile_x = int(world_x // 256)
+    tile_y = int(world_y // 256)
+    offset_x = int(world_x - tile_x * 256)
+    offset_y = int(world_y - tile_y * 256)
+    canvas = Image.new("RGB", (768, 768), (231, 229, 208))
+    draw = ImageDraw.Draw(canvas)
+    for grid in range(0, 769, 64):
+        draw.line((grid, 0, grid, 768), fill=(198, 196, 176), width=1)
+        draw.line((0, grid, 768, grid), fill=(198, 196, 176), width=1)
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            x = (tile_x + dx) % tile_count
+            y = max(0, min(tile_count - 1, tile_y + dy))
+            tile = _fetch_openweather_tile(layer, zoom, x, y, api_key)
+            if tile is not None:
+                canvas.paste(tile, ((dx + 1) * 256, (dy + 1) * 256), tile)
+    center_x = 256 + offset_x
+    center_y = 256 + offset_y
+    crop = canvas.crop((center_x - 128, center_y - 128, center_x + 128, center_y + 128))
+    output = BytesIO()
+    crop.save(output, format="PNG")
+    return output.getvalue()
+
+
+def _fetch_openweather_tile(layer: str, zoom: int, x: int, y: int, api_key: str) -> Any:
+    from io import BytesIO
+
+    from PIL import Image
+
+    params = urllib.parse.urlencode({"appid": api_key})
+    url = f"https://tile.openweathermap.org/map/{layer}/{zoom}/{x}/{y}.png?{params}"
+    request = urllib.request.Request(url, headers={"User-Agent": f"Ditherloom/{INTEGRATION_VERSION}"})
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            payload = response.read(1_000_000)
+    except Exception:
+        return None
+    tile = Image.open(BytesIO(payload)).convert("RGBA")
+    return _process_openweather_tile_for_panel(tile)
+
+
+def _process_openweather_tile_for_panel(tile: Any) -> Any:
+    from PIL import Image
+
+    processed = Image.new("RGBA", tile.size, (0, 0, 0, 0))
+    source = tile.load()
+    target = processed.load()
+    width, height = tile.size
+    for y in range(height):
+        for x in range(width):
+            r, g, b, a = source[x, y]
+            if a < 12:
+                continue
+            strength = max(r, g, b)
+            if strength < 72:
+                colour = (58, 79, 66, min(130, a))
+            elif strength < 120:
+                colour = (71, 139, 83, min(175, max(a, 120)))
+            elif strength < 172:
+                colour = (204, 174, 62, min(205, max(a, 150)))
+            elif strength < 222:
+                colour = (164, 63, 55, min(225, max(a, 170)))
+            else:
+                colour = (60, 45, 44, min(235, max(a, 190)))
+            target[x, y] = colour
+    return processed
+
+
 def _weather_provider_name(provider_id: str) -> str:
     if provider_id == PROVIDER_WEATHER_TODAY_TOMORROW:
         return "Today / Tomorrow Weather"
     if provider_id == PROVIDER_WEATHER_7_DAY:
         return "7-Day Weather Forecast"
+    if provider_id == PROVIDER_WEATHER_RADAR:
+        return "Weather Radar"
+    if provider_id == PROVIDER_WEATHER_PRECIPITATION:
+        return "Precipitation Forecast"
+    if provider_id == PROVIDER_WEATHER_UV:
+        return "UV Forecast"
+    if provider_id == PROVIDER_WEATHER_WIND:
+        return "Wind Forecast"
     return "Current Weather"
 
 

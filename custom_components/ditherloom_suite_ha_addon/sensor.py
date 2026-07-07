@@ -28,10 +28,22 @@ PROVIDER_DISPLAY_NAMES = {
     "open_meteo_weather": "Current Weather",
     "open_meteo_today_tomorrow": "Today / Tomorrow Weather",
     "open_meteo_7_day_forecast": "7-Day Weather Forecast",
+    "weather_radar": "Weather Radar",
+    "open_meteo_precipitation": "Precipitation Forecast",
+    "open_meteo_uv": "UV Forecast",
+    "open_meteo_wind": "Wind Forecast",
     "sunrise_sunset": "Sunrise / Sunset",
     "moon_phase": "Moon Phase",
     "xkcd_comic": "xkcd Comic",
     "daily_astrology": "Daily Astrology",
+    "astronomy_visible_planets": "Visible Planets",
+    "astronomy_moon_watch": "Moon Watch",
+    "astronomy_constellation": "Constellation Tonight",
+    "astronomy_tonight_sky": "Tonight's Sky",
+    "astronomy_overhead": "Planets Overhead",
+    "astronomy_conditions": "Astronomy View Conditions",
+    "astronomy_solar_activity": "Solar Activity",
+    "astronomy_aurora_watch": "Aurora Watch",
 }
 
 
@@ -209,7 +221,7 @@ class DitherloomDataAttributionSensor(DitherloomSensorBase):
 
     @property
     def native_value(self):
-        return "Open-Meteo Weather; Ditherloom local sun/moon; Comics; Daily Astrology"
+        return "Open-Meteo Weather; Ditherloom local sun/moon; Comics; Daily Astrology; Astronomy"
 
     @property
     def extra_state_attributes(self):
@@ -261,7 +273,24 @@ class DitherloomDataAttributionSensor(DitherloomSensorBase):
             "astrology_ephemeris": "JPL/NASA ephemeris data used for planetary and lunar positions; Ditherloom does not claim copyright over NASA/JPL data.",
             "astrology_ephemeris_url": "https://naif.jpl.nasa.gov/naif/data.html",
             "astrology_use": "Optional provider. Home Assistant renders bundled Ditherloom sign artwork with Ditherloom-generated daily horoscope text informed by Skyfield/JPL planetary and lunar positions when available. No external horoscope service or scraped horoscope text is used.",
-            "visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM. Comic cards show source-specific red attribution and license text. Astrology cards show DITHERLOOM; backend metadata attributes Skyfield, jplephem, and NASA/JPL ephemeris data.",
+            "astronomy_provider": "Ditherloom local astronomy",
+            "astronomy_attribution": "Ditherloom Astronomy; planetary data by NASA/JPL via Skyfield",
+            "astronomy_attribution_url": "local://ditherloom/astronomy",
+            "astronomy_license": "Ditherloom artwork/text; Skyfield and jplephem MIT; NASA/JPL ephemeris data retained under source terms",
+            "astronomy_license_url": "local://ditherloom/astronomy",
+            "astronomy_skyfield": "Skyfield MIT licensed Python astronomy library",
+            "astronomy_skyfield_url": "https://rhodesmill.org/skyfield/",
+            "astronomy_jplephem": "jplephem MIT licensed JPL ephemeris reader",
+            "astronomy_jplephem_url": "https://github.com/brandon-rhodes/python-jplephem",
+            "astronomy_ephemeris": "JPL/NASA DE421 ephemeris data used for local sky positions; Ditherloom does not claim copyright over NASA/JPL data.",
+            "astronomy_ephemeris_url": "https://naif.jpl.nasa.gov/naif/data.html",
+            "astronomy_noaa_swpc": "NOAA/SWPC space-weather data for Solar Activity and Aurora Watch; public domain unless otherwise noted; Ditherloom does not claim copyright over NOAA data.",
+            "astronomy_noaa_swpc_url": "https://www.swpc.noaa.gov/",
+            "astronomy_noaa_terms_url": "https://www.weather.gov/disclaimer",
+            "astronomy_open_meteo": "Open-Meteo cloud cover and visibility data for Astronomy View Conditions",
+            "astronomy_open_meteo_url": "https://open-meteo.com/",
+            "astronomy_use": "Optional providers. Home Assistant renders bundled Ditherloom astronomy artwork with Ditherloom-generated sky summaries informed by Skyfield/JPL positions when available. Astronomy View Conditions uses Open-Meteo cloud/visibility data. Solar Activity and Aurora Watch use NOAA/SWPC data. No external planet images or scraped sky text are used.",
+            "visible_card_attribution": "Weather cards show OPEN-METEO. Sun and moon cards show DITHERLOOM. Comic cards show source-specific red attribution and license text. Astrology cards show DITHERLOOM. Astronomy cards show DITHERLOOM plus Skyfield/JPL, Open-Meteo, or NOAA/SWPC as applicable.",
             "audit_note": "These diagnostic attribution fields are fixed compliance metadata and do not depend on the latest render or delivery.",
         }
 

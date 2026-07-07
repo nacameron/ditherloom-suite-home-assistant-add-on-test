@@ -53,6 +53,7 @@ def test_astrology_provider_renders_panel_card_with_attribution(tmp_path):
 def test_astrology_sign_selection_rotates_selected_signs_only():
     when = datetime(2026, 7, 5, 12, 0, 0)
 
-    assert normalize_signs(["bad", "taurus", "aries"]) == ["taurus", "aries"]
+    assert normalize_signs(["bad", "taurus", "aries"]) == ["aries", "taurus"]
+    assert normalize_signs(["pisces", "capricorn", "gemini"]) == ["gemini", "capricorn", "pisces"]
     assert selected_sign_for_time(["aries", "cancer"], when, 60) in {"aries", "cancer"}
     assert selected_sign_for_time([], when, 60) == "aries"

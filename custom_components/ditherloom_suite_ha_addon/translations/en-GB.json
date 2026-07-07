@@ -41,16 +41,21 @@
           "comics": "Comics",
           "comics_framework": "Comics",
           "astrology": "Daily Astrology",
+          "astronomy": "Astronomy",
           "device": "Device / Connection"
         }
       },
       "weather": {
         "title": "Weather",
-        "description": "Weather contains three separate Open-Meteo card providers. Each enabled weather card needs one explicit HA slot from the Ditherloom app/frame setup.",
+        "description": "Weather contains separate card providers. Each enabled weather card needs one explicit HA slot from the Ditherloom app/frame setup.",
         "menu_options": {
           "weather_current": "Current Weather",
           "weather_today_tomorrow": "Today / Tomorrow",
-          "weather_7_day": "7-Day Forecast"
+          "weather_7_day": "7-Day Forecast",
+          "weather_radar": "Weather Radar",
+          "weather_precipitation": "Precipitation",
+          "weather_uv": "UV",
+          "weather_wind": "Wind"
         }
       },
       "sun": {
@@ -157,6 +162,108 @@
           "astrology_signs": "Choose one or more signs. When multiple signs are selected, Ditherloom rotates the selected sign each refresh interval."
         }
       },
+      "astronomy": {
+        "title": "Astronomy",
+        "description": "Astronomy contains separate night-sky cards. Each enabled Astronomy card needs one explicit HA slot from the Ditherloom app/frame setup. Cards use bundled Ditherloom artwork and Ditherloom-generated text informed by Skyfield/JPL positions when available. Astronomy View Conditions uses Open-Meteo cloud/visibility data. Solar Activity and Aurora Watch use NOAA/SWPC data. Skyfield and jplephem are MIT licensed; JPL/NASA ephemeris data remains NASA/JPL work; NOAA/SWPC data remains NOAA work and is public domain unless noted; Open-Meteo is CC BY 4.0.",
+        "menu_options": {
+          "astronomy_visible_planets": "Visible Planets",
+          "astronomy_moon_watch": "Moon Watch",
+          "astronomy_constellation": "Constellation Tonight",
+          "astronomy_tonight_sky": "Tonight's Sky",
+          "astronomy_overhead": "Planets Overhead",
+          "astronomy_conditions": "Astronomy View Conditions",
+          "astronomy_solar_activity": "Solar Activity",
+          "astronomy_aurora_watch": "Aurora Watch"
+        }
+      },
+      "astronomy_visible_planets": {
+        "title": "Visible Planets",
+        "description": "Visible Planets is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. It uses bundled Ditherloom artwork and local sky calculations from Skyfield/JPL data when available. Rendered cards visibly attribute Ditherloom, Skyfield/JPL, and keep background artwork on the image path rather than snapping supplied artwork colours.",
+        "data": {
+          "astronomy_visible_planets_enabled": "Enable Visible Planets",
+          "location_name": "Sky location name",
+          "weather_location": "Pick location on map",
+          "latitude": "Latitude",
+          "longitude": "Longitude"
+        }
+      },
+      "astronomy_moon_watch": {
+        "title": "Moon Watch",
+        "description": "Moon Watch is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. It uses bundled Ditherloom artwork and local moon calculations from Skyfield/JPL data when available. Rendered cards visibly attribute Ditherloom, Skyfield/JPL, and keep background artwork on the image path rather than snapping supplied artwork colours.",
+        "data": {
+          "astronomy_moon_watch_enabled": "Enable Moon Watch",
+          "location_name": "Sky location name",
+          "weather_location": "Pick location on map",
+          "latitude": "Latitude",
+          "longitude": "Longitude"
+        }
+      },
+      "astronomy_constellation": {
+        "title": "Constellation Tonight",
+        "description": "Constellation Tonight is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. It uses bundled Ditherloom artwork, seasonal Ditherloom constellation rules, local latitude/longitude orientation, and Skyfield/JPL date context when available. Constellation lines are panel-safe white and stars are panel-yellow luxe star glyphs.",
+        "data": {
+          "astronomy_constellation_enabled": "Enable Constellation Tonight",
+          "location_name": "Sky location name",
+          "weather_location": "Pick location on map",
+          "latitude": "Latitude",
+          "longitude": "Longitude"
+        }
+      },
+      "astronomy_tonight_sky": {
+        "title": "Tonight's Sky",
+        "description": "Tonight's Sky is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. It summarises the moon phase and bright planets using bundled Ditherloom artwork and Skyfield/JPL data when available, with visible Skyfield/JPL attribution on the rendered card.",
+        "data": {
+          "astronomy_tonight_sky_enabled": "Enable Tonight's Sky",
+          "location_name": "Sky location name",
+          "weather_location": "Pick location on map",
+          "latitude": "Latitude",
+          "longitude": "Longitude"
+        }
+      },
+      "astronomy_overhead": {
+        "title": "Planets Overhead",
+        "description": "Planets Overhead is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. It picks the highest bright planet or moon from local Skyfield/JPL calculations when available and renders it on bundled Ditherloom artwork.",
+        "data": {
+          "astronomy_overhead_enabled": "Enable Planets Overhead",
+          "location_name": "Sky location name",
+          "weather_location": "Pick location on map",
+          "latitude": "Latitude",
+          "longitude": "Longitude"
+        }
+      },
+      "astronomy_conditions": {
+        "title": "Astronomy View Conditions",
+        "description": "Astronomy View Conditions is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. It uses Open-Meteo cloud cover and visibility data for the configured locale to say whether the sky is likely clear enough for viewing. Rendered cards visibly attribute Open-Meteo and Ditherloom.",
+        "data": {
+          "astronomy_conditions_enabled": "Enable Astronomy View Conditions",
+          "location_name": "Sky location name",
+          "weather_location": "Pick location on map",
+          "latitude": "Latitude",
+          "longitude": "Longitude"
+        }
+      },
+      "astronomy_solar_activity": {
+        "title": "Solar Activity",
+        "description": "Solar Activity is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. It uses NOAA/SWPC Kp and solar-wind data to summarise current space-weather activity. Rendered cards visibly attribute NOAA/SWPC and Ditherloom.",
+        "data": {
+          "astronomy_solar_activity_enabled": "Enable Solar Activity",
+          "location_name": "Sky location name",
+          "weather_location": "Pick location on map",
+          "latitude": "Latitude",
+          "longitude": "Longitude"
+        }
+      },
+      "astronomy_aurora_watch": {
+        "title": "Aurora Watch",
+        "description": "Aurora Watch is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. It uses NOAA/SWPC aurora and Kp data with the configured locale to estimate likely viewing direction and naked-eye visibility. Rendered cards visibly attribute NOAA/SWPC and Ditherloom.",
+        "data": {
+          "astronomy_aurora_watch_enabled": "Enable Aurora Watch",
+          "location_name": "Sky location name",
+          "weather_location": "Pick location on map",
+          "latitude": "Latitude",
+          "longitude": "Longitude"
+        }
+      },
       "xkcd": {
         "title": "xkcd Comic",
         "description": "xkcd Comic is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. Comics are by Randall Munroe and licensed CC BY-NC 2.5 (https://xkcd.com/license.html). Ditherloom filters out comics that are too busy, too tall, have more than three panels, or use colours the display cannot reproduce clearly. Sample rendered for Ditherloom: {xkcd_sample_image}",
@@ -237,6 +344,64 @@
         "description": "Each enabled Weather card needs one explicit HA slot from the Ditherloom app/frame setup. Weather data: Open-Meteo (https://open-meteo.com/), CC BY 4.0. Place lookup: OpenStreetMap/Nominatim (https://www.openstreetmap.org/copyright), ODbL. This card shows seven forecast rows: date, temperature range, and condition.",
         "data": {
           "weather_7_day_enabled": "Enable 7-Day Forecast",
+          "location_name": "Weather location name",
+          "weather_location": "Pick location on map",
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "display_mode": "Weather display mode",
+          "temperature_unit": "Temperature unit",
+          "wind_speed_unit": "Wind speed unit"
+        }
+      },
+      "weather_radar": {
+        "title": "Weather Radar",
+        "description": "Get your OpenWeather API key here: https://home.openweathermap.org/api_keys. Weather Radar is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. Create a free or paid OpenWeather account, generate an API key under your own account, paste that key here, and follow OpenWeather's current API terms. The card fetches OpenWeather map tiles around the configured latitude/longitude, processes the colours for the Ditherloom display, places the radar map into the left panel, and records OpenWeather attribution in metadata. OpenWeather keys may take time to activate after creation.",
+        "data": {
+          "weather_radar_enabled": "Enable Weather Radar",
+          "weather_radar_openweather_api_key": "OpenWeather API key (use link above)",
+          "weather_radar_openweather_layer": "OpenWeather map layer",
+          "weather_radar_openweather_zoom": "Radar map zoom",
+          "weather_radar_attribution": "Radar attribution",
+          "location_name": "Weather location name",
+          "weather_location": "Pick location on map",
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "display_mode": "Weather display mode"
+        }
+      },
+      "weather_precipitation": {
+        "title": "Precipitation",
+        "description": "Each enabled Weather card needs one explicit HA slot from the Ditherloom app/frame setup. Weather data: Open-Meteo (https://open-meteo.com/), CC BY 4.0. This card groups the day into time blocks and graphs precipitation and rain probability over the day.",
+        "data": {
+          "weather_precipitation_enabled": "Enable Precipitation",
+          "location_name": "Weather location name",
+          "weather_location": "Pick location on map",
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "display_mode": "Weather display mode",
+          "temperature_unit": "Temperature unit",
+          "wind_speed_unit": "Wind speed unit"
+        }
+      },
+      "weather_uv": {
+        "title": "UV",
+        "description": "Each enabled Weather card needs one explicit HA slot from the Ditherloom app/frame setup. Weather data: Open-Meteo (https://open-meteo.com/), CC BY 4.0. This card groups the day into time blocks and graphs the UV index.",
+        "data": {
+          "weather_uv_enabled": "Enable UV",
+          "location_name": "Weather location name",
+          "weather_location": "Pick location on map",
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "display_mode": "Weather display mode",
+          "temperature_unit": "Temperature unit",
+          "wind_speed_unit": "Wind speed unit"
+        }
+      },
+      "weather_wind": {
+        "title": "Wind",
+        "description": "Each enabled Weather card needs one explicit HA slot from the Ditherloom app/frame setup. Weather data: Open-Meteo (https://open-meteo.com/), CC BY 4.0. This card groups the day into time blocks and graphs wind speed plus gusts.",
+        "data": {
+          "weather_wind_enabled": "Enable Wind",
           "location_name": "Weather location name",
           "weather_location": "Pick location on map",
           "latitude": "Latitude",

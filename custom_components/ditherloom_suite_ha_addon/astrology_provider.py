@@ -155,7 +155,8 @@ def normalize_signs(value: Any) -> list[str]:
         raw = [str(part).strip().lower() for part in value]
     else:
         raw = []
-    signs = [sign for sign in raw if sign in SIGN_ORDER]
+    selected = set(sign for sign in raw if sign in SIGN_ORDER)
+    signs = [sign for sign in SIGN_ORDER if sign in selected]
     return signs or ["aries"]
 
 
@@ -203,6 +204,7 @@ def render_astrology_card(sign: str, day: date, context: dict[str, object] | Non
     context = context or _fallback_context(day, "not requested")
     background = _load_sign_background(sign).copy()
     background = _prepare_background(background)
+    _attach_protected_mask(background)
     draw = ImageDraw.Draw(background)
     red = (135, 30, 34)
     black = TEMPLATE_COLOURS["black"].rgb
@@ -246,6 +248,11 @@ def _prepare_background(image: Image.Image) -> Image.Image:
     image = ImageEnhance.Color(image).enhance(1.20)
     image = ImageEnhance.Contrast(image).enhance(1.20)
     return image.convert("RGB")
+
+
+def _attach_protected_mask(image: Image.Image) -> Image.Image:
+    image.info["ditherloom_protected_mask"] = Image.new("L", image.size, 0)
+    return image
 
 
 def _headline_for(sign: str, day: date, context: dict[str, object] | None = None) -> str:
@@ -545,6 +552,9 @@ def _draw_crisp_text(
     mask_draw = ImageDraw.Draw(mask)
     mask_draw.text(xy, text, font=font, fill=1)
     image.paste(fill, mask=mask)
+    protected = image.info.get("ditherloom_protected_mask")
+    if isinstance(protected, Image.Image):
+        protected.paste(255, mask=mask)
 
 
 def _wrap_text(text: str, max_chars: int) -> list[str]:

@@ -9,6 +9,14 @@ from .const import (
     CONF_FRAME_HA_SLOT_POOL,
     CONF_FRAME_RESERVED_SLOT,
     CONF_ASTROLOGY_ENABLED,
+    CONF_ASTRONOMY_AURORA_WATCH_ENABLED,
+    CONF_ASTRONOMY_CONDITIONS_ENABLED,
+    CONF_ASTRONOMY_CONSTELLATION_ENABLED,
+    CONF_ASTRONOMY_MOON_WATCH_ENABLED,
+    CONF_ASTRONOMY_OVERHEAD_ENABLED,
+    CONF_ASTRONOMY_SOLAR_ACTIVITY_ENABLED,
+    CONF_ASTRONOMY_TONIGHT_SKY_ENABLED,
+    CONF_ASTRONOMY_VISIBLE_PLANETS_ENABLED,
     CONF_DIESEL_SWEETIES_ENABLED,
     CONF_IRREGULAR_WEBCOMIC_ENABLED,
     CONF_MIMI_EUNICE_ENABLED,
@@ -18,7 +26,11 @@ from .const import (
     CONF_TARGET_SLOT,
     CONF_WEATHER_7_DAY_ENABLED,
     CONF_WEATHER_ENABLED,
+    CONF_WEATHER_PRECIPITATION_ENABLED,
+    CONF_WEATHER_RADAR_ENABLED,
     CONF_WEATHER_TODAY_TOMORROW_ENABLED,
+    CONF_WEATHER_UV_ENABLED,
+    CONF_WEATHER_WIND_ENABLED,
     CONF_XKCD_ENABLED,
     DEFAULT_TARGET_SLOT,
     DEVICE_SLOT_COUNT,
@@ -28,12 +40,24 @@ from .const import (
 PROVIDER_WEATHER = "open_meteo_weather"
 PROVIDER_WEATHER_TODAY_TOMORROW = "open_meteo_today_tomorrow"
 PROVIDER_WEATHER_7_DAY = "open_meteo_7_day_forecast"
+PROVIDER_WEATHER_RADAR = "weather_radar"
+PROVIDER_WEATHER_PRECIPITATION = "open_meteo_precipitation"
+PROVIDER_WEATHER_UV = "open_meteo_uv"
+PROVIDER_WEATHER_WIND = "open_meteo_wind"
 PROVIDER_SUN = "sunrise_sunset"
 PROVIDER_MOON = "moon_phase"
 PROVIDER_XKCD = "xkcd_comic"
 PROVIDER_DIESEL_SWEETIES = "diesel_sweeties"
 PROVIDER_MIMI_EUNICE = "mimi_eunice"
 PROVIDER_ASTROLOGY = "daily_astrology"
+PROVIDER_ASTRONOMY_VISIBLE_PLANETS = "astronomy_visible_planets"
+PROVIDER_ASTRONOMY_MOON_WATCH = "astronomy_moon_watch"
+PROVIDER_ASTRONOMY_CONSTELLATION = "astronomy_constellation"
+PROVIDER_ASTRONOMY_TONIGHT_SKY = "astronomy_tonight_sky"
+PROVIDER_ASTRONOMY_OVERHEAD = "astronomy_overhead"
+PROVIDER_ASTRONOMY_CONDITIONS = "astronomy_conditions"
+PROVIDER_ASTRONOMY_SOLAR_ACTIVITY = "astronomy_solar_activity"
+PROVIDER_ASTRONOMY_AURORA_WATCH = "astronomy_aurora_watch"
 
 RETIRED_COMIC_PROVIDER_FLAGS = (
     CONF_PEPPER_CARROT_ENABLED,
@@ -65,6 +89,14 @@ def enabled_content_providers(options: dict[str, Any]) -> list[str]:
         providers.append(PROVIDER_WEATHER_TODAY_TOMORROW)
     if _bool_option(options, CONF_WEATHER_7_DAY_ENABLED, False):
         providers.append(PROVIDER_WEATHER_7_DAY)
+    if _bool_option(options, CONF_WEATHER_RADAR_ENABLED, False):
+        providers.append(PROVIDER_WEATHER_RADAR)
+    if _bool_option(options, CONF_WEATHER_PRECIPITATION_ENABLED, False):
+        providers.append(PROVIDER_WEATHER_PRECIPITATION)
+    if _bool_option(options, CONF_WEATHER_UV_ENABLED, False):
+        providers.append(PROVIDER_WEATHER_UV)
+    if _bool_option(options, CONF_WEATHER_WIND_ENABLED, False):
+        providers.append(PROVIDER_WEATHER_WIND)
     if _bool_option(options, CONF_SUN_ENABLED, False):
         providers.append(PROVIDER_SUN)
     if _bool_option(options, CONF_MOON_ENABLED, False):
@@ -77,6 +109,22 @@ def enabled_content_providers(options: dict[str, Any]) -> list[str]:
         providers.append(PROVIDER_MIMI_EUNICE)
     if _bool_option(options, CONF_ASTROLOGY_ENABLED, False):
         providers.append(PROVIDER_ASTROLOGY)
+    if _bool_option(options, CONF_ASTRONOMY_VISIBLE_PLANETS_ENABLED, False):
+        providers.append(PROVIDER_ASTRONOMY_VISIBLE_PLANETS)
+    if _bool_option(options, CONF_ASTRONOMY_MOON_WATCH_ENABLED, False):
+        providers.append(PROVIDER_ASTRONOMY_MOON_WATCH)
+    if _bool_option(options, CONF_ASTRONOMY_CONSTELLATION_ENABLED, False):
+        providers.append(PROVIDER_ASTRONOMY_CONSTELLATION)
+    if _bool_option(options, CONF_ASTRONOMY_TONIGHT_SKY_ENABLED, False):
+        providers.append(PROVIDER_ASTRONOMY_TONIGHT_SKY)
+    if _bool_option(options, CONF_ASTRONOMY_OVERHEAD_ENABLED, False):
+        providers.append(PROVIDER_ASTRONOMY_OVERHEAD)
+    if _bool_option(options, CONF_ASTRONOMY_CONDITIONS_ENABLED, False):
+        providers.append(PROVIDER_ASTRONOMY_CONDITIONS)
+    if _bool_option(options, CONF_ASTRONOMY_SOLAR_ACTIVITY_ENABLED, False):
+        providers.append(PROVIDER_ASTRONOMY_SOLAR_ACTIVITY)
+    if _bool_option(options, CONF_ASTRONOMY_AURORA_WATCH_ENABLED, False):
+        providers.append(PROVIDER_ASTRONOMY_AURORA_WATCH)
     return providers or [PROVIDER_WEATHER]
 
 
@@ -98,10 +146,22 @@ def _has_explicit_non_weather_provider(options: dict[str, Any]) -> bool:
         CONF_MOON_ENABLED,
         CONF_WEATHER_TODAY_TOMORROW_ENABLED,
         CONF_WEATHER_7_DAY_ENABLED,
+        CONF_WEATHER_RADAR_ENABLED,
+        CONF_WEATHER_PRECIPITATION_ENABLED,
+        CONF_WEATHER_UV_ENABLED,
+        CONF_WEATHER_WIND_ENABLED,
         CONF_XKCD_ENABLED,
         CONF_DIESEL_SWEETIES_ENABLED,
         CONF_MIMI_EUNICE_ENABLED,
         CONF_ASTROLOGY_ENABLED,
+        CONF_ASTRONOMY_VISIBLE_PLANETS_ENABLED,
+        CONF_ASTRONOMY_MOON_WATCH_ENABLED,
+        CONF_ASTRONOMY_CONSTELLATION_ENABLED,
+        CONF_ASTRONOMY_TONIGHT_SKY_ENABLED,
+        CONF_ASTRONOMY_OVERHEAD_ENABLED,
+        CONF_ASTRONOMY_CONDITIONS_ENABLED,
+        CONF_ASTRONOMY_SOLAR_ACTIVITY_ENABLED,
+        CONF_ASTRONOMY_AURORA_WATCH_ENABLED,
     )
     return any(_bool_option(options, key, False) for key in keys)
 
