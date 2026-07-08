@@ -19,12 +19,27 @@ sys.modules.setdefault("custom_components.ditherloom_suite_ha_addon", ditherloom
 
 from custom_components.ditherloom_suite_ha_addon.astronomy_provider import (  # noqa: E402
     ASTRONOMY_ATTRIBUTION,
+    ASTRONOMY_BODY_SIZE,
+    ASTRONOMY_CONSTELLATION_NAME_SIZE,
+    ASTRONOMY_FONT_SIZE_DELTA,
+    ASTRONOMY_FOOTER_SIZE,
+    ASTRONOMY_HEADING_SIZE,
     ASTRONOMY_LICENSE,
     ASTRONOMY_PROVIDER_IDS,
+    ASTRONOMY_TITLE_SIZE,
     PROVIDER_ASTRONOMY_CONSTELLATION,
     render_astronomy_provider,
 )
 from custom_components.ditherloom_suite_ha_addon.renderer.palette import TEMPLATE_COLOURS  # noqa: E402
+
+
+def test_astronomy_typography_is_bumped_two_points():
+    assert ASTRONOMY_FONT_SIZE_DELTA == 2
+    assert ASTRONOMY_HEADING_SIZE == 33
+    assert ASTRONOMY_BODY_SIZE == 25
+    assert ASTRONOMY_TITLE_SIZE == 27
+    assert ASTRONOMY_CONSTELLATION_NAME_SIZE == 17
+    assert ASTRONOMY_FOOTER_SIZE == 18
 
 
 def test_astronomy_providers_render_panel_safe_cards(tmp_path: Path, monkeypatch):

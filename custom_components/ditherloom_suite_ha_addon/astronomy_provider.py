@@ -90,6 +90,21 @@ MAIN_CONSTELLATION_NAME_BOX = (42, 166, 154, 184)
 BONUS_NAME_BOX = (42, 224, 154, 242)
 TITLE_BOX = (68, 58, 332, 84)
 FOOTER_BOX = (58, 238, 342, 260)
+ASTRONOMY_FONT_SIZE_DELTA = 2
+ASTRONOMY_HEADING_SIZE = 33
+ASTRONOMY_HEADING_MIN_SIZE = 23
+ASTRONOMY_BODY_SIZE = 25
+ASTRONOMY_TITLE_SIZE = 27
+ASTRONOMY_TITLE_MIN_SIZE = 17
+ASTRONOMY_CONSTELLATION_NAME_SIZE = 17
+ASTRONOMY_CONSTELLATION_NAME_MIN_SIZE = 11
+ASTRONOMY_FOOTER_SIZE = 18
+ASTRONOMY_FOOTER_MIN_SIZE = 12
+ASTRONOMY_HEADING_GAP = 14
+ASTRONOMY_HEADING_BOX_HEIGHT = 34
+ASTRONOMY_BODY_LINE_HEIGHT = 28
+ASTRONOMY_BODY_LINE_BOX_HEIGHT = 27
+ASTRONOMY_PROMOTED_LINE_HEIGHT = 29
 
 
 @dataclass(frozen=True)
@@ -158,11 +173,25 @@ def render_astronomy_card(provider_id: str, context: dict[str, Any]) -> tuple[Im
         orientation = float(context.get("constellation_orientation_degrees", 0.0) or 0.0)
         _draw_constellation(image, constellation, MAIN_CONSTELLATION_DRAW_BOX, orientation_degrees=orientation, line_width=2, star_radius=5)
         _draw_constellation(image, bonus, BONUS_CONSTELLATION_DRAW_BOX, orientation_degrees=orientation * 0.5, line_width=1, star_radius=3)
-        _draw_single_centered(image, MAIN_CONSTELLATION_NAME_BOX, constellation.upper(), 15, white, 9)
-        _draw_single_centered(image, BONUS_NAME_BOX, bonus.upper(), 15, white, 9)
+        _draw_single_centered(
+            image,
+            MAIN_CONSTELLATION_NAME_BOX,
+            constellation.upper(),
+            ASTRONOMY_CONSTELLATION_NAME_SIZE,
+            white,
+            ASTRONOMY_CONSTELLATION_NAME_MIN_SIZE,
+        )
+        _draw_single_centered(
+            image,
+            BONUS_NAME_BOX,
+            bonus.upper(),
+            ASTRONOMY_CONSTELLATION_NAME_SIZE,
+            white,
+            ASTRONOMY_CONSTELLATION_NAME_MIN_SIZE,
+        )
         _draw_centered_text(image, CONSTELLATION_TEXT_BOX, headline.upper(), lines, yellow, white)
     elif provider_id in PROMOTED_HEADLINE_PROVIDERS:
-        _draw_single_centered(image, TITLE_BOX, headline.upper(), 25, yellow, 15)
+        _draw_single_centered(image, TITLE_BOX, headline.upper(), ASTRONOMY_TITLE_SIZE, yellow, ASTRONOMY_TITLE_MIN_SIZE)
         _draw_centered_lines(image, BODY_BOX, lines, white)
     elif provider_id in FULLY_CENTERED_PROVIDERS:
         _draw_centered_text(image, SPACE_CONDITIONS_BODY_BOX, headline.upper(), lines, yellow, white)
@@ -173,8 +202,15 @@ def render_astronomy_card(provider_id: str, context: dict[str, Any]) -> tuple[Im
         and provider_id not in FULLY_CENTERED_PROVIDERS
         and headline.strip().lower() != provider_name.strip().lower()
     ):
-        _draw_single_centered(image, TITLE_BOX, provider_name.upper(), 25, yellow, 15)
-    _draw_single_centered(image, FOOTER_BOX, _footer_for_provider(provider_id, context).upper(), 16, white, 10)
+        _draw_single_centered(image, TITLE_BOX, provider_name.upper(), ASTRONOMY_TITLE_SIZE, yellow, ASTRONOMY_TITLE_MIN_SIZE)
+    _draw_single_centered(
+        image,
+        FOOTER_BOX,
+        _footer_for_provider(provider_id, context).upper(),
+        ASTRONOMY_FOOTER_SIZE,
+        white,
+        ASTRONOMY_FOOTER_MIN_SIZE,
+    )
     return image, headline, tuple(lines)
 
 
@@ -598,20 +634,20 @@ def _draw_centered_text(
 ) -> None:
     x1, y1, x2, y2 = box
     draw = ImageDraw.Draw(image)
-    heading_font = _font_that_fits(heading, x2 - x1 - 8, 31, 21)
-    body_font = _font(23)
+    heading_font = _font_that_fits(heading, x2 - x1 - 8, ASTRONOMY_HEADING_SIZE, ASTRONOMY_HEADING_MIN_SIZE)
+    body_font = _font(ASTRONOMY_BODY_SIZE)
     wrapped: list[str] = []
     for line in lines:
         wrapped.extend(_wrap_to_width(str(line), body_font, x2 - x1 - 10))
     if len(wrapped) > 4:
         wrapped = wrapped[:4]
-    total_h = _text_height(heading_font, heading) + 12 + len(wrapped) * 26
+    total_h = _text_height(heading_font, heading) + ASTRONOMY_HEADING_GAP + len(wrapped) * ASTRONOMY_BODY_LINE_HEIGHT
     y = y1 + max(0, (y2 - y1 - total_h) // 2)
-    _draw_single_centered_with_font(image, (x1, y, x2, y + 32), heading, heading_font, heading_fill)
-    y += _text_height(heading_font, heading) + 12
+    _draw_single_centered_with_font(image, (x1, y, x2, y + ASTRONOMY_HEADING_BOX_HEIGHT), heading, heading_font, heading_fill)
+    y += _text_height(heading_font, heading) + ASTRONOMY_HEADING_GAP
     for line in wrapped:
-        _draw_single_centered_with_font(image, (x1, y, x2, y + 25), line, body_font, body_fill)
-        y += 26
+        _draw_single_centered_with_font(image, (x1, y, x2, y + ASTRONOMY_BODY_LINE_BOX_HEIGHT), line, body_font, body_fill)
+        y += ASTRONOMY_BODY_LINE_HEIGHT
 
 
 def _draw_centered_lines(
@@ -621,17 +657,17 @@ def _draw_centered_lines(
     body_fill: tuple[int, int, int],
 ) -> None:
     x1, y1, x2, y2 = box
-    body_font = _font(23)
+    body_font = _font(ASTRONOMY_BODY_SIZE)
     wrapped: list[str] = []
     for line in lines:
         wrapped.extend(_wrap_to_width(str(line), body_font, x2 - x1 - 10))
     if len(wrapped) > 5:
         wrapped = wrapped[:5]
-    total_h = len(wrapped) * 27
+    total_h = len(wrapped) * ASTRONOMY_PROMOTED_LINE_HEIGHT
     y = y1 + max(0, (y2 - y1 - total_h) // 2)
     for line in wrapped:
-        _draw_single_centered_with_font(image, (x1, y, x2, y + 25), line, body_font, body_fill)
-        y += 27
+        _draw_single_centered_with_font(image, (x1, y, x2, y + ASTRONOMY_BODY_LINE_BOX_HEIGHT), line, body_font, body_fill)
+        y += ASTRONOMY_PROMOTED_LINE_HEIGHT
 
 
 def _draw_single_centered(

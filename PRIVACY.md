@@ -17,6 +17,13 @@ The integration does not use the reverse lookup to track you, build a location
 history, or send location data to Ditherloom servers. Reverse lookup results are
 cached in the Home Assistant process for repeated use of the same coordinates.
 
+If you enable the optional Weather Radar card and provide your own OpenWeather
+API key, the configured latitude and longitude are used to choose OpenWeather
+weather overlay tiles and OpenStreetMap basemap tiles around that location.
+OpenStreetMap basemap tiles are cached locally by Home Assistant for repeated
+renders of the same location and zoom. Ditherloom does not proxy these requests
+through Ditherloom servers and does not bundle an OpenWeather API key.
+
 ## Local Frame Delivery
 
 Rendered content payloads are stored locally by Home Assistant and served to the

@@ -46,6 +46,7 @@ from .const import (
     CONF_WEATHER_RADAR_OPENWEATHER_API_KEY,
     CONF_WEATHER_RADAR_OPENWEATHER_LAYER,
     CONF_WEATHER_RADAR_OPENWEATHER_ZOOM,
+    CONF_WEATHER_RADAR_PALETTE,
     CONF_WEATHER_TODAY_TOMORROW_ENABLED,
     CONF_WEATHER_UV_ENABLED,
     CONF_WEATHER_WIND_ENABLED,
@@ -63,6 +64,7 @@ from .const import (
     DEFAULT_MAX_JOBS_PER_WAKE,
     DEFAULT_TEMPERATURE_UNIT,
     DEFAULT_WAKE_WINDOW_MINUTES,
+    DEFAULT_WEATHER_RADAR_PALETTE,
     DEFAULT_WIND_SPEED_UNIT,
     DISPLAY_MODE_COLOUR,
     DISPLAY_MODE_MONO,
@@ -73,6 +75,7 @@ from .const import (
     TEMPERATURE_UNIT_FAHRENHEIT,
     WIND_SPEED_UNIT_KMH,
     WIND_SPEED_UNIT_MPH,
+    WEATHER_RADAR_PALETTE_OPTIONS,
     XKCD_MODE_FIXED,
     XKCD_MODE_LATEST,
     XKCD_MODE_RANDOM,
@@ -248,11 +251,18 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                     user_input.get(CONF_WEATHER_RADAR_OPENWEATHER_LAYER) or "precipitation_new"
                 ).strip(),
                 CONF_WEATHER_RADAR_OPENWEATHER_ZOOM: int(user_input.get(CONF_WEATHER_RADAR_OPENWEATHER_ZOOM) or 6),
+                CONF_WEATHER_RADAR_PALETTE: str(
+                    user_input.get(CONF_WEATHER_RADAR_PALETTE) or DEFAULT_WEATHER_RADAR_PALETTE
+                ).strip(),
                 CONF_WEATHER_RADAR_ATTRIBUTION: str(user_input.get(CONF_WEATHER_RADAR_ATTRIBUTION) or "").strip(),
                 **_weather_shared_options(user_input),
             }
             return self._save_options_or_show("weather_radar", internal_input, schema)
-        return self.async_show_form(step_id="weather_radar", data_schema=schema)
+        return self.async_show_form(
+            step_id="weather_radar",
+            data_schema=schema,
+            description_placeholders=_weather_sample_placeholders(self._entry.entry_id),
+        )
 
     async def async_step_weather_precipitation(self, user_input: dict[str, Any] | None = None):
         data = self._data()
@@ -628,6 +638,10 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                     default=int(data.get(CONF_WEATHER_RADAR_OPENWEATHER_ZOOM, 6) or 6),
                 ): vol.All(vol.Coerce(int), vol.Range(min=3, max=8)),
                 vol.Optional(
+                    CONF_WEATHER_RADAR_PALETTE,
+                    default=data.get(CONF_WEATHER_RADAR_PALETTE, DEFAULT_WEATHER_RADAR_PALETTE),
+                ): vol.In(WEATHER_RADAR_PALETTE_OPTIONS),
+                vol.Optional(
                     CONF_WEATHER_RADAR_ATTRIBUTION,
                     default=data.get(CONF_WEATHER_RADAR_ATTRIBUTION, "OpenWeather"),
                 ): str,
@@ -870,3 +884,10 @@ def _comic_sample_placeholders(entry_id: str) -> dict[str, str]:
 def _comic_sample_markdown(entry_id: str, sample_id: str, label: str) -> str:
     path = f"/api/ditherloom/{entry_id}/comic-samples/{sample_id}.preview.png?v={INTEGRATION_VERSION}"
     return f"![{label} Ditherloom sample]({path}) [Open sample]({path})"
+
+
+def _weather_sample_placeholders(entry_id: str) -> dict[str, str]:
+    path = f"/api/ditherloom/{entry_id}/weather-samples/radar_palettes.preview.png?v={INTEGRATION_VERSION}"
+    return {
+        "radar_palette_sample_image": f"![Ditherloom radar palette samples]({path}) [Open palette samples]({path})",
+    }

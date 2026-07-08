@@ -355,12 +355,13 @@
       },
       "weather_radar": {
         "title": "Weather Radar",
-        "description": "Get your OpenWeather API key here: https://home.openweathermap.org/api_keys. Weather Radar is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. Create a free or paid OpenWeather account, generate an API key under your own account, paste that key here, and follow OpenWeather's current API terms. The card fetches OpenWeather map tiles around the configured latitude/longitude, processes the colours for the Ditherloom display, places the radar map into the left panel, and records OpenWeather attribution in metadata. OpenWeather keys may take time to activate after creation.",
+        "description": "Get your OpenWeather API key here: https://home.openweathermap.org/api_keys. Weather Radar is optional and needs one explicit HA slot from the Ditherloom app/frame setup when enabled. Create a free or paid OpenWeather account, generate an API key under your own account, paste that key here, and follow OpenWeather's current API terms. The card fetches OpenWeather weather overlay tiles around the configured latitude/longitude, places them over a cached OpenStreetMap basemap, applies the selected Ditherloom-safe radar palette only to the weather overlay, shows the colour scale below the radar image, and records OpenWeather plus OpenStreetMap attribution in metadata. OpenWeather keys may take time to activate after creation. Palette samples rendered for Ditherloom: {radar_palette_sample_image}",
         "data": {
           "weather_radar_enabled": "Enable Weather Radar",
           "weather_radar_openweather_api_key": "OpenWeather API key (use link above)",
           "weather_radar_openweather_layer": "OpenWeather map layer",
           "weather_radar_openweather_zoom": "Radar map zoom",
+          "weather_radar_palette": "Radar colour palette",
           "weather_radar_attribution": "Radar attribution",
           "location_name": "Weather location name",
           "weather_location": "Pick location on map",

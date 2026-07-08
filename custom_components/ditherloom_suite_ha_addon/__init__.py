@@ -79,6 +79,7 @@ from .const import (
     CONF_WEATHER_RADAR_OPENWEATHER_API_KEY,
     CONF_WEATHER_RADAR_OPENWEATHER_LAYER,
     CONF_WEATHER_RADAR_OPENWEATHER_ZOOM,
+    CONF_WEATHER_RADAR_PALETTE,
     CONF_WEATHER_TODAY_TOMORROW_ENABLED,
     CONF_WEATHER_UV_ENABLED,
     CONF_WEATHER_WIND_ENABLED,
@@ -98,6 +99,7 @@ from .const import (
     DEFAULT_TEMPERATURE_UNIT,
     DEFAULT_UPDATE_INTERVAL_MINUTES,
     DEFAULT_WAKE_WINDOW_MINUTES,
+    DEFAULT_WEATHER_RADAR_PALETTE,
     DEFAULT_WIND_SPEED_UNIT,
     DEFAULT_HA_ROTATION_SECONDS,
     DEVICE_PACKED_PAYLOAD_BYTES,
@@ -127,7 +129,7 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
-CARD_RENDERER_VERSION = "luxe-0.1.114-astronomy-centered-conditions"
+CARD_RENDERER_VERSION = "luxe-0.1.118-radar-basemap-layer"
 PROVIDER_WEATHER = "open_meteo_weather"
 PROVIDER_WEATHER_TODAY_TOMORROW = "open_meteo_today_tomorrow"
 PROVIDER_WEATHER_7_DAY = "open_meteo_7_day_forecast"
@@ -339,6 +341,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.http.register_view(DitherloomPreviewView(coordinator))
     hass.http.register_view(DitherloomComicSampleView(coordinator))
+    hass.http.register_view(DitherloomWeatherSampleView(coordinator))
     hass.http.register_view(DitherloomFrameAwakeView(coordinator))
     hass.http.register_view(DitherloomFrameSleepingView(coordinator))
 
@@ -1285,6 +1288,11 @@ class DitherloomRuntime:
             or opts.get(CONF_WEATHER_RADAR_OPENWEATHER_ZOOM)
             or 6
         )
+        radar_palette = str(
+            data.get(CONF_WEATHER_RADAR_PALETTE)
+            or opts.get(CONF_WEATHER_RADAR_PALETTE)
+            or DEFAULT_WEATHER_RADAR_PALETTE
+        ).strip()
         radar_attribution = str(
             data.get(CONF_WEATHER_RADAR_ATTRIBUTION)
             or opts.get(CONF_WEATHER_RADAR_ATTRIBUTION)
@@ -1317,6 +1325,7 @@ class DitherloomRuntime:
                     radar_api_key,
                     radar_layer,
                     radar_zoom,
+                    self.payload_dir / "radar_basemap_cache",
                 )
                 if radar_api_key
                 else b""
@@ -1327,6 +1336,7 @@ class DitherloomRuntime:
                 updated=datetime.now().strftime("%H:%M"),
                 source_entity_id="weather.radar_url",
                 attribution=radar_attribution,
+                palette=radar_palette,
             )
         else:
             card_data = await self.hass.async_add_executor_job(
@@ -1373,13 +1383,19 @@ class DitherloomRuntime:
             metadata["attribution_url"] = "https://openweathermap.org/"
             metadata["license"] = "OpenWeather API terms"
             metadata["license_url"] = "https://openweathermap.org/terms"
+            metadata["secondary_attribution"] = "OpenStreetMap contributors"
+            metadata["secondary_attribution_url"] = "https://www.openstreetmap.org/copyright"
+            metadata["secondary_license"] = "OpenStreetMap tile policy and ODbL/OSM contributor terms"
+            metadata["secondary_license_url"] = "https://operations.osmfoundation.org/policies/tiles/"
             metadata["data_transformations"] = (
-                "OpenWeather map tiles are assembled around the configured latitude/longitude, cropped to the radar panel, "
-                "and remapped to Ditherloom-friendly precipitation colours before the 400x300 hybrid render; "
-                "background saturation and contrast boosted 20%; text rendered panel-safe."
+                "OpenWeather weather overlay tiles are assembled around the configured latitude/longitude and cropped "
+                "to the radar panel. A cached OpenStreetMap basemap is used underneath for local map context. The selected "
+                "Ditherloom-friendly radar palette is applied only to semi-transparent weather-overlay pixels, not to the "
+                "basemap, before the 400x300 hybrid render; text rendered panel-safe."
             )
             metadata["openweather_layer"] = radar_layer
             metadata["openweather_zoom"] = radar_zoom
+            metadata["openweather_palette"] = radar_palette
         else:
             metadata["source"] = "open_meteo"
             metadata["source_name"] = "Open-Meteo"
@@ -2590,6 +2606,29 @@ class DitherloomComicSampleView(HomeAssistantView):
         )
 
 
+class DitherloomWeatherSampleView(HomeAssistantView):
+    requires_auth = False
+
+    def __init__(self, runtime: DitherloomRuntime) -> None:
+        self.runtime = runtime
+        self.url = f"/api/ditherloom/{runtime.entry.entry_id}/weather-samples/{{filename}}"
+        self.name = f"api:{DOMAIN}:weather_samples:{runtime.entry.entry_id}"
+
+    async def get(self, request, filename: str):
+        if not filename.endswith(".preview.png") or "/" in filename or "\\" in filename:
+            return self.json({"error": "not_found"}, status_code=404)
+        path = Path(__file__).resolve().parent / "assets" / "weather_samples" / filename
+        if not path.exists():
+            return self.json({"error": "not_found"}, status_code=404)
+        return web.FileResponse(
+            path,
+            headers={
+                "Content-Type": "image/png",
+                "Cache-Control": "no-store",
+            },
+        )
+
+
 class DitherloomFrameAwakeView(HomeAssistantView):
     requires_auth = False
 
@@ -2879,7 +2918,14 @@ def _bool_option(data: dict[str, Any], key: str, default: bool) -> bool:
     return bool(data[key]) if key in data else default
 
 
-def _fetch_openweather_radar_snapshot(latitude: str, longitude: str, api_key: str, layer: str, zoom: int) -> bytes:
+def _fetch_openweather_radar_snapshot(
+    latitude: str,
+    longitude: str,
+    api_key: str,
+    layer: str,
+    zoom: int,
+    cache_dir: Path | None = None,
+) -> bytes:
     from io import BytesIO
 
     from PIL import Image, ImageDraw
@@ -2896,8 +2942,9 @@ def _fetch_openweather_radar_snapshot(latitude: str, longitude: str, api_key: st
     tile_y = int(world_y // 256)
     offset_x = int(world_x - tile_x * 256)
     offset_y = int(world_y - tile_y * 256)
-    canvas = Image.new("RGB", (768, 768), (231, 229, 208))
-    draw = ImageDraw.Draw(canvas)
+    base_canvas = Image.new("RGB", (768, 768), (231, 229, 208))
+    overlay_canvas = Image.new("RGBA", (768, 768), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(base_canvas)
     for grid in range(0, 769, 64):
         draw.line((grid, 0, grid, 768), fill=(198, 196, 176), width=1)
         draw.line((0, grid, 768, grid), fill=(198, 196, 176), width=1)
@@ -2905,12 +2952,24 @@ def _fetch_openweather_radar_snapshot(latitude: str, longitude: str, api_key: st
         for dy in (-1, 0, 1):
             x = (tile_x + dx) % tile_count
             y = max(0, min(tile_count - 1, tile_y + dy))
+            base_tile = _fetch_osm_basemap_tile(zoom, x, y, cache_dir)
+            if base_tile is not None:
+                base_canvas.paste(base_tile, ((dx + 1) * 256, (dy + 1) * 256))
             tile = _fetch_openweather_tile(layer, zoom, x, y, api_key)
             if tile is not None:
-                canvas.paste(tile, ((dx + 1) * 256, (dy + 1) * 256), tile)
+                overlay_canvas.alpha_composite(tile, ((dx + 1) * 256, (dy + 1) * 256))
     center_x = 256 + offset_x
     center_y = 256 + offset_y
-    crop = canvas.crop((center_x - 128, center_y - 128, center_x + 128, center_y + 128))
+    crop_box = (center_x - 128, center_y - 128, center_x + 128, center_y + 128)
+    crop = base_canvas.crop(crop_box).convert("RGBA")
+    overlay = overlay_canvas.crop(crop_box)
+    crop_pixels = crop.load()
+    overlay_pixels = overlay.load()
+    for y in range(crop.height):
+        for x in range(crop.width):
+            r, g, b, a = overlay_pixels[x, y]
+            if a >= 12:
+                crop_pixels[x, y] = (r, g, b, min(254, max(24, a)))
     output = BytesIO()
     crop.save(output, format="PNG")
     return output.getvalue()
@@ -2929,8 +2988,46 @@ def _fetch_openweather_tile(layer: str, zoom: int, x: int, y: int, api_key: str)
             payload = response.read(1_000_000)
     except Exception:
         return None
-    tile = Image.open(BytesIO(payload)).convert("RGBA")
-    return _process_openweather_tile_for_panel(tile)
+    return Image.open(BytesIO(payload)).convert("RGBA")
+
+
+def _fetch_osm_basemap_tile(zoom: int, x: int, y: int, cache_dir: Path | None) -> Any:
+    from io import BytesIO
+
+    from PIL import Image, ImageEnhance
+
+    cache_path: Path | None = None
+    if cache_dir is not None:
+        cache_path = cache_dir / "osm" / str(zoom) / str(x) / f"{y}.png"
+        try:
+            if cache_path.exists() and datetime.now(timezone.utc).timestamp() - cache_path.stat().st_mtime < 7 * 24 * 60 * 60:
+                return Image.open(cache_path).convert("RGB")
+        except Exception:
+            pass
+    url = f"https://tile.openstreetmap.org/{zoom}/{x}/{y}.png"
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": f"Ditherloom/{INTEGRATION_VERSION} Home Assistant radar basemap",
+            "Referer": "https://github.com/nacameron/ditherloom-suite-home-assistant-add-on",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            payload = response.read(1_000_000)
+    except Exception:
+        return None
+    image = Image.open(BytesIO(payload)).convert("RGB")
+    image = ImageEnhance.Color(image).enhance(0.45)
+    image = ImageEnhance.Contrast(image).enhance(0.82)
+    image = ImageEnhance.Brightness(image).enhance(1.08)
+    if cache_path is not None:
+        try:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            image.save(cache_path, format="PNG")
+        except Exception:
+            pass
+    return image
 
 
 def _process_openweather_tile_for_panel(tile: Any) -> Any:

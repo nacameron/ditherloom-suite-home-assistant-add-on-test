@@ -110,9 +110,12 @@ the user explicitly enables the radar card and supplies their own OpenWeather
 API key in Home Assistant options. Ditherloom does not bundle, share, or claim
 ownership of any OpenWeather API key, map tile, provider branding, or terms.
 Rendered radar metadata records OpenWeather attribution, terms URL, selected map
-layer, and zoom level. The map tile colours are transformed for readability on
-the Ditherloom 400 x 300 colour display before the normal hybrid renderer packs
-the card.
+layer, and zoom level. The Weather Radar card also fetches and locally caches
+OpenStreetMap standard map tiles as the visible basemap underneath the
+OpenWeather weather overlay. The selected Ditherloom radar palette is applied
+only to semi-transparent OpenWeather overlay pixels, not to the OpenStreetMap
+basemap. The composed map is transformed for readability on the Ditherloom 400 x
+300 colour display before the normal hybrid renderer packs the card.
 
 Sources:
 
@@ -122,6 +125,7 @@ https://openweathermap.org/
 https://openweathermap.org/api/weathermaps
 https://openweathermap.org/terms
 https://www.openstreetmap.org/copyright
+https://operations.osmfoundation.org/policies/tiles/
 ```
 
 ## Optional xkcd Comic Content

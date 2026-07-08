@@ -125,6 +125,7 @@ class WeatherRadarData:
     updated: str = "Now"
     source_entity_id: str = "weather.radar"
     attribution: str = "Radar source configured by user"
+    palette: str = "amber_rain"
 
 
 @dataclass(frozen=True)
@@ -832,17 +833,21 @@ def render_seven_day_weather_card(data: WeatherForecastData, colour_mode: str = 
 def render_weather_radar_card(data: WeatherRadarData, colour_mode: str = COLOUR_MODE_COLOUR) -> Image.Image:
     frame = _load_weather_art("radar_panel_frame")
     image = _cover_image(frame, WIDTH, HEIGHT) if frame else Image.new("RGB", (WIDTH, HEIGHT), _rgb("warm_white"))
-    radar_box = (38, 58, 212, 235)
+    radar_box = (38, 52, 212, 214)
     radar = _radar_image_from_bytes(data.radar_image)
     if radar is not None:
         radar_layer = _weather_foreground_layer()
         radar_layer.paste(
-            _prepare_radar_layer_image(_cover_image(radar, radar_box[2] - radar_box[0], radar_box[3] - radar_box[1])),
+            _prepare_radar_layer_image(
+                _cover_image(radar, radar_box[2] - radar_box[0], radar_box[3] - radar_box[1]),
+                data.palette,
+            ),
             (radar_box[0], radar_box[1]),
         )
         image = _composite_weather_foreground(image, radar_layer, protect=False)
     foreground = _weather_foreground_layer()
     draw = ImageDraw.Draw(foreground)
+    _draw_radar_palette_scale(draw, (42, 220, 208, 242), data.palette)
     text_box = (254, 36, 386, 268)
     _draw_luxe_text_center(draw, (text_box[0], 42, text_box[2], 70), "RADAR", 27, LUXE_TEXT_BOLD, _rgb("red"), 14)
     _draw_wrapped_centered(draw, (text_box[0] + 8, 82, text_box[2] - 8, 174), (data.location or "Weather").upper(), 22, _rgb("black"), 10)
@@ -956,7 +961,7 @@ def _radar_image_from_bytes(payload: bytes) -> Image.Image | None:
     if not payload:
         return None
     try:
-        return Image.open(BytesIO(payload)).convert("RGB")
+        return Image.open(BytesIO(payload)).convert("RGBA")
     except Exception:
         return None
 
@@ -1110,8 +1115,103 @@ def _merge_protected_alpha(image: Image.Image, foreground: Image.Image) -> None:
     image.info["ditherloom_protected_mask"] = protected
 
 
-def _prepare_radar_layer_image(image: Image.Image) -> Image.Image:
-    return _remove_template_safe_pixels_from_background(image.convert("RGB"))
+RADAR_PALETTES: dict[str, tuple[str, tuple[tuple[str, str], ...]]] = {
+    "amber_rain": (
+        "Amber Rain",
+        (("light", "pale_yellow"), ("mod", "bright_yellow"), ("heavy", "orange"), ("severe", "red")),
+    ),
+    "classic_radar": (
+        "Classic Radar",
+        (("light", "cream"), ("mod", "yellow"), ("heavy", "orange"), ("severe", "red")),
+    ),
+    "fire_scale": (
+        "Fire Scale",
+        (("light", "yellow"), ("mod", "gold"), ("heavy", "burnt_orange"), ("severe", "dark_red")),
+    ),
+    "red_alert": (
+        "Red Alert",
+        (("light", "peach"), ("mod", "rose"), ("heavy", "warm_red"), ("severe", "red")),
+    ),
+    "paper_contrast": (
+        "Paper Contrast",
+        (("light", "paper"), ("mod", "tan"), ("heavy", "dark_gold"), ("severe", "black")),
+    ),
+    "night_watch": (
+        "Night Watch",
+        (("light", "warm_grey"), ("mod", "dark_gold"), ("heavy", "burgundy"), ("severe", "red")),
+    ),
+}
+
+
+def _radar_palette_steps(palette: str) -> tuple[tuple[str, tuple[int, int, int]], ...]:
+    _label, steps = RADAR_PALETTES.get(str(palette), RADAR_PALETTES["amber_rain"])
+    return tuple((label, _rgb(colour_name)) for label, colour_name in steps)
+
+
+def _prepare_radar_layer_image(image: Image.Image, palette: str = "amber_rain") -> Image.Image:
+    source = image.convert("RGBA")
+    target = source.copy()
+    source_pixels = source.load()
+    target_pixels = target.load()
+    steps = _radar_palette_steps(palette)
+    for y in range(target.height):
+        for x in range(target.width):
+            r, g, b, a = source_pixels[x, y]
+            if a < 12:
+                target_pixels[x, y] = (0, 0, 0, 0)
+                continue
+            if a == 255:
+                continue
+            intensity = _radar_pixel_intensity((r, g, b))
+            if intensity is None:
+                continue
+            pr, pg, pb = steps[intensity][1]
+            target_pixels[x, y] = (pr, pg, pb, a)
+    return _remove_template_safe_pixels_from_radar_base(target)
+
+
+def _remove_template_safe_pixels_from_radar_base(image: Image.Image) -> Image.Image:
+    target = image.convert("RGBA")
+    pixels = target.load()
+    protected = {"black", "red", "yellow", "bright_yellow", "white"}
+    for y in range(target.height):
+        for x in range(target.width):
+            r, g, b, a = pixels[x, y]
+            if a != 255 or RGB_TO_TEMPLATE_NAME.get((r, g, b)) not in protected:
+                continue
+            if (r, g, b) == TEMPLATE_COLOURS["white"].rgb:
+                pixels[x, y] = (254, 254, 253, a)
+            elif (r, g, b) == TEMPLATE_COLOURS["black"].rgb:
+                pixels[x, y] = (18, 18, 17, a)
+            else:
+                pixels[x, y] = (max(0, r - 1), g, b, a)
+    return target
+
+
+def _radar_pixel_intensity(rgb: tuple[int, int, int]) -> int | None:
+    r, g, b = rgb
+    if max(rgb) - min(rgb) < 32 and r > 150:
+        return None
+    if r > 185 and g > 145 and b < 135:
+        return 2
+    if r > 135 and g < 120 and b < 125:
+        return 3
+    if g > r + 16 and g > b + 10:
+        return 1
+    if max(rgb) - min(rgb) > 42 and max(rgb) > 95:
+        return 2 if r >= g else 1
+    return None
+
+
+def _draw_radar_palette_scale(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], palette: str) -> None:
+    x1, y1, x2, y2 = box
+    steps = _radar_palette_steps(palette)
+    swatch_w = max(1, (x2 - x1) // len(steps))
+    for index, (label, colour) in enumerate(steps):
+        sx1 = x1 + index * swatch_w
+        sx2 = x2 if index == len(steps) - 1 else sx1 + swatch_w - 2
+        draw.rectangle((sx1, y1, sx2, y1 + 9), fill=colour, outline=_rgb("black"), width=1)
+        _draw_luxe_text_center(draw, (sx1 - 2, y1 + 11, sx2 + 2, y2), label.upper(), 9, LUXE_TEXT_BOLD, _rgb("black"), 6)
 
 
 def _cover_image(artwork: Image.Image, target_w: int, target_h: int) -> Image.Image:

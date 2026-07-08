@@ -2,7 +2,10 @@
 
 This plan covers future Ditherloom Suite Home Assistant content providers.
 Open-Meteo Weather is intentionally excluded because the current build already
-has that provider.
+has that provider. Provider 00 now includes separately selectable Weather
+sub-cards, including Weather Radar with a cached OpenStreetMap basemap,
+OpenWeather weather overlay, a user-selected Ditherloom-safe radar palette, and
+an on-card colour scale below the radar image.
 
 The rule for every provider is simple: add one complete function at a time,
 prove it works, then move to the next provider.

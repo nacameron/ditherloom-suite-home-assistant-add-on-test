@@ -232,7 +232,7 @@ def test_backend_attribution_sensor_is_always_visible():
 def test_renderer_cache_is_versioned():
     init_source = (ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py").read_text(encoding="utf-8")
     assert "CARD_RENDERER_VERSION" in init_source
-    assert 'CARD_RENDERER_VERSION = "luxe-0.1.114-astronomy-centered-conditions"' in init_source
+    assert 'CARD_RENDERER_VERSION = "luxe-0.1.118-radar-basemap-layer"' in init_source
     assert 'metadata["card_renderer_version"] = CARD_RENDERER_VERSION' in init_source
     assert 'metadata.get("card_renderer_version") != CARD_RENDERER_VERSION' in init_source
 
@@ -311,10 +311,20 @@ def test_weather_forecast_cards_are_exposed_as_separate_weather_menu_items():
     config_source = (COMPONENT / "config_flow.py").read_text(encoding="utf-8")
     strings_source = (COMPONENT / "strings.json").read_text(encoding="utf-8")
     renderer_source = (COMPONENT / "renderer" / "cards.py").read_text(encoding="utf-8")
+    init_source = INIT.read_text(encoding="utf-8")
 
     assert 'CONF_WEATHER_TODAY_TOMORROW_ENABLED = "weather_today_tomorrow_enabled"' in const_source
     assert 'CONF_WEATHER_7_DAY_ENABLED = "weather_7_day_enabled"' in const_source
     assert 'CONF_WEATHER_RADAR_ENABLED = "weather_radar_enabled"' in const_source
+    assert 'CONF_WEATHER_RADAR_PALETTE = "weather_radar_palette"' in const_source
+    assert 'DEFAULT_WEATHER_RADAR_PALETTE = "amber_rain"' in const_source
+    assert 'WEATHER_RADAR_PALETTE_OPTIONS = {' in const_source
+    assert '"amber_rain": "Amber Rain"' in const_source
+    assert '"classic_radar": "Classic Radar"' in const_source
+    assert '"fire_scale": "Fire Scale"' in const_source
+    assert '"red_alert": "Red Alert"' in const_source
+    assert '"paper_contrast": "Paper Contrast"' in const_source
+    assert '"night_watch": "Night Watch"' in const_source
     assert 'CONF_WEATHER_PRECIPITATION_ENABLED = "weather_precipitation_enabled"' in const_source
     assert 'CONF_WEATHER_UV_ENABLED = "weather_uv_enabled"' in const_source
     assert 'CONF_WEATHER_WIND_ENABLED = "weather_wind_enabled"' in const_source
@@ -340,6 +350,15 @@ def test_weather_forecast_cards_are_exposed_as_separate_weather_menu_items():
     assert '"weather_wind": "Wind"' in strings_source
     assert "https://home.openweathermap.org/api_keys" in strings_source
     assert "follow OpenWeather's current API terms" in strings_source
+    assert '"weather_radar_palette": "Radar colour palette"' in strings_source
+    assert "shows the colour scale below the radar image" in strings_source
+    assert "WEATHER_RADAR_PALETTE_OPTIONS" in config_source
+    assert "DEFAULT_WEATHER_RADAR_PALETTE" in config_source
+    assert "CONF_WEATHER_RADAR_PALETTE: str(" in config_source
+    assert "description_placeholders=_weather_sample_placeholders" in config_source
+    assert "_weather_sample_markdown" not in config_source
+    assert "radar_palette_sample_image" in config_source
+    assert "/weather-samples/radar_palettes.preview.png" in config_source
     assert "def render_today_tomorrow_weather_card" in renderer_source
     assert "def render_seven_day_weather_card" in renderer_source
     assert "def render_weather_radar_card" in renderer_source
@@ -351,11 +370,18 @@ def test_weather_forecast_cards_are_exposed_as_separate_weather_menu_items():
     assert 'border = _load_weather_art("forecast_7_day_border")' in renderer_source
     assert "ImageEnhance.Color(image).enhance(1.2)" in renderer_source
     assert "ImageEnhance.Contrast(image).enhance(1.2)" in renderer_source
+    assert "RADAR_PALETTES" in renderer_source
+    assert "_draw_radar_palette_scale" in renderer_source
+    assert "data.palette" in renderer_source
+    assert (COMPONENT / "assets" / "weather_samples" / "radar_palettes.preview.png").exists()
+    assert "DitherloomWeatherSampleView" in init_source
+    assert "/weather-samples/{{filename}}" in init_source
 
 
 def test_weather_metric_cards_keep_text_crisp_and_do_not_near_snap_artwork():
     renderer_source = (COMPONENT / "renderer" / "cards.py").read_text(encoding="utf-8")
     packer_source = (COMPONENT / "renderer" / "pack.py").read_text(encoding="utf-8")
+    init_source = INIT.read_text(encoding="utf-8")
 
     hourly_start = renderer_source.index("def _draw_hourly_bars")
     hourly_end = renderer_source.index("def _bar_fill_for_metric", hourly_start)
@@ -368,6 +394,12 @@ def test_weather_metric_cards_keep_text_crisp_and_do_not_near_snap_artwork():
     assert "_composite_weather_foreground(" in renderer_source
     assert "_remove_template_safe_pixels_from_background(" in renderer_source
     assert "_prepare_radar_layer_image(" in renderer_source
+    assert "_remove_template_safe_pixels_from_radar_base(" in renderer_source
+    assert "if a == 255:" in renderer_source
+    assert "_fetch_osm_basemap_tile" in init_source
+    assert "OpenStreetMap contributors" in init_source
+    assert "OpenStreetMap basemap" in init_source
+    assert "applied only to semi-transparent weather-overlay pixels" in init_source
     assert 'if metric == "uv":' in renderer_source
     assert 'if metric == "wind":' in renderer_source
     assert 'if metric == "precipitation":' in renderer_source
@@ -388,8 +420,10 @@ def test_astronomy_constellation_card_uses_bonus_constellation_copy():
     assert "_bonus_constellation(" in source
     assert 'MAIN_CONSTELLATION_NAME_BOX' in source
     assert 'BONUS_LABEL_BOX' not in source
-    assert '_draw_single_centered(image, MAIN_CONSTELLATION_NAME_BOX, constellation.upper()' in source
-    assert '_draw_single_centered(image, BONUS_NAME_BOX, bonus.upper()' in source
+    assert 'MAIN_CONSTELLATION_NAME_BOX,\n            constellation.upper(),' in source
+    assert 'BONUS_NAME_BOX,\n            bonus.upper(),' in source
+    assert "ASTRONOMY_CONSTELLATION_NAME_SIZE" in source
+    assert "ASTRONOMY_CONSTELLATION_NAME_MIN_SIZE" in source
     assert '_draw_single_centered(image, BONUS_LABEL_BOX, "BONUS"' not in source
     assert "BONUS_CONSTELLATION_DRAW_BOX" in source
 

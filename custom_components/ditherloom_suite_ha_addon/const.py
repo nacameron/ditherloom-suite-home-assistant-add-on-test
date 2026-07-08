@@ -1,5 +1,5 @@
 DOMAIN = "ditherloom_suite_ha_addon"
-INTEGRATION_VERSION = "0.1.114"
+INTEGRATION_VERSION = "0.1.118"
 
 CONF_LIBRARY_ID = "library_id"
 CONF_TOPIC_BASE = "topic_base"
@@ -27,6 +27,7 @@ CONF_WEATHER_RADAR_ATTRIBUTION = "weather_radar_attribution"
 CONF_WEATHER_RADAR_OPENWEATHER_API_KEY = "weather_radar_openweather_api_key"
 CONF_WEATHER_RADAR_OPENWEATHER_LAYER = "weather_radar_openweather_layer"
 CONF_WEATHER_RADAR_OPENWEATHER_ZOOM = "weather_radar_openweather_zoom"
+CONF_WEATHER_RADAR_PALETTE = "weather_radar_palette"
 CONF_WEATHER_PRECIPITATION_ENABLED = "weather_precipitation_enabled"
 CONF_WEATHER_UV_ENABLED = "weather_uv_enabled"
 CONF_WEATHER_WIND_ENABLED = "weather_wind_enabled"
@@ -79,6 +80,16 @@ WIND_SPEED_UNIT_KMH = "kmh"
 WIND_SPEED_UNIT_MPH = "mph"
 DEFAULT_TEMPERATURE_UNIT = TEMPERATURE_UNIT_CELSIUS
 DEFAULT_WIND_SPEED_UNIT = WIND_SPEED_UNIT_KMH
+DEFAULT_WEATHER_RADAR_PALETTE = "amber_rain"
+
+WEATHER_RADAR_PALETTE_OPTIONS = {
+    "amber_rain": "Amber Rain",
+    "classic_radar": "Classic Radar",
+    "fire_scale": "Fire Scale",
+    "red_alert": "Red Alert",
+    "paper_contrast": "Paper Contrast",
+    "night_watch": "Night Watch",
+}
 XKCD_MODE_RANDOM = "random"
 XKCD_MODE_LATEST = "latest"
 XKCD_MODE_FIXED = "fixed"
