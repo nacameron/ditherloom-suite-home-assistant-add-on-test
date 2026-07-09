@@ -129,7 +129,7 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
-CARD_RENDERER_VERSION = "luxe-0.1.119-radar-readable-basemap"
+CARD_RENDERER_VERSION = "luxe-0.1.120-radar-red-basemap-labels"
 PROVIDER_WEATHER = "open_meteo_weather"
 PROVIDER_WEATHER_TODAY_TOMORROW = "open_meteo_today_tomorrow"
 PROVIDER_WEATHER_7_DAY = "open_meteo_7_day_forecast"
@@ -3040,7 +3040,7 @@ def _prepare_osm_basemap_for_panel(image: Any, lat: float, lon: float) -> Any:
     edges = ImageEnhance.Contrast(edges).enhance(2.4)
 
     paper = Image.new("RGB", base.size, (211, 207, 184))
-    land = ImageOps.colorize(grey, black=(78, 72, 54), white=(225, 222, 200)).convert("RGB")
+    land = ImageOps.colorize(grey, black=(135, 30, 34), white=(225, 222, 200)).convert("RGB")
     panel = Image.blend(paper, land, 0.72)
     edge_pixels = edges.load()
     panel_pixels = panel.load()
@@ -3048,7 +3048,7 @@ def _prepare_osm_basemap_for_panel(image: Any, lat: float, lon: float) -> Any:
     for y in range(height):
         for x in range(width):
             if edge_pixels[x, y] > 38:
-                panel_pixels[x, y] = (42, 39, 30)
+                panel_pixels[x, y] = (135, 30, 34)
 
     draw = ImageDraw.Draw(panel)
     cx = width // 2
@@ -3059,7 +3059,7 @@ def _prepare_osm_basemap_for_panel(image: Any, lat: float, lon: float) -> Any:
 
     label = f"{lat:.2f},{lon:.2f}"
     draw.rectangle((4, height - 15, 82, height - 3), fill=(221, 216, 190))
-    draw.text((7, height - 14), label, fill=(42, 39, 30))
+    draw.text((7, height - 14), label, fill=(135, 30, 34))
     return panel
 
 
