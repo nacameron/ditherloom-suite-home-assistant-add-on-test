@@ -129,7 +129,7 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor", "update", "button", "image"]
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.payloads"
-CARD_RENDERER_VERSION = "luxe-0.1.118-radar-basemap-layer"
+CARD_RENDERER_VERSION = "luxe-0.1.119-radar-readable-basemap"
 PROVIDER_WEATHER = "open_meteo_weather"
 PROVIDER_WEATHER_TODAY_TOMORROW = "open_meteo_today_tomorrow"
 PROVIDER_WEATHER_7_DAY = "open_meteo_7_day_forecast"
@@ -2932,7 +2932,9 @@ def _fetch_openweather_radar_snapshot(
 
     lat = max(-85.05112878, min(85.05112878, float(latitude)))
     lon = ((float(longitude) + 180.0) % 360.0) - 180.0
-    zoom = max(3, min(8, int(zoom)))
+    # The device panel only gives the radar map 174x162 pixels. At zoom 3-5,
+    # coastal locations can collapse to almost blank sea after packet render.
+    zoom = max(6, min(8, int(zoom)))
     layer = layer if layer in {"precipitation_new", "clouds_new", "wind_new", "temp_new"} else "precipitation_new"
     tile_count = 2**zoom
     world_x = (lon + 180.0) / 360.0 * tile_count * 256
@@ -2942,12 +2944,12 @@ def _fetch_openweather_radar_snapshot(
     tile_y = int(world_y // 256)
     offset_x = int(world_x - tile_x * 256)
     offset_y = int(world_y - tile_y * 256)
-    base_canvas = Image.new("RGB", (768, 768), (231, 229, 208))
+    base_canvas = Image.new("RGB", (768, 768), (225, 221, 196))
     overlay_canvas = Image.new("RGBA", (768, 768), (0, 0, 0, 0))
     draw = ImageDraw.Draw(base_canvas)
     for grid in range(0, 769, 64):
-        draw.line((grid, 0, grid, 768), fill=(198, 196, 176), width=1)
-        draw.line((0, grid, 768, grid), fill=(198, 196, 176), width=1)
+        draw.line((grid, 0, grid, 768), fill=(182, 176, 145), width=1)
+        draw.line((0, grid, 768, grid), fill=(182, 176, 145), width=1)
     for dx in (-1, 0, 1):
         for dy in (-1, 0, 1):
             x = (tile_x + dx) % tile_count
@@ -2961,7 +2963,7 @@ def _fetch_openweather_radar_snapshot(
     center_x = 256 + offset_x
     center_y = 256 + offset_y
     crop_box = (center_x - 128, center_y - 128, center_x + 128, center_y + 128)
-    crop = base_canvas.crop(crop_box).convert("RGBA")
+    crop = _prepare_osm_basemap_for_panel(base_canvas.crop(crop_box), lat, lon).convert("RGBA")
     overlay = overlay_canvas.crop(crop_box)
     crop_pixels = crop.load()
     overlay_pixels = overlay.load()
@@ -2994,7 +2996,7 @@ def _fetch_openweather_tile(layer: str, zoom: int, x: int, y: int, api_key: str)
 def _fetch_osm_basemap_tile(zoom: int, x: int, y: int, cache_dir: Path | None) -> Any:
     from io import BytesIO
 
-    from PIL import Image, ImageEnhance
+    from PIL import Image
 
     cache_path: Path | None = None
     if cache_dir is not None:
@@ -3018,9 +3020,6 @@ def _fetch_osm_basemap_tile(zoom: int, x: int, y: int, cache_dir: Path | None) -
     except Exception:
         return None
     image = Image.open(BytesIO(payload)).convert("RGB")
-    image = ImageEnhance.Color(image).enhance(0.45)
-    image = ImageEnhance.Contrast(image).enhance(0.82)
-    image = ImageEnhance.Brightness(image).enhance(1.08)
     if cache_path is not None:
         try:
             cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -3028,6 +3027,40 @@ def _fetch_osm_basemap_tile(zoom: int, x: int, y: int, cache_dir: Path | None) -
         except Exception:
             pass
     return image
+
+
+def _prepare_osm_basemap_for_panel(image: Any, lat: float, lon: float) -> Any:
+    from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
+
+    base = image.convert("RGB")
+    grey = ImageOps.grayscale(base)
+    grey = ImageEnhance.Contrast(grey).enhance(2.1)
+    grey = ImageEnhance.Brightness(grey).enhance(0.86)
+    edges = grey.filter(ImageFilter.FIND_EDGES)
+    edges = ImageEnhance.Contrast(edges).enhance(2.4)
+
+    paper = Image.new("RGB", base.size, (211, 207, 184))
+    land = ImageOps.colorize(grey, black=(78, 72, 54), white=(225, 222, 200)).convert("RGB")
+    panel = Image.blend(paper, land, 0.72)
+    edge_pixels = edges.load()
+    panel_pixels = panel.load()
+    width, height = panel.size
+    for y in range(height):
+        for x in range(width):
+            if edge_pixels[x, y] > 38:
+                panel_pixels[x, y] = (42, 39, 30)
+
+    draw = ImageDraw.Draw(panel)
+    cx = width // 2
+    cy = height // 2
+    draw.line((cx - 8, cy, cx + 8, cy), fill=(140, 40, 34), width=1)
+    draw.line((cx, cy - 8, cx, cy + 8), fill=(140, 40, 34), width=1)
+    draw.ellipse((cx - 3, cy - 3, cx + 3, cy + 3), outline=(140, 40, 34), width=1)
+
+    label = f"{lat:.2f},{lon:.2f}"
+    draw.rectangle((4, height - 15, 82, height - 3), fill=(221, 216, 190))
+    draw.text((7, height - 14), label, fill=(42, 39, 30))
+    return panel
 
 
 def _process_openweather_tile_for_panel(tile: Any) -> Any:

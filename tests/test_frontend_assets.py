@@ -232,7 +232,7 @@ def test_backend_attribution_sensor_is_always_visible():
 def test_renderer_cache_is_versioned():
     init_source = (ROOT / "custom_components" / "ditherloom_suite_ha_addon" / "__init__.py").read_text(encoding="utf-8")
     assert "CARD_RENDERER_VERSION" in init_source
-    assert 'CARD_RENDERER_VERSION = "luxe-0.1.118-radar-basemap-layer"' in init_source
+    assert 'CARD_RENDERER_VERSION = "luxe-0.1.119-radar-readable-basemap"' in init_source
     assert 'metadata["card_renderer_version"] = CARD_RENDERER_VERSION' in init_source
     assert 'metadata.get("card_renderer_version") != CARD_RENDERER_VERSION' in init_source
 
@@ -397,6 +397,7 @@ def test_weather_metric_cards_keep_text_crisp_and_do_not_near_snap_artwork():
     assert "_remove_template_safe_pixels_from_radar_base(" in renderer_source
     assert "if a == 255:" in renderer_source
     assert "_fetch_osm_basemap_tile" in init_source
+    assert "from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps" in init_source
     assert "OpenStreetMap contributors" in init_source
     assert "OpenStreetMap basemap" in init_source
     assert "applied only to semi-transparent weather-overlay pixels" in init_source

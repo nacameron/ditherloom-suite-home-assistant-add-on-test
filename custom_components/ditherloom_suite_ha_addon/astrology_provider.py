@@ -120,18 +120,149 @@ MODE_LINES = {
 }
 
 FOCUS_LINES = {
-    "initiative": "Say yes to the task that wakes you up.",
-    "steadiness": "Protect the pace that keeps you well.",
-    "conversation": "Let one honest exchange do the heavy lifting.",
-    "care": "Offer warmth without carrying everything.",
-    "confidence": "Be visible in one place that matters.",
-    "craft": "Polish the detail others will notice later.",
-    "balance": "Choose fairness without diluting your view.",
-    "focus": "Go deep on one thing instead of wide on ten.",
-    "range": "Follow the wider view, then bring back one lesson.",
-    "structure": "Build the container before filling it.",
-    "perspective": "Step back until the pattern becomes obvious.",
-    "imagination": "Make room for the quiet idea to speak.",
+    "initiative": (
+        "Say yes to the task that wakes you up.",
+        "Put your energy where a first move matters.",
+        "Begin before the moment becomes over-managed.",
+        "One bold start will teach you what to adjust.",
+    ),
+    "steadiness": (
+        "Protect the pace that keeps you well.",
+        "Choose the dependable answer over the loud one.",
+        "Let patience turn effort into something lasting.",
+        "Keep the promise that makes the day feel grounded.",
+    ),
+    "conversation": (
+        "Let one honest exchange do the heavy lifting.",
+        "Name the idea while it is still fresh.",
+        "A lighter question may open a better doorway.",
+        "Listen for the detail hiding inside casual words.",
+    ),
+    "care": (
+        "Offer warmth without carrying everything.",
+        "Make room for tenderness and a firm boundary.",
+        "Protect the place where your feelings can settle.",
+        "Let support be simple, direct, and sustainable.",
+    ),
+    "confidence": (
+        "Be visible in one place that matters.",
+        "Let your warmth lead without demanding the stage.",
+        "Choose the gesture that makes courage feel natural.",
+        "Stand behind the thing you know is yours.",
+    ),
+    "craft": (
+        "Polish the detail others will notice later.",
+        "Let one careful improvement become the story.",
+        "Sort the small pieces until the whole thing breathes.",
+        "Your best answer may be practical and quiet.",
+    ),
+    "balance": (
+        "Choose fairness without diluting your view.",
+        "Keep the peace, but keep your centre too.",
+        "Let grace and honesty share the same sentence.",
+        "Weigh the options, then choose the cleanest truth.",
+    ),
+    "focus": (
+        "Go deep on one thing instead of wide on ten.",
+        "Protect your attention from unnecessary drama.",
+        "Follow the real thread, not the brightest distraction.",
+        "Let intensity become precision, not pressure.",
+    ),
+    "range": (
+        "Follow the wider view, then bring back one lesson.",
+        "Leave room for a better map than yesterday's.",
+        "Let curiosity stretch the day without scattering it.",
+        "Aim for meaning, then choose the next useful step.",
+    ),
+    "structure": (
+        "Build the container before filling it.",
+        "Respect the plan, but leave one hinge loose.",
+        "Put the hard thing into a shape you can use.",
+        "A clear boundary will save more energy than speed.",
+    ),
+    "perspective": (
+        "Step back until the pattern becomes obvious.",
+        "Give the unusual idea enough room to prove itself.",
+        "Think beyond the first answer, then simplify.",
+        "Let distance turn a tangle into a design.",
+    ),
+    "imagination": (
+        "Make room for the quiet idea to speak.",
+        "Let the dream become one practical note.",
+        "Trust the image that keeps returning softly.",
+        "Give your intuition a simple task to hold.",
+    ),
+}
+
+MOON_PHASE_LINES = {
+    "New Moon": (
+        "Begin quietly and keep the seed protected.",
+        "A private intention is stronger than a public rush.",
+        "Start small; the shape will reveal itself.",
+    ),
+    "Waxing Crescent": (
+        "Feed the thing that is just beginning to grow.",
+        "Encourage the first sign of progress.",
+        "Give a new plan enough light to stand up.",
+    ),
+    "First Quarter": (
+        "A decision wants action, not another delay.",
+        "Meet resistance with a clean adjustment.",
+        "Choose the path that can survive contact with reality.",
+    ),
+    "Waxing Gibbous": (
+        "Refine the work before asking it to carry more.",
+        "Improve the line, not the whole drawing.",
+        "Let feedback sharpen what is nearly ready.",
+    ),
+    "Full Moon": (
+        "What was hidden may be easier to name today.",
+        "Notice what has reached its natural brightness.",
+        "Let clarity arrive without making it a performance.",
+    ),
+    "Waning Gibbous": (
+        "Share the useful lesson and release the rest.",
+        "Turn recent insight into a kinder habit.",
+        "Let experience become guidance, not a weight.",
+    ),
+    "Last Quarter": (
+        "Clear one stale obligation from the path.",
+        "Edit the day until the useful part remains.",
+        "Let go of a rule that no longer earns its place.",
+    ),
+    "Waning Crescent": (
+        "Rest is part of the message.",
+        "Close the loop gently before beginning again.",
+        "Let the quiet hours do their repair work.",
+    ),
+}
+
+PLANET_LINES = {
+    "Mercury": (
+        "Words matter, so choose the plainest true sentence.",
+        "A message, note, or call can move the day forward.",
+        "Keep the signal clean and the reply generous.",
+    ),
+    "Venus": (
+        "Beauty, ease, and kindness deserve a practical place.",
+        "Let agreement grow through warmth rather than pressure.",
+        "Choose the option that feels graceful and real.",
+    ),
+    "Mars": (
+        "Use force carefully; direction matters more than volume.",
+        "Act cleanly, then give the room time to answer.",
+        "Courage works best when it knows its target.",
+    ),
+    "Jupiter": (
+        "A broader view brings a better choice.",
+        "Let optimism be specific enough to be useful.",
+        "Make space for growth without promising the impossible.",
+    ),
+    "Saturn": (
+        "A clear limit can become a relief.",
+        "Do the responsible thing in a humane way.",
+        "Structure is not a cage when it protects your energy.",
+    ),
 }
 
 
@@ -256,14 +387,20 @@ def _attach_protected_mask(image: Image.Image) -> Image.Image:
 
 
 def _headline_for(sign: str, day: date, context: dict[str, object] | None = None) -> str:
-    _, _, focus = SIGN_PROFILES[sign]
+    element, mode, focus = SIGN_PROFILES[sign]
     moon_sign = str((context or {}).get("moon_sign") or "")
     sun_sign = str((context or {}).get("sun_sign") or "")
+    visible_planet = str((context or {}).get("visible_planet") or "")
+    moon_phase = str((context or {}).get("moon_phase") or "")
     options = (
         f"{focus} with grace",
         f"steady {focus}",
         f"clear {focus}",
         f"{focus} in motion",
+        f"{element} wisdom, {focus}",
+        f"{mode} {focus}",
+        f"{moon_phase.lower()} {focus}" if moon_phase else f"{focus} in motion",
+        f"{visible_planet.lower()} guides {focus}" if visible_planet else f"clear {focus}",
         f"{moon_sign.lower()} moon, {focus}" if moon_sign else f"{focus} in motion",
         f"{sun_sign.lower()} season, {focus}" if sun_sign else f"clear {focus}",
     )
@@ -273,21 +410,42 @@ def _headline_for(sign: str, day: date, context: dict[str, object] | None = None
 def _body_for(sign: str, day: date, context: dict[str, object] | None = None) -> str:
     element, mode, focus = SIGN_PROFILES[sign]
     context = context or {}
-    moon_sign = context.get("moon_sign")
-    visible_planet = context.get("visible_planet")
-    planet_sign = context.get("visible_planet_sign")
-    parts = (
+    moon_sign = str(context.get("moon_sign") or "")
+    moon_phase = str(context.get("moon_phase") or "")
+    visible_planet = str(context.get("visible_planet") or "")
+    planet_sign = str(context.get("visible_planet_sign") or "")
+    core_options = (
         _choice(ELEMENT_LINES[element], sign, day, "element"),
-        FOCUS_LINES[focus],
+        _choice(MODE_LINES[mode], sign, day, "mode"),
+        _choice(FOCUS_LINES[focus], sign, day, "focus"),
     )
+    core = _choice(core_options, sign, day, "core")
+    moon_line = ""
+    if moon_phase in MOON_PHASE_LINES:
+        moon_line = _choice(MOON_PHASE_LINES[moon_phase], sign, day, "moon-phase")
+    planet_line = ""
+    if visible_planet in PLANET_LINES:
+        planet_line = _choice(PLANET_LINES[visible_planet], sign, day, "planet-line")
+
+    pattern = _daily_number(sign, day, "body-pattern") % 6
     sky_line = ""
     if moon_sign and visible_planet and planet_sign:
         sky_line = f"Moon in {moon_sign}; {visible_planet} in {planet_sign}."
     elif moon_sign:
         sky_line = f"Moon in {moon_sign}."
-    if sky_line:
-        return " ".join((sky_line, *parts))
-    return " ".join(parts)
+    if pattern == 0 and sky_line and moon_line:
+        return " ".join((sky_line, moon_line, core))
+    if pattern == 1 and sky_line and planet_line:
+        return " ".join((sky_line, planet_line, core))
+    if pattern == 2 and moon_line and planet_line:
+        return " ".join((moon_line, planet_line, core))
+    if pattern == 3 and sky_line:
+        return " ".join((sky_line, core, _choice(FOCUS_LINES[focus], sign, day, "closing-focus")))
+    if pattern == 4 and moon_line:
+        return " ".join((moon_line, core))
+    if planet_line:
+        return " ".join((planet_line, core))
+    return " ".join((sky_line, core)).strip()
 
 
 def _metadata_for(sign: str, day: date, image: Image.Image, context: dict[str, object]) -> dict[str, object]:
@@ -437,8 +595,12 @@ def _moon_phase_name(day: date) -> str:
 
 
 def _choice(values: tuple[str, ...], sign: str, day: date, salt: str) -> str:
+    return values[_daily_number(sign, day, salt) % len(values)]
+
+
+def _daily_number(sign: str, day: date, salt: str) -> int:
     digest = hashlib.sha256(f"{sign}:{day.isoformat()}:{salt}".encode("utf-8")).digest()
-    return values[digest[0] % len(values)]
+    return int.from_bytes(digest[:4], "big")
 
 
 def _date_label(day: date) -> str:
@@ -502,6 +664,9 @@ def _fit_horoscope_text(
 
     body_font = _body_font(14)
     body_lines = _wrap_text_to_width(body, body_font, width)
+    if len(body_lines) > BODY_MAX_LINES:
+        body_lines = body_lines[:BODY_MAX_LINES]
+        body_lines[-1] = _ellipsize_to_width(body_lines[-1], body_font, width)
     headline_font = _body_font_that_fits(headline, width, 20, 15)
     return headline_font, body_lines, body_font, max(16, _text_height(body_font, "Ag") + 3)
 

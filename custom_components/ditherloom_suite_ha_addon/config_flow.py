@@ -636,7 +636,7 @@ class DitherloomOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_WEATHER_RADAR_OPENWEATHER_ZOOM,
                     default=int(data.get(CONF_WEATHER_RADAR_OPENWEATHER_ZOOM, 6) or 6),
-                ): vol.All(vol.Coerce(int), vol.Range(min=3, max=8)),
+                ): vol.All(vol.Coerce(int), vol.Range(min=6, max=8)),
                 vol.Optional(
                     CONF_WEATHER_RADAR_PALETTE,
                     default=data.get(CONF_WEATHER_RADAR_PALETTE, DEFAULT_WEATHER_RADAR_PALETTE),

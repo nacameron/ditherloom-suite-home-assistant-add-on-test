@@ -360,7 +360,7 @@
           "weather_radar_enabled": "Enable Weather Radar",
           "weather_radar_openweather_api_key": "OpenWeather API key (use link above)",
           "weather_radar_openweather_layer": "OpenWeather map layer",
-          "weather_radar_openweather_zoom": "Radar map zoom",
+          "weather_radar_openweather_zoom": "Radar map zoom (6-8)",
           "weather_radar_palette": "Radar colour palette",
           "weather_radar_attribution": "Radar attribution",
           "location_name": "Weather location name",

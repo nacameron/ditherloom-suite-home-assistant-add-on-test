@@ -17,6 +17,8 @@ sys.modules.setdefault("custom_components.ditherloom_suite_ha_addon", component_
 
 from custom_components.ditherloom_suite_ha_addon.astrology_provider import (
     ASTROLOGY_PROVIDER_ID,
+    _body_for,
+    _headline_for,
     normalize_signs,
     render_astrology_provider,
     selected_sign_for_time,
@@ -57,3 +59,22 @@ def test_astrology_sign_selection_rotates_selected_signs_only():
     assert normalize_signs(["pisces", "capricorn", "gemini"]) == ["gemini", "capricorn", "pisces"]
     assert selected_sign_for_time(["aries", "cancer"], when, 60) in {"aries", "cancer"}
     assert selected_sign_for_time([], when, 60) == "aries"
+
+
+def test_astrology_copy_has_daily_variety():
+    context = {
+        "moon_phase": "Waxing Gibbous",
+        "moon_sign": "Pisces",
+        "visible_planet": "Mercury",
+        "visible_planet_sign": "Cancer",
+    }
+
+    readings = {
+        (
+            _headline_for("gemini", datetime(2026, 7, day).date(), context),
+            _body_for("gemini", datetime(2026, 7, day).date(), context),
+        )
+        for day in range(1, 15)
+    }
+
+    assert len(readings) >= 10
