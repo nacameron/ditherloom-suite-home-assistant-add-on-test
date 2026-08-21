@@ -36,7 +36,7 @@ ASTRONOMY_OPEN_METEO_ATTRIBUTION = "Viewing conditions by Open-Meteo"
 ASTRONOMY_OPEN_METEO_URL = "https://open-meteo.com/"
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 NOAA_KP_URL = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
-NOAA_SOLAR_WIND_URL = "https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json"
+NOAA_SOLAR_WIND_URL = "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json"
 NOAA_AURORA_URL = "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json"
 
 PROVIDER_ASTRONOMY_VISIBLE_PLANETS = "astronomy_visible_planets"
@@ -169,7 +169,7 @@ def render_astronomy_card(provider_id: str, context: dict[str, Any]) -> tuple[Im
 
     if provider_id == PROVIDER_ASTRONOMY_CONSTELLATION:
         constellation = str(context.get("constellation") or "Southern Cross")
-        bonus = _bonus_constellation(constellation)
+        bonus = str(context.get("bonus_constellation") or _bonus_constellation(constellation))
         orientation = float(context.get("constellation_orientation_degrees", 0.0) or 0.0)
         _draw_constellation(image, constellation, MAIN_CONSTELLATION_DRAW_BOX, orientation_degrees=orientation, line_width=2, star_radius=5)
         _draw_constellation(image, bonus, BONUS_CONSTELLATION_DRAW_BOX, orientation_degrees=orientation * 0.5, line_width=1, star_radius=3)
@@ -301,7 +301,8 @@ def _astronomy_context(
         )
     except Exception as err:
         context["skyfield_status"] = f"fallback: {type(err).__name__}"
-    context["constellation"] = _seasonal_constellation(day, latitude)
+    context["constellation"] = _seasonal_constellation(now, latitude)
+    context["bonus_constellation"] = _bonus_constellation(context["constellation"], now, latitude)
     context["constellation_orientation_degrees"] = _constellation_orientation_degrees(day, latitude, longitude)
     context.update(_fetch_viewing_conditions(day, latitude, longitude))
     context.update(_fetch_space_weather(latitude, longitude))
@@ -342,7 +343,8 @@ def _fallback_context(
         "overhead_body": visible[0],
         "overhead_altitude": 54.0,
         "sun_altitude": -12.0,
-        "constellation": _seasonal_constellation(day, latitude),
+        "constellation": _seasonal_constellation(when, latitude),
+        "bonus_constellation": _bonus_constellation(_seasonal_constellation(when, latitude), when, latitude),
         "constellation_orientation_degrees": _constellation_orientation_degrees(day, latitude, longitude),
         "cloud_cover": "--",
         "visibility_km": "--",
@@ -420,7 +422,7 @@ def _fetch_space_weather(latitude: float, longitude: float) -> dict[str, Any]:
     try:
         with urllib.request.urlopen(NOAA_KP_URL, timeout=10) as response:
             kp_rows = json.loads(response.read().decode("utf-8"))
-        kp = _latest_noaa_value(kp_rows, 1)
+        kp = _latest_noaa_value(kp_rows, "Kp")
         result["kp_index"] = "--" if kp is None else round(kp, 1)
         result["solar_activity"] = _solar_activity_label(kp)
         result["aurora_visibility"] = _aurora_visibility_label(kp, latitude)
@@ -430,7 +432,7 @@ def _fetch_space_weather(latitude: float, longitude: float) -> dict[str, Any]:
     try:
         with urllib.request.urlopen(NOAA_SOLAR_WIND_URL, timeout=10) as response:
             wind_rows = json.loads(response.read().decode("utf-8"))
-        speed = _latest_noaa_value(wind_rows, 1)
+        speed = _latest_noaa_value(wind_rows, "proton_speed")
         if speed is not None:
             result["solar_wind_speed"] = int(round(speed))
     except Exception:
@@ -442,14 +444,24 @@ def _fetch_space_weather(latitude: float, longitude: float) -> dict[str, Any]:
     return result
 
 
-def _latest_noaa_value(rows: Any, value_index: int) -> float | None:
+def _latest_noaa_value(rows: Any, value_key: int | str) -> float | None:
     if not isinstance(rows, list):
         return None
     for row in reversed(rows[1:] if rows and isinstance(rows[0], list) else rows):
-        if not isinstance(row, list) or len(row) <= value_index:
+        if isinstance(row, dict):
+            if isinstance(value_key, str):
+                value = row.get(value_key)
+            else:
+                values = list(row.values())
+                if len(values) <= value_key:
+                    continue
+                value = values[value_key]
+        elif isinstance(row, list) and isinstance(value_key, int) and len(row) > value_key:
+            value = row[value_key]
+        else:
             continue
         try:
-            return float(row[value_index])
+            return float(value)
         except (TypeError, ValueError):
             continue
     return None
@@ -528,7 +540,8 @@ def _copy_for_provider(provider_id: str, context: dict[str, Any]) -> tuple[str, 
         )
     if provider_id == PROVIDER_ASTRONOMY_CONSTELLATION:
         constellation = str(context.get("constellation") or "Tonight")
-        return "Look For", (constellation, f"Bonus: {_bonus_constellation(constellation)}", location)
+        bonus = str(context.get("bonus_constellation") or _bonus_constellation(constellation))
+        return "Look For", (constellation, f"Bonus: {bonus}", location)
     if provider_id == PROVIDER_ASTRONOMY_TONIGHT_SKY:
         visible = list(context.get("visible_planets") or [])
         planet_line = "Planets: " + (", ".join(visible[:2]) if visible else "quiet sky")
@@ -783,9 +796,18 @@ def _draw_luxe_star(
         mask_draw.point((x, y), fill=255)
 
 
-def _bonus_constellation(primary: str) -> str:
+def _bonus_constellation(primary: str, when: date | datetime | None = None, latitude: float = 0.0) -> str:
     normalized = primary.lower()
-    for candidate in ("Orion", "Scorpius", "Cygnus", "Southern Cross"):
+    southern = latitude < 0
+    candidates = ("Southern Cross", "Scorpius", "Orion", "Cygnus") if southern else ("Orion", "Cygnus", "Scorpius", "Southern Cross")
+    if when is None:
+        seed = 0
+    else:
+        day = when.date() if isinstance(when, datetime) else when
+        hour_block = (when.hour // 4) if isinstance(when, datetime) else 0
+        seed = day.toordinal() + hour_block + (1 if southern else 0)
+    ordered = candidates[seed % len(candidates) :] + candidates[: seed % len(candidates)]
+    for candidate in ordered:
         if candidate.lower() not in normalized:
             return candidate
     return "Orion"
@@ -802,20 +824,16 @@ def _constellation_points(name: str) -> tuple[tuple[float, float], ...]:
     return ((0.12, 0.74), (0.30, 0.35), (0.48, 0.26), (0.70, 0.45), (0.86, 0.22))
 
 
-def _seasonal_constellation(day: date, latitude: float) -> str:
-    month = day.month
+def _seasonal_constellation(when: date | datetime, latitude: float) -> str:
+    day = when.date() if isinstance(when, datetime) else when
+    hour_block = (when.hour // 4) if isinstance(when, datetime) else 0
     southern = latitude < 0
     if southern:
-        if month in {3, 4, 5, 6, 7, 8}:
-            return "Southern Cross"
-        if month in {6, 7, 8, 9}:
-            return "Scorpius"
-        return "Orion"
-    if month in {11, 12, 1, 2, 3}:
-        return "Orion"
-    if month in {6, 7, 8}:
-        return "Scorpius"
-    return "Cygnus"
+        candidates = ("Southern Cross", "Scorpius", "Orion", "Cygnus")
+    else:
+        candidates = ("Orion", "Cygnus", "Scorpius", "Southern Cross")
+    index = (day.toordinal() + hour_block + (1 if southern else 0)) % len(candidates)
+    return candidates[index]
 
 
 def _constellation_orientation_degrees(day: date, latitude: float, longitude: float) -> float:

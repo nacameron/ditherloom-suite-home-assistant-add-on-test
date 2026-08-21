@@ -1,6 +1,7 @@
 import sys
 import types
 import builtins
+import json
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +29,8 @@ from custom_components.ditherloom_suite_ha_addon.astronomy_provider import (  # 
     ASTRONOMY_PROVIDER_IDS,
     ASTRONOMY_TITLE_SIZE,
     PROVIDER_ASTRONOMY_CONSTELLATION,
+    _bonus_constellation,
+    _fetch_space_weather,
     render_astronomy_provider,
 )
 from custom_components.ditherloom_suite_ha_addon.renderer.palette import TEMPLATE_COLOURS  # noqa: E402
@@ -107,3 +110,70 @@ def _force_skyfield_unavailable(monkeypatch):
 
     monkeypatch.setattr(builtins, "__import__", guarded_import)
     monkeypatch.setattr(urllib.request, "urlopen", lambda *args, **kwargs: (_ for _ in ()).throw(TimeoutError("offline test")))
+
+
+from custom_components.ditherloom_suite_ha_addon.astronomy_provider import _seasonal_constellation
+
+
+def test_constellation_varies_across_render_cycles_for_southern_users():
+    first = _seasonal_constellation(datetime(2026, 8, 21, 0, tzinfo=timezone.utc), -33.9)
+    second = _seasonal_constellation(datetime(2026, 8, 21, 8, tzinfo=timezone.utc), -33.9)
+
+    assert first != second
+
+
+def test_bonus_constellation_varies_across_render_cycles_for_southern_users():
+    pairs = {
+        (
+            _seasonal_constellation(when, -33.9),
+            _bonus_constellation(_seasonal_constellation(when, -33.9), when, -33.9),
+        )
+        for when in (
+            datetime(2026, 8, 21, 0, tzinfo=timezone.utc),
+            datetime(2026, 8, 21, 4, tzinfo=timezone.utc),
+            datetime(2026, 8, 21, 8, tzinfo=timezone.utc),
+            datetime(2026, 8, 21, 12, tzinfo=timezone.utc),
+        )
+    }
+
+    assert len(pairs) >= 3
+    assert all(primary != bonus for primary, bonus in pairs)
+
+
+def test_noaa_dict_payload_populates_solar_activity(monkeypatch):
+    class Response:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps(self.payload).encode("utf-8")
+
+    def fake_urlopen(url, timeout=10):
+        url = str(url)
+        if "noaa-planetary-k-index" in url:
+            return Response(
+                [
+                    {"time_tag": "2026-08-21T00:00:00", "Kp": 2.0},
+                    {"time_tag": "2026-08-21T03:00:00", "Kp": 4.33},
+                ]
+            )
+        if "solar-wind-speed" in url:
+            return Response([{"proton_speed": 491, "time_tag": "2026-08-21T07:35:00Z"}])
+        if "ovation_aurora" in url:
+            return Response({"coordinates": []})
+        raise AssertionError(f"unexpected NOAA URL {url}")
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    result = _fetch_space_weather(-33.9, 151.2)
+
+    assert result["kp_index"] == 4.3
+    assert result["solar_activity"] == "Active solar wind"
+    assert result["solar_wind_speed"] == 491
+    assert result["space_weather_status"] == "NOAA/SWPC Kp"
