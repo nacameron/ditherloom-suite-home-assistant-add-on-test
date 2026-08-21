@@ -101,6 +101,22 @@ def test_frame_awake_reports_no_jobs_before_waiting_for_gateway_delivery():
     assert "async_publish_job" not in awake_source
     assert "payload_url" not in awake_source
 
+def test_frame_awake_routine_delivery_does_not_request_display():
+    source = _source()
+    awake_start = source.index("async def async_handle_frame_awake")
+    awake_end = source.index("async def async_deliver_cached_content_to_announced_frame", awake_start)
+    awake_source = source[awake_start:awake_end]
+    delay_start = source.index("async def async_deliver_cached_content_after_frame_callback")
+    delay_end = source.index("async def async_deliver_cached_content_to_announced_frame", delay_start)
+    delay_source = source[delay_start:delay_end]
+    manual_start = source.index("def _send_existing_gateway_job")
+    manual_end = source.index("def _send_gateway_batch_jobs", manual_start)
+    manual_source = source[manual_start:manual_end]
+
+    assert '"display": False' in awake_source
+    assert "display_after_upload=False" in delay_source
+    assert '_send_gateway_batch_jobs(host, port, [{"slot": slot, "packed": packed, "crc32": crc32}], slot, None)' in manual_source
+
 
 def test_no_raw_payload_pull_endpoint_or_job_descriptor_remains():
     source = _source()
@@ -127,7 +143,7 @@ def test_frame_awake_delivery_waits_for_callback_response_before_gateway_session
     delay_source = source[delay_start:delay_end]
 
     assert "await asyncio.sleep(1.5)" in delay_source
-    assert "await self.async_deliver_cached_content_to_announced_frame(host, port, target_slot, jobs)" in delay_source
+    assert "await self.async_deliver_cached_content_to_announced_frame(host, port, target_slot, jobs, display_after_upload=False)" in delay_source
     assert "single Gateway listener before HA opens the delivery" in delay_source
 
 
@@ -140,6 +156,7 @@ def test_frame_awake_delivery_uses_precomputed_jobs_when_supplied():
     assert "jobs: list[dict[str, Any]] | None = None" in delivery_source
     assert "if jobs is None:" in delivery_source
     assert "jobs = await self._frame_sync_jobs()" in delivery_source
+    assert "display_slot = self._selected_display_slot() if display_after_upload else None" in delivery_source
     assert "_send_gateway_batch_jobs, host, port, jobs, display_slot, ha_rotation" in delivery_source
 
 
