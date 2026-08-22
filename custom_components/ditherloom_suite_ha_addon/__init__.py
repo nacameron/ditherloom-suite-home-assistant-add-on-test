@@ -762,7 +762,14 @@ class DitherloomRuntime:
         # return to its single Gateway listener before HA opens the delivery
         # client. Without this handoff gap, the first Gateway PING can time out.
         await asyncio.sleep(1.5)
-        await self.async_deliver_cached_content_to_announced_frame(host, port, target_slot, jobs, display_after_upload=False)
+        await self.async_deliver_cached_content_to_announced_frame(
+            host,
+            port,
+            target_slot,
+            jobs,
+            display_after_upload=False,
+            apply_ha_rotation=False,
+        )
 
     async def async_deliver_cached_content_to_announced_frame(
         self,
@@ -771,12 +778,13 @@ class DitherloomRuntime:
         target_slot: int,
         jobs: list[dict[str, Any]] | None = None,
         display_after_upload: bool = True,
+        apply_ha_rotation: bool = True,
     ) -> None:
         try:
             if jobs is None:
                 jobs = await self._frame_sync_jobs()
             display_slot = self._selected_display_slot() if display_after_upload else None
-            ha_rotation = self._ha_rotation_config()
+            ha_rotation = self._ha_rotation_config() if apply_ha_rotation else None
             gateway_status = await self.hass.async_add_executor_job(_send_gateway_batch_jobs, host, port, jobs, display_slot, ha_rotation)
             synced_at = datetime.now(timezone.utc).isoformat()
             completion = gateway_status.get("ha_completion") or {}

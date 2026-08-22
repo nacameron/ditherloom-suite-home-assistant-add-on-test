@@ -115,6 +115,7 @@ def test_frame_awake_routine_delivery_does_not_request_display():
 
     assert '"display": False' in awake_source
     assert "display_after_upload=False" in delay_source
+    assert "apply_ha_rotation=False" in delay_source
     assert '_send_gateway_batch_jobs(host, port, [{"slot": slot, "packed": packed, "crc32": crc32}], slot, None)' in manual_source
 
 
@@ -143,7 +144,8 @@ def test_frame_awake_delivery_waits_for_callback_response_before_gateway_session
     delay_source = source[delay_start:delay_end]
 
     assert "await asyncio.sleep(1.5)" in delay_source
-    assert "await self.async_deliver_cached_content_to_announced_frame(host, port, target_slot, jobs, display_after_upload=False)" in delay_source
+    assert "display_after_upload=False" in delay_source
+    assert "apply_ha_rotation=False" in delay_source
     assert "single Gateway listener before HA opens the delivery" in delay_source
 
 
@@ -157,6 +159,7 @@ def test_frame_awake_delivery_uses_precomputed_jobs_when_supplied():
     assert "if jobs is None:" in delivery_source
     assert "jobs = await self._frame_sync_jobs()" in delivery_source
     assert "display_slot = self._selected_display_slot() if display_after_upload else None" in delivery_source
+    assert "ha_rotation = self._ha_rotation_config() if apply_ha_rotation else None" in delivery_source
     assert "_send_gateway_batch_jobs, host, port, jobs, display_slot, ha_rotation" in delivery_source
 
 
